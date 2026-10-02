@@ -19,9 +19,13 @@ return [
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => [env('FRONTEND_URL', 'http://localhost:5173')],
+    'allowed_origins' => array_filter(
+        explode(',', (string) env('CORS_ALLOWED_ORIGINS', 'http://localhost:3000,http://localhost:8000')),
+    ),
 
-    'allowed_origins_patterns' => [],
+    'allowed_origins_patterns' => array_filter(
+        explode(',', (string) env('CORS_ALLOWED_ORIGINS_PATTERNS', '')),
+    ),
 
     'allowed_headers' => ['*'],
 
