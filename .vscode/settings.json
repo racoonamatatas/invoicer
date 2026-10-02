@@ -7,5 +7,10 @@
         "frontend"
     ],
     "files.insertFinalNewline": true,
-    "js/ts.preferences.importModuleSpecifier": "non-relative"
+    "js/ts.preferences.importModuleSpecifier": "non-relative",
+    "[php]": {
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "open-southeners.laravel-pint"
+    },
+    "laravel-pint.executablePath": "backend/vendor/bin/pint"
 }
