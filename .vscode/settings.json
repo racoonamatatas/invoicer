@@ -5,5 +5,7 @@
     },
     "eslint.workingDirectories": [
         "frontend"
-    ]
+    ],
+    "files.insertFinalNewline": true,
+    "js/ts.preferences.importModuleSpecifier": "non-relative"
 }
