@@ -51,4 +51,20 @@ describe('Logging in', function (): void {
         $response->assertJsonValidationErrors(['email' => 'These credentials do not match our records.']);
         $this->assertGuest('web');
     });
+
+    it('should throttle login after 5 attempts per minute', function (): void {
+        // Arrange
+        $user = User::factory()->create();
+        $credentials = ['email' => $user->email, 'password' => 'incorrect'];
+
+        for ($attempt = 0; $attempt < 5; $attempt++) {
+            $this->postJson('/api/auth/login', $credentials)->assertUnprocessable();
+        }
+
+        // Act
+        $response = $this->postJson('/api/auth/login', $credentials);
+
+        // Assert
+        $response->assertTooManyRequests();
+    });
 });
