@@ -7,6 +7,7 @@ namespace App\Http\Controllers;
 use App\Actions\Auth\LoginUserAction;
 use App\Http\Requests\LoginRequest;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Validation\ValidationException;
 
 final class AuthController extends Controller
 {
@@ -14,6 +15,13 @@ final class AuthController extends Controller
         LoginRequest $request,
         LoginUserAction $action,
     ): JsonResponse {
-        return new JsonResponse($action->execute($request->toDto()));
+
+        $user = $action->execute($request->toDto());
+
+        if ($user === null) {
+            throw ValidationException::withMessages(['email' => __('auth.failed')]);
+        }
+
+        return new JsonResponse($user);
     }
 }

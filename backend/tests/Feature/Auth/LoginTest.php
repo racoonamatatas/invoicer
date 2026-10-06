@@ -19,4 +19,20 @@ describe('Logging in', function (): void {
         $response->assertOk();
         $this->assertAuthenticatedAs($user, 'web');
     });
+
+    it('should not log in a user with an incorrect password', function (): void {
+        // Arrange
+        $user = User::factory()->create();
+
+        // Act
+        $response = $this->postJson('/api/auth/login', [
+            'email' => $user->email,
+            'password' => 'incorrect',
+        ]);
+
+        // Assert
+        $response->assertUnprocessable();
+        $response->assertJsonValidationErrors(['email' => 'These credentials do not match our records.']);
+        $this->assertGuest('web');
+    });
 });
