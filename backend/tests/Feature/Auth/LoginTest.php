@@ -35,4 +35,20 @@ describe('Logging in', function (): void {
         $response->assertJsonValidationErrors(['email' => 'These credentials do not match our records.']);
         $this->assertGuest('web');
     });
+
+    it('should not log in with an email that does not exist', function (): void {
+        // Arrange
+        // empty
+
+        // Act
+        $response = $this->postJson('/api/auth/login', [
+            'email' => 'nobody@example.com',
+            'password' => 'password',
+        ]);
+
+        // Assert
+        $response->assertUnprocessable();
+        $response->assertJsonValidationErrors(['email' => 'These credentials do not match our records.']);
+        $this->assertGuest('web');
+    });
 });
