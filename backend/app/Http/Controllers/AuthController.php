@@ -8,6 +8,8 @@ use App\Actions\Auth\LoginUserAction;
 use App\Actions\Auth\LogoutUserAction;
 use App\Http\Requests\LoginRequest;
 use App\Http\Responses\NoContentResponse;
+use App\Models\User;
+use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\ValidationException;
 
@@ -24,6 +26,11 @@ final class AuthController extends Controller
             throw ValidationException::withMessages(['email' => __('auth.failed')]);
         }
 
+        return new JsonResponse($user);
+    }
+
+    public function me(#[CurrentUser] User $user): JsonResponse
+    {
         return new JsonResponse($user);
     }
 
