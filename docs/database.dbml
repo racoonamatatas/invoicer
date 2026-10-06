@@ -1,0 +1,125 @@
+Table users
+{
+  id integer [pk, increment]
+  name varchar [not null]
+  email varchar [not null, unique]
+  email_verified_at timestamp
+  password varchar [not null]
+  remember_token varchar
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table businesses
+{
+  id integer [pk, increment]
+  user_id integer [not null]
+  legal_name varchar [not null]
+  kvk_number char(8) [not null, note: '8 digits']
+  vat_number varchar(14) [not null, note: 'BTW-id, e.g. NL123456789B01']
+  address_line_1 varchar [not null]
+  address_line_2 varchar
+  postal_code varchar(10) [not null]
+  city varchar [not null]
+  country_code char(2) [not null, note: 'ISO 3166-1 alpha-2, validated = NL']
+  invoice_number_pattern varchar [not null, note: 'e.g. {YYYY}-{n}']
+  invoice_number_reset integer [not null, note: 'never / yearly / monthly']
+  payment_term_days integer [not null, note: 'default, e.g. 30']
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table bank_accounts
+{
+  id integer [pk, increment]
+  business_id integer [not null]
+  iban varchar(34) [not null]
+  label varchar [note: 'Own name for it, e.g. "Main"']
+  created_at timestamp
+  updated_at timestamp
+
+  indexes {
+    (business_id, iban) [unique]
+  }
+}
+
+Table clients
+{
+  id integer [pk, increment]
+  business_id integer [not null]
+  name varchar [not null]
+  email varchar
+  address_line_1 varchar [not null]
+  address_line_2 varchar
+  postal_code varchar(10) [not null]
+  city varchar [not null]
+  country_code char(2) [not null, note: 'ISO 3166-1 alpha-2, validated = NL']
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table invoices
+{
+  id integer [pk, increment]
+  business_id integer [not null]
+  client_id integer [not null]
+  bank_account_id integer [not null]
+  status integer [not null, note: 'draft / sent / paid']
+  number varchar [note: 'null while draft']
+  payment_term_days integer [note: 'override; null = use business default']
+  created_at timestamp
+  updated_at timestamp
+
+  indexes {
+    (business_id, number) [unique]
+  }
+}
+
+Table invoice_lines
+{
+  id integer [pk, increment]
+  invoice_id integer [not null]
+  description varchar [not null]
+  quantity decimal(10,2) [not null, note: 'e.g. 7.50 hours']
+  unit_price_cents integer [not null, note: 'excl. BTW']
+  vat_option integer [not null, note: 'high / low / zero / vrijgesteld']
+  vat_rate_percent integer [note: 'copied on send; null while draft and for vrijgesteld']
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table invoice_snapshots
+{
+  id integer [pk, increment]
+  invoice_id integer [not null, unique]
+  issued_on date [not null, note: 'invoice date, set on send']
+  due_on date [not null, note: 'issued_on + effective term, set on send']
+  business_legal_name varchar [not null]
+  business_kvk_number char(8) [not null]
+  business_vat_number varchar(14) [not null]
+  business_address_line_1 varchar [not null]
+  business_address_line_2 varchar
+  business_postal_code varchar(10) [not null]
+  business_city varchar [not null]
+  business_country_code char(2) [not null]
+  iban varchar(34) [not null]
+  client_name varchar [not null]
+  client_address_line_1 varchar [not null]
+  client_address_line_2 varchar
+  client_postal_code varchar(10) [not null]
+  client_city varchar [not null]
+  client_country_code char(2) [not null]
+  subtotal_cents integer [not null, note: 'excl. BTW']
+  vat_cents integer [not null]
+  total_cents integer [not null, note: 'incl. BTW']
+  created_at timestamp
+}
+
+Ref: businesses.user_id > users.id [delete: restrict]
+Ref: bank_accounts.business_id > businesses.id [delete: restrict]
+Ref: clients.business_id > businesses.id [delete: restrict]
+Ref: invoices.business_id > businesses.id [delete: restrict]
+Ref: invoices.client_id > clients.id [delete: restrict]
+Ref: invoices.bank_account_id > bank_accounts.id [delete: restrict]
+Ref: invoice_lines.invoice_id > invoices.id [delete: cascade]
+Ref: invoice_snapshots.invoice_id - invoices.id [delete: restrict]
