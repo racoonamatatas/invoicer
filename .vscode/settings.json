@@ -12,5 +12,6 @@
         "editor.formatOnSave": true,
         "editor.defaultFormatter": "open-southeners.laravel-pint"
     },
+    "laravel-pint.configPath": "backend/pint.json",
     "laravel-pint.executablePath": "backend/vendor/bin/pint"
 }
