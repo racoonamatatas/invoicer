@@ -1,0 +1,68 @@
+# Backend exclusions
+/backend/*.log
+/backend/.env
+/backend/.env.backup
+/backend/.env.production
+/backend/.phpactor.json
+/backend/.phpunit.result.cache
+/backend/.codex
+/backend/.cursor/
+/backend/.idea
+/backend/.nova
+/backend/.phpunit.cache
+/backend/.vscode
+/backend/.zed
+/backend/auth.json
+/backend/node_modules
+/backend/public/build
+/backend/public/fonts-manifest.dev.json
+/backend/public/hot
+/backend/public/storage
+/backend/storage/*.key
+/backend/storage/pail
+/backend/vendor
+/backend/_ide_helper.php
+/backend/Homestead.json
+/backend/Homestead.yaml
+
+# Frontend exclusions
+/frontend/.env
+
+# Logs
+/frontend/logs
+/frontend/*.log
+/frontend/npm-debug.log*
+/frontend/yarn-debug.log*
+/frontend/yarn-error.log*
+/frontend/pnpm-debug.log*
+/frontend/lerna-debug.log*
+
+/frontend/node_modules
+/frontend/dist
+/frontend/dist-ssr
+/frontend/coverage
+/frontend/*.local
+
+# Editor directories and files
+/frontend/.vscode/*
+!/frontend/.vscode/extensions.json
+/frontend/.idea
+/frontend/*.suo
+/frontend/*.ntvs*
+/frontend/*.njsproj
+/frontend/*.sln
+/frontend/*.sw?
+
+/frontend/*.tsbuildinfo
+
+/frontend/.eslintcache
+
+# Vitest
+/frontend/**/__screenshots__/
+
+# Vite
+/frontend/*.timestamp-*-*.mjs
+
+# Repo-wide
+.DS_Store
+Thumbs.db
