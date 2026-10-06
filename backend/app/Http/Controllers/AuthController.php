@@ -5,7 +5,9 @@ declare(strict_types = 1);
 namespace App\Http\Controllers;
 
 use App\Actions\Auth\LoginUserAction;
+use App\Actions\Auth\LogoutUserAction;
 use App\Http\Requests\LoginRequest;
+use App\Http\Responses\NoContentResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\ValidationException;
 
@@ -23,5 +25,12 @@ final class AuthController extends Controller
         }
 
         return new JsonResponse($user);
+    }
+
+    public function destroy(LogoutUserAction $action): NoContentResponse
+    {
+        $action->execute();
+
+        return new NoContentResponse;
     }
 }
