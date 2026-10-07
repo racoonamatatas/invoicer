@@ -22,7 +22,8 @@ final readonly class LoginUserAction
         if (! $this->guard->attempt([
             'email' => $data->email,
             'password' => $data->password,
-        ])) {
+        ]))
+        {
             return null;
         }
 

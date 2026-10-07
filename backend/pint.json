@@ -2,6 +2,15 @@
     "preset": "laravel",
     "rules": {
         "declare_strict_types": true,
-        "declare_equal_normalize": {"space": "single"}
+        "declare_equal_normalize": {
+            "space": "single"
+        },
+        "braces_position": {
+            "control_structures_opening_brace": "next_line_unless_newline_at_signature_end",
+            "anonymous_classes_opening_brace": "next_line_unless_newline_at_signature_end"
+        },
+        "control_structure_continuation_position": {
+            "position": "next_line"
+        }
     }
 }

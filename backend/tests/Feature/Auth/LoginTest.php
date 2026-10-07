@@ -57,7 +57,8 @@ describe('Logging in', function (): void {
         $user = User::factory()->create();
         $credentials = ['email' => $user->email, 'password' => 'incorrect'];
 
-        for ($attempt = 0; $attempt < 5; $attempt++) {
+        for ($attempt = 0; $attempt < 5; $attempt++)
+        {
             $this->postJson('/api/auth/login', $credentials)->assertUnprocessable();
         }
 
