@@ -56,4 +56,28 @@ describe('Registering', function (): void {
         $this->assertDatabaseCount('users', 1);
         expect($existing->fresh()->password)->toBe($existing->password);
     });
+
+    it('should return 422 (unprocessable) and create no user when a field is invalid', function (array $overrides, string $field): void {
+        // Arrange
+        $valid = [
+            'name' => 'Jan Jansen',
+            'email' => 'jan@example.com',
+            'password' => 'correct-horse-battery2',
+            'password_confirmation' => 'correct-horse-battery2',
+        ];
+
+        // Act
+        $response = $this->postJson('/api/auth/register', [...$valid, ...$overrides]);
+
+        // Assert
+        $response->assertUnprocessable();
+        $response->assertJsonValidationErrors([$field]);
+        $this->assertDatabaseCount('users', 0);
+    })->with([
+        'missing name' => [['name' => ''], 'name'],
+        'invalid email' => [['email' => 'not-an-email'], 'email'],
+        'password too short' => [['password' => 'short', 'password_confirmation' => 'short'], 'password'],
+        'password too long' => [['password' => str_repeat('a', 73), 'password_confirmation' => str_repeat('a', 73)], 'password'],
+        'confirmation mismatch' => [['password_confirmation' => 'something-else'], 'password'],
+    ]);
 });
