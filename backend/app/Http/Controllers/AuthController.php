@@ -6,7 +6,9 @@ namespace App\Http\Controllers;
 
 use App\Actions\Auth\LoginUserAction;
 use App\Actions\Auth\LogoutUserAction;
+use App\Actions\Auth\RegisterUserAction;
 use App\Http\Requests\LoginRequest;
+use App\Http\Requests\RegisterRequest;
 use App\Http\Responses\NoContentResponse;
 use App\Models\User;
 use Illuminate\Container\Attributes\CurrentUser;
@@ -37,6 +39,13 @@ final class AuthController extends Controller
     public function destroy(LogoutUserAction $action): NoContentResponse
     {
         $action->execute();
+
+        return new NoContentResponse;
+    }
+
+    public function register(RegisterRequest $request, RegisterUserAction $action): NoContentResponse
+    {
+        $action->execute($request->toDto());
 
         return new NoContentResponse;
     }
