@@ -80,4 +80,25 @@ describe('Registering', function (): void {
         'password too long' => [['password' => str_repeat('a', 73), 'password_confirmation' => str_repeat('a', 73)], 'password'],
         'confirmation mismatch' => [['password_confirmation' => 'something-else'], 'password'],
     ]);
+
+    it('should throttle registration after 5 attempts per minute', function (): void {
+        // Arrange
+        $payload = [
+            'name' => 'Jan Jansen',
+            'email' => 'jan@example.com',
+            'password' => 'correct-horse-battery2',
+            'password_confirmation' => 'correct-horse-battery2',
+        ];
+
+        for ($attempt = 0; $attempt < 5; $attempt++)
+        {
+            $this->postJson('/api/auth/register', $payload)->assertNoContent();
+        }
+
+        // Act
+        $response = $this->postJson('/api/auth/register', $payload);
+
+        // Assert
+        $response->assertTooManyRequests();
+    });
 });
