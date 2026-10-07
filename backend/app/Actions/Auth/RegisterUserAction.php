@@ -7,6 +7,7 @@ namespace App\Actions\Auth;
 use App\DataTransferObjects\Input\Auth\RegisterUserData;
 use App\Models\User;
 use Illuminate\Contracts\Hashing\Hasher;
+use Illuminate\Database\UniqueConstraintViolationException;
 
 final readonly class RegisterUserAction
 {
@@ -21,6 +22,14 @@ final readonly class RegisterUserAction
         $user->name = $data->name;
         $user->email = $data->email;
         $user->password = $this->hasher->make($data->password);
-        $user->save();
+
+        try
+        {
+            $user->save();
+        }
+        catch (UniqueConstraintViolationException)
+        {
+            // Email already registered; swallow so the caller can't tell.
+        }
     }
 }
