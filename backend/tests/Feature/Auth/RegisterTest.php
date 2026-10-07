@@ -2,8 +2,11 @@
 
 declare(strict_types = 1);
 
+use App\Mail\VerifyEmail;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 
 describe('Registering', function (): void {
 
@@ -100,5 +103,73 @@ describe('Registering', function (): void {
 
         // Assert
         $response->assertTooManyRequests();
+    });
+
+    it('should queue a verification mail with the token link to the new user', function (): void {
+        // Arrange
+        Mail::fake();
+        $email = 'jan@example.com';
+        $password = 'correct-horse-battery2';
+        $token = 'fixed-verification-token';
+        Str::createRandomStringsUsing(fn (): string => $token);
+        $verifyUrl = config('app.url').'/verify-email?token='.$token;
+
+        // Act
+        $this->postJson('/api/auth/register', [
+            'name' => 'Jan Jansen',
+            'email' => $email,
+            'password' => $password,
+            'password_confirmation' => $password,
+        ]);
+
+        // Assert
+        Mail::assertQueued(VerifyEmail::class, function (VerifyEmail $mail) use ($email, $verifyUrl): bool {
+            $mail->assertSeeInHtml($verifyUrl);
+
+            return $mail->hasTo($email);
+        });
+    });
+
+    it('should store the sha256 hash of the token with an expiry 24 hours from now', function (): void {
+        // Arrange
+        $now = $this->freezeTime();
+        $email = 'jan@example.com';
+        $password = 'correct-horse-battery2';
+        $token = 'fixed-verification-token';
+        Str::createRandomStringsUsing(fn (): string => $token);
+
+        // Act
+        $this->postJson('/api/auth/register', [
+            'name' => 'Jan Jansen',
+            'email' => $email,
+            'password' => $password,
+            'password_confirmation' => $password,
+        ]);
+
+        // Assert
+        $this->assertDatabaseHas('users', [
+            'email' => $email,
+            'verification_token' => hash('sha256', $token),
+            'verification_token_expires_at' => $now->addHours(24),
+        ]);
+    });
+
+    it('should queue no mail when the email is taken', function (): void {
+        // Arrange
+        Mail::fake();
+        $email = 'jan@example.com';
+        $password = 'correct-horse-battery2';
+        User::factory()->create(['email' => $email]);
+
+        // Act
+        $this->postJson('/api/auth/register', [
+            'name' => 'Jan Jansen',
+            'email' => $email,
+            'password' => $password,
+            'password_confirmation' => $password,
+        ]);
+
+        // Assert
+        Mail::assertNothingOutgoing();
     });
 });
