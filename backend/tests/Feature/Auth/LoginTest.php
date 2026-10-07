@@ -52,6 +52,22 @@ describe('Logging in', function (): void {
         $this->assertGuest('web');
     });
 
+    it('should return 422 (unprocessable) with the verify-email message and not log in when the email is unverified', function (): void {
+        // Arrange
+        $user = User::factory()->unverified()->create();
+
+        // Act
+        $response = $this->postJson('/api/auth/login', [
+            'email' => $user->email,
+            'password' => 'password',
+        ]);
+
+        // Assert
+        $response->assertUnprocessable();
+        $response->assertJsonValidationErrors(['email' => 'Verify your email before logging in.']);
+        $this->assertGuest('web');
+    });
+
     it('should throttle login after 5 attempts per minute', function (): void {
         // Arrange
         $user = User::factory()->create();

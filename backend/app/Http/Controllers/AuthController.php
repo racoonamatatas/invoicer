@@ -26,11 +26,6 @@ final class AuthController extends Controller
 
         $user = $action->execute($request->toDto());
 
-        if ($user === null)
-        {
-            throw ValidationException::withMessages(['email' => __('auth.failed')]);
-        }
-
         return new JsonResponse($user);
     }
 
