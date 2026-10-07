@@ -121,10 +121,10 @@ return [
     | Email Verification Token Lifetime
     |--------------------------------------------------------------------------
     |
-    | Number of days an email verification token remains valid after it is
+    | Number of hours an email verification token remains valid after it is
     | issued. Once expired, the user needs a new verification email.
     |
      */
 
-    'verification_ttl_days' => 14,
+    'verification_ttl_hours' => 24,
 ];
