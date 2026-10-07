@@ -116,4 +116,15 @@ return [
 
     'password_timeout' => env('AUTH_PASSWORD_TIMEOUT', 10800),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Email Verification Token Lifetime
+    |--------------------------------------------------------------------------
+    |
+    | Number of days an email verification token remains valid after it is
+    | issued. Once expired, the user needs a new verification email.
+    |
+     */
+
+    'verification_ttl_days' => 14,
 ];
