@@ -4,9 +4,11 @@ declare(strict_types = 1);
 
 use App\Mail\VerifyEmail;
 use App\Models\User;
+use Illuminate\Contracts\Mail\Mailer;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
+use Mockery\MockInterface;
 
 describe('Registering', function (): void {
 
@@ -171,5 +173,25 @@ describe('Registering', function (): void {
 
         // Assert
         Mail::assertNothingOutgoing();
+    });
+
+    it('should return 500 and create no user when queueing the verification mail throws', function (): void {
+        // Arrange
+        $password = 'correct-horse-battery2';
+        $this->mock(Mailer::class, function (MockInterface $mailer): void {
+            $mailer->shouldReceive('to')->andThrow(new RuntimeException('Mail queue unavailable'));
+        });
+
+        // Act
+        $response = $this->postJson('/api/auth/register', [
+            'name' => 'Jan Jansen',
+            'email' => 'jan@example.com',
+            'password' => $password,
+            'password_confirmation' => $password,
+        ]);
+
+        // Assert
+        $response->assertInternalServerError();
+        $this->assertDatabaseCount('users', 0);
     });
 });
