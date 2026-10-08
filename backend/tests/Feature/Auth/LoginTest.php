@@ -102,6 +102,7 @@ describe('Logging in', function (): void {
         // Arrange
         $credentials = ['email' => 'jan@example.com', 'password' => 'incorrect'];
 
+        // Start at 1: the counter is the IP's last octet, and .0 is a network address, not a host.
         for ($attempt = 1; $attempt <= 10; $attempt++)
         {
             $this->withServerVariables(['REMOTE_ADDR' => '10.0.0.'.$attempt])

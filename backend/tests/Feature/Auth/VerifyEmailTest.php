@@ -6,7 +6,7 @@ use App\Models\User;
 
 describe('Verifying an email', function (): void {
 
-    it('should return no content, set email_verified_at and clear the token fields when the token is valid', function (): void {
+    it('should return 204 (no content), set email_verified_at and clear the token fields when the token is valid', function (): void {
         // Arrange
         $now = $this->freezeTime();
         $token = 'fixed-verification-token';

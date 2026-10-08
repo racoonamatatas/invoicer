@@ -40,7 +40,7 @@ describe('Registering', function (): void {
     });
 
     // Returns no content so that taken emails can't be enumerated.
-    it('should return no content and leave the existing user unchanged when the email is taken', function (): void {
+    it('should return 204 (no content) and leave the existing user unchanged when the email is taken', function (): void {
         // Arrange
         $name = 'Jan Jansen';
         $email = 'jan@example.com';
@@ -175,7 +175,7 @@ describe('Registering', function (): void {
         Mail::assertNothingOutgoing();
     });
 
-    it('should return no content, create no second user and queue no mail when the email is taken with different casing', function (): void {
+    it('should return 204 (no content), create no second user and queue no mail when the email is taken with different casing', function (): void {
         // Arrange
         Mail::fake();
         $password = 'correct-horse-battery2';

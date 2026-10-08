@@ -9,7 +9,7 @@ use Illuminate\Support\Str;
 
 describe('Resending a verification email', function (): void {
 
-    it('should return no content, replace the stored token with a fresh 24 hour expiry and queue a mail with the new link when the user is unverified', function (): void {
+    it('should return 204 (no content), replace the stored token with a fresh 24 hour expiry and queue a mail with the new link when the user is unverified', function (): void {
         // Arrange
         Mail::fake();
         $now = $this->freezeTime();
@@ -41,7 +41,7 @@ describe('Resending a verification email', function (): void {
         });
     });
 
-    it('should return no content and queue a mail to the stored address when the email differs from it only in casing', function (): void {
+    it('should return 204 (no content) and queue a mail to the stored address when the email differs from it only in casing', function (): void {
         // Arrange
         Mail::fake();
         $email = 'jan@example.com';
@@ -55,7 +55,7 @@ describe('Resending a verification email', function (): void {
         Mail::assertQueued(VerifyEmail::class, fn (VerifyEmail $mail): bool => $mail->hasTo($email));
     });
 
-    it('should return no content and queue no mail when the user is already verified', function (): void {
+    it('should return 204 (no content) and queue no mail when the user is already verified', function (): void {
         // Arrange
         Mail::fake();
         $email = 'jan@example.com';
@@ -69,10 +69,10 @@ describe('Resending a verification email', function (): void {
         Mail::assertNothingOutgoing();
     });
 
-    it('should return no content and queue no mail when the email is unknown', function (): void {
+    it('should return 204 (no content) and queue no mail when the email is unknown', function (): void {
         // Arrange
         Mail::fake();
-        // Another unverified user, so a lookup that ignores the email would mail them.
+        // Bait: with no other unverified user, code that ignores the email would have no one to mail and still pass.
         User::factory()->unverified()->create(['email' => 'piet@example.com']);
 
         // Act
@@ -87,6 +87,7 @@ describe('Resending a verification email', function (): void {
         // Arrange
         $payload = ['email' => 'jan@example.com'];
 
+        // Start at 1: the counter is the IP's last octet, and .0 is a network address, not a host.
         for ($attempt = 1; $attempt <= 3; $attempt++)
         {
             $this->withServerVariables(['REMOTE_ADDR' => '10.0.0.'.$attempt])
