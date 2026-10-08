@@ -175,6 +175,26 @@ describe('Registering', function (): void {
         Mail::assertNothingOutgoing();
     });
 
+    it('should return no content, create no second user and queue no mail when the email is taken with different casing', function (): void {
+        // Arrange
+        Mail::fake();
+        $password = 'correct-horse-battery2';
+        User::factory()->create(['email' => 'jan@example.com']);
+
+        // Act
+        $response = $this->postJson('/api/auth/register', [
+            'name' => 'Jan Jansen',
+            'email' => 'Jan@Example.com',
+            'password' => $password,
+            'password_confirmation' => $password,
+        ]);
+
+        // Assert
+        $response->assertNoContent();
+        $this->assertDatabaseCount('users', 1);
+        Mail::assertNothingOutgoing();
+    });
+
     it('should return 500 and create no user when queueing the verification mail throws', function (): void {
         // Arrange
         $password = 'correct-horse-battery2';

@@ -41,6 +41,20 @@ describe('Resending a verification email', function (): void {
         });
     });
 
+    it('should return no content and queue a mail to the stored address when the email differs from it only in casing', function (): void {
+        // Arrange
+        Mail::fake();
+        $email = 'jan@example.com';
+        User::factory()->unverified()->create(['email' => $email]);
+
+        // Act
+        $response = $this->postJson('/api/auth/resend-verification', ['email' => 'Jan@Example.com']);
+
+        // Assert
+        $response->assertNoContent();
+        Mail::assertQueued(VerifyEmail::class, fn (VerifyEmail $mail): bool => $mail->hasTo($email));
+    });
+
     it('should return no content and queue no mail when the user is already verified', function (): void {
         // Arrange
         Mail::fake();

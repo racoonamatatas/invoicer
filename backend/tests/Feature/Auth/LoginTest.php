@@ -20,6 +20,21 @@ describe('Logging in', function (): void {
         $this->assertAuthenticatedAs($user, 'web');
     });
 
+    it('should return 200 and log in when the email differs from the stored one only in casing', function (): void {
+        // Arrange
+        $user = User::factory()->create(['email' => 'jan@example.com']);
+
+        // Act
+        $response = $this->postJson('/api/auth/login', [
+            'email' => 'Jan@Example.com',
+            'password' => 'password',
+        ]);
+
+        // Assert
+        $response->assertOk();
+        $this->assertAuthenticatedAs($user, 'web');
+    });
+
     it('should not log in a user with an incorrect password', function (): void {
         // Arrange
         $user = User::factory()->create();
