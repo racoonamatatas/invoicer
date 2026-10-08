@@ -25,6 +25,11 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(RateLimiter $rateLimiter): void
     {
+        // One bucket per route: the plain throttle:N,M middleware keys guests on IP alone, so every route using it shares one bucket.
+        $rateLimiter->for('login', static fn (Request $request): Limit => Limit::perMinute(5)->by('ip:'.$request->ip()));
+        $rateLimiter->for('register', static fn (Request $request): Limit => Limit::perMinute(5)->by('ip:'.$request->ip()));
+        $rateLimiter->for('verify-email', static fn (Request $request): Limit => Limit::perMinute(5)->by('ip:'.$request->ip()));
+
         // Per-IP stops one client spraying many emails; per-email stops many IPs flooding one inbox.
         $rateLimiter->for('resend-verification', static fn (Request $request): array => [
             Limit::perMinute(5)->by('ip:'.$request->ip()),
