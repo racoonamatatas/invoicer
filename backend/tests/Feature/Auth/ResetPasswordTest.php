@@ -2,10 +2,12 @@
 
 declare(strict_types = 1);
 
+use App\Mail\PasswordChanged;
 use App\Models\User;
 use Illuminate\Auth\Passwords\PasswordBroker;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 
 describe('Resetting a password', function (): void {
 
@@ -26,6 +28,30 @@ describe('Resetting a password', function (): void {
         // Assert
         $response->assertNoContent();
         expect(Hash::check('new-password-123', $user->fresh()->password))->toBeTrue();
+    });
+
+    it('should return 204 (no content) and queue a password-changed mail to the user with a link to request a new reset', function (): void {
+        // Arrange
+        Mail::fake();
+        $email = 'jan@example.com';
+        $user = User::factory()->create(['email' => $email]);
+        $token = $this->app->make(PasswordBroker::class)->createToken($user);
+
+        // Act
+        $response = $this->postJson('/api/auth/reset-password', [
+            'token' => $token,
+            'email' => $email,
+            'password' => 'new-password-123',
+            'password_confirmation' => 'new-password-123',
+        ]);
+
+        // Assert
+        $response->assertNoContent();
+        Mail::assertQueued(PasswordChanged::class, function (PasswordChanged $mail) use ($email): bool {
+            $mail->assertSeeInHtml(config('app.url').'/forgot-password');
+
+            return $mail->hasTo($email);
+        });
     });
 
     it('should return 422 (unprocessable) with the invalid-link message and leave the password unchanged when the token is wrong', function (): void {
@@ -49,6 +75,27 @@ describe('Resetting a password', function (): void {
             'token' => 'This reset link is invalid or has expired.',
         ]);
         expect(Hash::check('old-password-123', $user->fresh()->password))->toBeTrue();
+    });
+
+    it('should return 422 (unprocessable) and queue no mail when the token is wrong', function (): void {
+        // Arrange
+        Mail::fake();
+        $email = 'jan@example.com';
+        // Bait: Jan exists and has a real token, so code that mailed whoever owns the email would find someone to mail.
+        $user = User::factory()->create(['email' => $email]);
+        $this->app->make(PasswordBroker::class)->createToken($user);
+
+        // Act
+        $response = $this->postJson('/api/auth/reset-password', [
+            'token' => 'wrong-token',
+            'email' => $email,
+            'password' => 'new-password-123',
+            'password_confirmation' => 'new-password-123',
+        ]);
+
+        // Assert
+        $response->assertUnprocessable();
+        Mail::assertNothingOutgoing();
     });
 
     it('should return 422 (unprocessable) with the same invalid-link message and leave the password unchanged when the email is unknown', function (): void {
