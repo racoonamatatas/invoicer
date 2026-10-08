@@ -40,5 +40,11 @@ class AppServiceProvider extends ServiceProvider
             Limit::perMinute(5)->by('ip:'.$request->ip()),
             Limit::perHour(3)->by('email:'.Str::lower($request->string('email')->toString())),
         ]);
+
+        // Same threats as resend: one client spraying many inboxes, many IPs flooding one inbox.
+        $rateLimiter->for('forgot-password', static fn (Request $request): array => [
+            Limit::perMinute(5)->by('ip:'.$request->ip()),
+            Limit::perHour(3)->by('email:'.Str::lower($request->string('email')->toString())),
+        ]);
     }
 }

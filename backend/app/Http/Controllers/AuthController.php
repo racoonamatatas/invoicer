@@ -8,7 +8,9 @@ use App\Actions\Auth\LoginUserAction;
 use App\Actions\Auth\LogoutUserAction;
 use App\Actions\Auth\RegisterUserAction;
 use App\Actions\Auth\ResendVerificationAction;
+use App\Actions\Auth\SendPasswordResetLinkAction;
 use App\Actions\Auth\VerifyEmailAction;
+use App\Http\Requests\ForgotPasswordRequest;
 use App\Http\Requests\LoginRequest;
 use App\Http\Requests\RegisterRequest;
 use App\Http\Requests\ResendVerificationRequest;
@@ -61,6 +63,13 @@ final class AuthController extends Controller
     }
 
     public function resendVerification(ResendVerificationRequest $request, ResendVerificationAction $action): NoContentResponse
+    {
+        $action->execute($request->email());
+
+        return new NoContentResponse;
+    }
+
+    public function forgotPassword(ForgotPasswordRequest $request, SendPasswordResetLinkAction $action): NoContentResponse
     {
         $action->execute($request->email());
 
