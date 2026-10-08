@@ -83,4 +83,20 @@ describe('Verifying an email', function (): void {
         // Assert
         $response->assertTooManyRequests();
     });
+
+    it('should return 422 (unprocessable), not 429 (too many requests), on verify-email after 5 login attempts from the same IP', function (): void {
+        // Arrange
+        $loginPayload = ['email' => 'nobody@example.com', 'password' => 'wrong'];
+
+        for ($attempt = 0; $attempt < 5; $attempt++)
+        {
+            $this->postJson('/api/auth/login', $loginPayload)->assertUnprocessable();
+        }
+
+        // Act
+        $response = $this->postJson('/api/auth/verify-email', ['token' => 'unknown-verification-token']);
+
+        // Assert
+        $response->assertUnprocessable();
+    });
 });
