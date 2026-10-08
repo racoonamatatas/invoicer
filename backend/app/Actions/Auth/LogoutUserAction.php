@@ -11,7 +11,8 @@ use Illuminate\Contracts\Session\Session;
 final readonly class LogoutUserAction
 {
     public function __construct(
-        #[Auth('web')] private StatefulGuard $guard,
+        #[Auth('web')]
+        private StatefulGuard $guard,
         private Session $session,
     ) {}
 

@@ -15,7 +15,8 @@ use Illuminate\Contracts\Session\Session;
 final readonly class LoginUserAction
 {
     public function __construct(
-        #[Auth('web')] private StatefulGuard $guard,
+        #[Auth('web')]
+        private StatefulGuard $guard,
         private Session $session,
         private User $userModel,
     ) {}
