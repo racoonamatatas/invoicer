@@ -86,7 +86,28 @@ describe('Registering', function (): void {
         'confirmation mismatch' => [['password_confirmation' => 'something-else'], 'password'],
     ]);
 
-    it('should throttle registration after 5 attempts per minute', function (): void {
+    it('should return 429 (too many requests) on the 6th request from one IP within a minute, even for different emails', function (): void {
+        // Arrange
+        $payload = [
+            'name' => 'Jan Jansen',
+            'password' => 'correct-horse-battery2',
+            'password_confirmation' => 'correct-horse-battery2',
+        ];
+
+        for ($attempt = 1; $attempt <= 5; $attempt++)
+        {
+            $this->postJson('/api/auth/register', [...$payload, 'email' => 'user'.$attempt.'@example.com'])
+                ->assertNoContent();
+        }
+
+        // Act
+        $response = $this->postJson('/api/auth/register', [...$payload, 'email' => 'user6@example.com']);
+
+        // Assert
+        $response->assertTooManyRequests();
+    });
+
+    it('should return 429 (too many requests) on the 4th request for one email within an hour, even from different IPs', function (): void {
         // Arrange
         $payload = [
             'name' => 'Jan Jansen',
@@ -95,13 +116,17 @@ describe('Registering', function (): void {
             'password_confirmation' => 'correct-horse-battery2',
         ];
 
-        for ($attempt = 0; $attempt < 5; $attempt++)
+        // Start at 1: the counter is the IP's last octet, and .0 is a network address, not a host.
+        for ($attempt = 1; $attempt <= 3; $attempt++)
         {
-            $this->postJson('/api/auth/register', $payload)->assertNoContent();
+            $this->withServerVariables(['REMOTE_ADDR' => '10.0.0.'.$attempt])
+                ->postJson('/api/auth/register', $payload)
+                ->assertNoContent();
         }
 
         // Act
-        $response = $this->postJson('/api/auth/register', $payload);
+        $response = $this->withServerVariables(['REMOTE_ADDR' => '10.0.0.4'])
+            ->postJson('/api/auth/register', $payload);
 
         // Assert
         $response->assertTooManyRequests();
