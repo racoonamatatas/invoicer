@@ -46,5 +46,8 @@ class AppServiceProvider extends ServiceProvider
             Limit::perMinute(5)->by('ip:'.$request->ip()),
             Limit::perHour(3)->by('email:'.Str::lower($request->string('email')->toString())),
         ]);
+
+        // IP only: reset tokens are unguessable, so this caps bcrypt work per client rather than guessing.
+        $rateLimiter->for('reset-password', static fn (Request $request): Limit => Limit::perMinute(5)->by('ip:'.$request->ip()));
     }
 }

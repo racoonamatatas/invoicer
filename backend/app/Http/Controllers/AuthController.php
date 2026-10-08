@@ -8,12 +8,14 @@ use App\Actions\Auth\LoginUserAction;
 use App\Actions\Auth\LogoutUserAction;
 use App\Actions\Auth\RegisterUserAction;
 use App\Actions\Auth\ResendVerificationAction;
+use App\Actions\Auth\ResetPasswordAction;
 use App\Actions\Auth\SendPasswordResetLinkAction;
 use App\Actions\Auth\VerifyEmailAction;
 use App\Http\Requests\ForgotPasswordRequest;
 use App\Http\Requests\LoginRequest;
 use App\Http\Requests\RegisterRequest;
 use App\Http\Requests\ResendVerificationRequest;
+use App\Http\Requests\ResetPasswordRequest;
 use App\Http\Requests\VerifyEmailRequest;
 use App\Http\Responses\NoContentResponse;
 use App\Models\User;
@@ -72,6 +74,16 @@ final class AuthController extends Controller
     public function forgotPassword(ForgotPasswordRequest $request, SendPasswordResetLinkAction $action): NoContentResponse
     {
         $action->execute($request->email());
+
+        return new NoContentResponse;
+    }
+
+    public function resetPassword(ResetPasswordRequest $request, ResetPasswordAction $action): NoContentResponse
+    {
+        if (! $action->execute($request->toDto()))
+        {
+            throw ValidationException::withMessages(['token' => __('This reset link is invalid or has expired.')]);
+        }
 
         return new NoContentResponse;
     }
