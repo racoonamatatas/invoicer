@@ -7,9 +7,11 @@ namespace App\Http\Controllers;
 use App\Actions\Auth\LoginUserAction;
 use App\Actions\Auth\LogoutUserAction;
 use App\Actions\Auth\RegisterUserAction;
+use App\Actions\Auth\ResendVerificationAction;
 use App\Actions\Auth\VerifyEmailAction;
 use App\Http\Requests\LoginRequest;
 use App\Http\Requests\RegisterRequest;
+use App\Http\Requests\ResendVerificationRequest;
 use App\Http\Requests\VerifyEmailRequest;
 use App\Http\Responses\NoContentResponse;
 use App\Models\User;
@@ -54,6 +56,13 @@ final class AuthController extends Controller
         {
             throw ValidationException::withMessages(['token' => __('This verification link is invalid or has expired.')]);
         }
+
+        return new NoContentResponse;
+    }
+
+    public function resendVerification(ResendVerificationRequest $request, ResendVerificationAction $action): NoContentResponse
+    {
+        $action->execute($request->email());
 
         return new NoContentResponse;
     }

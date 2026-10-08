@@ -9,6 +9,7 @@ Route::prefix('auth')->group(function (): void {
     Route::post('login', [AuthController::class, 'login'])->middleware('throttle:5,1');
     Route::post('register', [AuthController::class, 'register'])->middleware('throttle:5,1');
     Route::post('verify-email', [AuthController::class, 'verifyEmail'])->middleware('throttle:5,1');
+    Route::post('resend-verification', [AuthController::class, 'resendVerification'])->middleware('throttle:resend-verification');
 
     Route::middleware('auth:sanctum')->group(function (): void {
         Route::get('user', [AuthController::class, 'me']);
