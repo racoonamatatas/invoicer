@@ -83,18 +83,35 @@ describe('Logging in', function (): void {
         $this->assertGuest('web');
     });
 
-    it('should throttle login after 5 attempts per minute', function (): void {
+    it('should return 429 (too many requests) on the 6th login from one IP within a minute, even for different emails', function (): void {
         // Arrange
-        $user = User::factory()->create();
-        $credentials = ['email' => $user->email, 'password' => 'incorrect'];
-
-        for ($attempt = 0; $attempt < 5; $attempt++)
+        for ($attempt = 1; $attempt <= 5; $attempt++)
         {
-            $this->postJson('/api/auth/login', $credentials)->assertUnprocessable();
+            $this->postJson('/api/auth/login', ['email' => 'user'.$attempt.'@example.com', 'password' => 'incorrect'])
+                ->assertUnprocessable();
         }
 
         // Act
-        $response = $this->postJson('/api/auth/login', $credentials);
+        $response = $this->postJson('/api/auth/login', ['email' => 'user6@example.com', 'password' => 'incorrect']);
+
+        // Assert
+        $response->assertTooManyRequests();
+    });
+
+    it('should return 429 (too many requests) on the 11th login for one email within 15 minutes, even from different IPs', function (): void {
+        // Arrange
+        $credentials = ['email' => 'jan@example.com', 'password' => 'incorrect'];
+
+        for ($attempt = 1; $attempt <= 10; $attempt++)
+        {
+            $this->withServerVariables(['REMOTE_ADDR' => '10.0.0.'.$attempt])
+                ->postJson('/api/auth/login', $credentials)
+                ->assertUnprocessable();
+        }
+
+        // Act
+        $response = $this->withServerVariables(['REMOTE_ADDR' => '10.0.0.11'])
+            ->postJson('/api/auth/login', $credentials);
 
         // Assert
         $response->assertTooManyRequests();
