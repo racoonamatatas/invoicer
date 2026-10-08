@@ -107,9 +107,10 @@ describe('Registering', function (): void {
         $response->assertTooManyRequests();
     });
 
-    it('should queue a verification mail with the token link to the new user', function (): void {
+    it('should queue a verification mail with the token link and the configured expiry to the new user', function (): void {
         // Arrange
         Mail::fake();
+        config(['auth.verification_ttl_hours' => 48]);
         $email = 'jan@example.com';
         $password = 'correct-horse-battery2';
         $token = 'fixed-verification-token';
@@ -127,6 +128,7 @@ describe('Registering', function (): void {
         // Assert
         Mail::assertQueued(VerifyEmail::class, function (VerifyEmail $mail) use ($email, $verifyUrl): bool {
             $mail->assertSeeInHtml($verifyUrl);
+            $mail->assertSeeInHtml('48 hours');
 
             return $mail->hasTo($email);
         });
