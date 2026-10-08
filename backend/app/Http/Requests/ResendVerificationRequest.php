@@ -23,6 +23,6 @@ final class ResendVerificationRequest extends FormRequest
 
     public function email(): string
     {
-        return $this->safe()->string('email')->toString();
+        return $this->safe()->string('email')->lower()->toString();
     }
 }

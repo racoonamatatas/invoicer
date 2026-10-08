@@ -28,7 +28,7 @@ final class LoginRequest extends FormRequest
         $safe = $this->safe();
 
         return new LoginUserData(
-            email: $safe->string('email')->toString(),
+            email: $safe->string('email')->lower()->toString(),
             password: $safe->string('password')->toString()
         );
     }

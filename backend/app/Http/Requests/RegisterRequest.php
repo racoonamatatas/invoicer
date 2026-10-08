@@ -31,7 +31,7 @@ final class RegisterRequest extends FormRequest
 
         return new RegisterUserData(
             name: $safe->string('name')->toString(),
-            email: $safe->string('email')->toString(),
+            email: $safe->string('email')->lower()->toString(),
             password: $safe->string('password')->toString()
         );
     }
