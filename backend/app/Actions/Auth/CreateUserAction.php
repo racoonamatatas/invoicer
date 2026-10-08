@@ -7,11 +7,13 @@ namespace App\Actions\Auth;
 use App\DataTransferObjects\Input\Auth\RegisterUserData;
 use App\Models\User;
 use Illuminate\Contracts\Hashing\Hasher;
+use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\UniqueConstraintViolationException;
 
 final readonly class CreateUserAction
 {
     public function __construct(
+        private ConnectionInterface $db,
         private User $userModel,
         private Hasher $hasher,
     ) {}
@@ -28,7 +30,9 @@ final readonly class CreateUserAction
 
         try
         {
-            $user->save();
+            // Savepoint, for portability: on PostgreSQL a failed insert breaks the caller's whole transaction;
+            // rolling back only this savepoint leaves it usable on every database.
+            $this->db->transaction(fn (): bool => $user->save());
         }
         catch (UniqueConstraintViolationException)
         {
