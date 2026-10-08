@@ -32,6 +32,6 @@ final readonly class IssueVerificationTokenAction
 
         // The mail carries the raw token; the verify endpoint hashes it to find the user.
         $verifyUrl = $this->appUrl.'/verify-email?token='.$token;
-        $this->mailer->to($user->email)->send(new VerifyEmail($user, $verifyUrl));
+        $this->mailer->to($user->email)->send(new VerifyEmail($user, $verifyUrl, $this->ttlHours));
     }
 }

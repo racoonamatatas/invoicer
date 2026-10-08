@@ -20,6 +20,7 @@ final class VerifyEmail extends Mailable implements ShouldQueueAfterCommit
     public function __construct(
         private User $user,
         private string $verifyUrl,
+        private int $expiresInHours,
     ) {}
 
     public function envelope(): Envelope
@@ -36,6 +37,7 @@ final class VerifyEmail extends Mailable implements ShouldQueueAfterCommit
             with: [
                 'user' => $this->user,
                 'verifyUrl' => $this->verifyUrl,
+                'expiresInHours' => $this->expiresInHours,
             ],
         );
     }

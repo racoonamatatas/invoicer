@@ -5,5 +5,5 @@
 
     <p><a href="{{ $verifyUrl }}">Verify email address</a></p>
 
-    <p>This link expires in 24 hours. If you did not create an account, you can ignore this email.</p>
+    <p>This link expires in {{ $expiresInHours }} hours. If you did not create an account, you can ignore this email.</p>
 </div>
