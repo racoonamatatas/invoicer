@@ -3,6 +3,7 @@
 declare(strict_types = 1);
 
 use App\Models\User;
+use Illuminate\Support\Facades\Auth;
 
 describe('Logging in', function (): void {
     it('should log in a user with a correct email and password', function (): void {
@@ -65,6 +66,29 @@ describe('Logging in', function (): void {
         $response->assertUnprocessable();
         $response->assertJsonValidationErrors(['email' => 'These credentials do not match our records.']);
         $this->assertGuest('web');
+    });
+
+    // Guards third-party code: Laravel's SessionGuard::validate() pads failed logins, not LoginUserAction.
+    // Catches a renamed auth.timebox_duration key, or a login rewritten to skip validate().
+    it('should return 422 (unprocessable) no sooner than the timebox duration for an email that does not exist', function (): void {
+        // Arrange
+        // The test suite runs with the timebox at 0 (phpunit.xml) for speed; dev and production use 500ms.
+        // Set to 250ms for this test only: above Laravel's 200ms default, so a renamed config key fails the test.
+        $timeboxMicroseconds = 250_000;
+        config(['auth.timebox_duration' => $timeboxMicroseconds]);
+        Auth::forgetGuards(); // The guard reads the duration when it is built, so rebuild it.
+        $startedAt = hrtime(true);
+
+        // Act
+        $response = $this->postJson('/api/auth/login', [
+            'email' => 'nobody@example.com',
+            'password' => 'password',
+        ]);
+
+        // Assert
+        $elapsedMicroseconds = (hrtime(true) - $startedAt) / 1_000;
+        $response->assertUnprocessable();
+        expect($elapsedMicroseconds)->toBeGreaterThanOrEqual($timeboxMicroseconds);
     });
 
     it('should return 422 (unprocessable) with the verify-email message and not log in when the email is unverified', function (): void {
