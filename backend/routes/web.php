@@ -9,5 +9,5 @@ use Illuminate\Support\Facades\Route;
  * Blade shell, and Vue Router takes it from there.
  */
 Route::view('/{any}', 'app')
-    ->where('any', '^(?!api|sanctum|up).*$')
+    ->where('any', '^(?!(api|sanctum|up)(/|$)).*$')
     ->name('spa.fallback');
