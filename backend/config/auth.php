@@ -124,7 +124,23 @@ return [
     | Number of hours an email verification token remains valid after it is
     | issued. Once expired, the user needs a new verification email.
     |
-     */
+    */
 
     'verification_ttl_hours' => 24,
+
+    /*
+    |--------------------------------------------------------------------------
+    | Login Refractory Period
+    |--------------------------------------------------------------------------
+    |
+    | Failed logins are padded to this many microseconds. This ensures
+    | that known and unknown emails take the same time.
+    | The value must stay above one bcrypt check (~200ms at cost 12), so 500ms
+    | leaves a margin. Raising BCRYPT_ROUNDS means checking this value again.
+    |
+    | Laravel's AuthManager looks it up by the key 'timebox_duration'.
+    |
+    */
+
+    'timebox_duration' => env('AUTH_TIMEBOX_DURATION', 500000),
 ];
