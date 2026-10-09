@@ -9,6 +9,7 @@ use App\Mail\PasswordChanged;
 use App\Models\User;
 use Illuminate\Container\Attributes\Config;
 use Illuminate\Contracts\Mail\Mailer;
+use Illuminate\Contracts\Session\Session;
 use Illuminate\Database\ConnectionInterface;
 
 final readonly class ChangePasswordAction
@@ -16,6 +17,7 @@ final readonly class ChangePasswordAction
     public function __construct(
         private ConnectionInterface $db,
         private Mailer $mailer,
+        private Session $session,
         #[Config('session.table')]
         private string $sessionTable,
         #[Config('app.url')]
@@ -33,7 +35,7 @@ final readonly class ChangePasswordAction
             // Keep this session: its user just proved they know the current password.
             $this->db->table($this->sessionTable)
                 ->where('user_id', $user->id)
-                ->where('id', '!=', $data->currentSessionId)
+                ->where('id', '!=', $this->session->getId())
                 ->delete();
 
             // Queued after commit, so a rolled-back change never tells the user their password changed.

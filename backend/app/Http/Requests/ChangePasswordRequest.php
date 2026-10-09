@@ -28,7 +28,6 @@ final class ChangePasswordRequest extends FormRequest
     {
         return new ChangePasswordData(
             newPassword: $this->safe()->string('password')->toString(),
-            currentSessionId: $this->session()->getId()
         );
     }
 }

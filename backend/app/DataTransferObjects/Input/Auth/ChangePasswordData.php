@@ -9,6 +9,5 @@ final readonly class ChangePasswordData
     public function __construct(
         #[\SensitiveParameter]
         public string $newPassword,
-        public string $currentSessionId,
     ) {}
 }
