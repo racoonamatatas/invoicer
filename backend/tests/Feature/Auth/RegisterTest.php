@@ -2,6 +2,7 @@
 
 declare(strict_types = 1);
 
+use App\Mail\AccountAlreadyExists;
 use App\Mail\VerifyEmail;
 use App\Models\User;
 use Illuminate\Contracts\Mail\Mailer;
@@ -183,7 +184,7 @@ describe('Registering', function (): void {
         ]);
     });
 
-    it('should queue no mail when the email is taken', function (): void {
+    it('should return 204 (no content) and queue an account-already-exists mail to the owner when the email is taken by a verified user', function (): void {
         // Arrange
         Mail::fake();
         $email = 'jan@example.com';
@@ -191,7 +192,7 @@ describe('Registering', function (): void {
         User::factory()->create(['email' => $email]);
 
         // Act
-        $this->postJson('/api/auth/register', [
+        $response = $this->postJson('/api/auth/register', [
             'name' => 'Jan Jansen',
             'email' => $email,
             'password' => $password,
@@ -199,10 +200,19 @@ describe('Registering', function (): void {
         ]);
 
         // Assert
-        Mail::assertNothingOutgoing();
+        $response->assertNoContent();
+        Mail::assertQueuedCount(1);
+        Mail::assertQueued(AccountAlreadyExists::class, function (AccountAlreadyExists $mail) use ($email): bool {
+            $html = $mail->render();
+
+            expect($html)->toContain(config('app.url').'/login')
+                ->and($html)->toContain(config('app.url').'/forgot-password');
+
+            return $mail->hasTo($email);
+        });
     });
 
-    it('should return 204 (no content), create no second user and queue no mail when the email is taken with different casing', function (): void {
+    it('should return 204 (no content), create no second user and queue an account-already-exists mail to the stored email when the email is taken with different casing', function (): void {
         // Arrange
         Mail::fake();
         $password = 'correct-horse-battery2';
@@ -219,10 +229,40 @@ describe('Registering', function (): void {
         // Assert
         $response->assertNoContent();
         $this->assertDatabaseCount('users', 1);
-        Mail::assertNothingOutgoing();
+        Mail::assertQueued(AccountAlreadyExists::class, fn (AccountAlreadyExists $mail): bool => $mail->hasTo('jan@example.com'));
     });
 
-    it('should return 500 and create no user when queueing the verification mail throws', function (): void {
+    it('should return 204 (no content), queue a fresh verification mail and store a new token when the email is taken by an unverified user', function (): void {
+        // Arrange
+        Mail::fake();
+        $now = $this->freezeTime();
+        $email = 'jan@example.com';
+        $password = 'correct-horse-battery2';
+        $token = 'fixed-verification-token';
+        Str::createRandomStringsUsing(fn (): string => $token);
+        User::factory()->unverified()->create(['email' => $email]);
+
+        // Act
+        $response = $this->postJson('/api/auth/register', [
+            'name' => 'Jan Jansen',
+            'email' => $email,
+            'password' => $password,
+            'password_confirmation' => $password,
+        ]);
+
+        // Assert
+        $response->assertNoContent();
+        $this->assertDatabaseCount('users', 1);
+        $this->assertDatabaseHas('users', [
+            'email' => $email,
+            'verification_token' => hash('sha256', $token),
+            'verification_token_expires_at' => $now->addHours(24),
+        ]);
+        Mail::assertQueuedCount(1);
+        Mail::assertQueued(VerifyEmail::class, fn (VerifyEmail $mail): bool => $mail->hasTo($email));
+    });
+
+    it('should return 500 (internal server error) and create no user when queueing the verification mail throws', function (): void {
         // Arrange
         $password = 'correct-horse-battery2';
         $this->mock(Mailer::class, function (MockInterface $mailer): void {
