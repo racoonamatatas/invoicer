@@ -87,6 +87,8 @@ describe('Changing the password', function (): void {
         $this->assertDatabaseHas('sessions', ['id' => 'piet-laptop', 'user_id' => $otherUser->id]);
     });
 
+    // Guards third-party code: Sanctum's AuthenticateSession logs out sessions with an outdated password hash, not ChangePasswordAction.
+    // Catches authenticate_session being removed from config/sanctum.php, or the SPA requests no longer being stateful.
     it('should return 401 (unauthorized) on the next request from another session after the password changed, whatever the session driver', function (): void {
         // Arrange
         $user = User::factory()->create(['password' => 'old-horse-battery1']);
@@ -112,6 +114,34 @@ describe('Changing the password', function (): void {
 
         // Assert
         $response->assertUnauthorized();
+    });
+
+    // Guards third-party code: Sanctum's AuthenticateSession stores the new password hash in the current session, not ChangePasswordAction.
+    // Catches a Sanctum change that stops refreshing the hash, which would log the user out right after changing their password.
+    it('should return 200 (ok) on the next request from the same session after the password changed', function (): void {
+        // Arrange
+        $user = User::factory()->create(['password' => 'old-horse-battery1']);
+        $this->actingAs($user, 'web');
+        // A Referer from the SPA makes the requests stateful, so Sanctum runs its session checks.
+        $this->withHeader('Referer', config('app.url'));
+        // What this session holds since its login: a fingerprint of the old password.
+        $guard = Auth::guard('web');
+        if (! $guard instanceof SessionGuard)
+        {
+            throw new LogicException('The web guard must be session-based for this test.');
+        }
+        $this->withSession(['password_hash_web' => $guard->hashPasswordForCookie($user->password)]);
+        $this->putJson('/api/auth/password', [
+            'current_password' => 'old-horse-battery1',
+            'password' => 'new-horse-battery2',
+            'password_confirmation' => 'new-horse-battery2',
+        ])->assertNoContent();
+
+        // Act
+        $response = $this->getJson('/api/auth/user');
+
+        // Assert
+        $response->assertOk();
     });
 
     it('should return 204 (no content) and queue a password-changed mail with the forgot-password link to the user', function (): void {
