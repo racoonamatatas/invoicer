@@ -10,7 +10,7 @@ final readonly class ResendVerificationAction
 {
     public function __construct(
         private User $userModel,
-        private IssueVerificationTokenAction $issueVerificationToken,
+        private IssueVerificationTokenAction $issueVerificationTokenAction,
     ) {}
 
     public function execute(string $email): void
@@ -23,7 +23,7 @@ final readonly class ResendVerificationAction
         // Unknown or already verified: stay silent so the caller can't tell which.
         if ($user !== null)
         {
-            $this->issueVerificationToken->execute($user);
+            $this->issueVerificationTokenAction->execute($user);
         }
     }
 }

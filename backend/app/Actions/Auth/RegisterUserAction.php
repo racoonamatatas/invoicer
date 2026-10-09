@@ -15,8 +15,8 @@ final readonly class RegisterUserAction
 {
     public function __construct(
         private ConnectionInterface $db,
-        private CreateUserAction $createUser,
-        private IssueVerificationTokenAction $issueVerificationToken,
+        private CreateUserAction $createUserAction,
+        private IssueVerificationTokenAction $issueVerificationTokenAction,
         private User $userModel,
         private Mailer $mailer,
         #[Config('app.url')]
@@ -27,7 +27,7 @@ final readonly class RegisterUserAction
     {
         // One transaction, so a user is never left behind without a verification token.
         $this->db->transaction(function () use ($data): void {
-            $user = $this->createUser->execute($data);
+            $user = $this->createUserAction->execute($data);
 
             if ($user === null)
             {
@@ -37,7 +37,7 @@ final readonly class RegisterUserAction
                 return;
             }
 
-            $this->issueVerificationToken->execute($user);
+            $this->issueVerificationTokenAction->execute($user);
         });
     }
 
@@ -51,7 +51,7 @@ final readonly class RegisterUserAction
         // Most likely the owner lost the first mail and is trying again, so give them a working link.
         if ($existingUser->email_verified_at === null)
         {
-            $this->issueVerificationToken->execute($existingUser);
+            $this->issueVerificationTokenAction->execute($existingUser);
 
             return;
         }
