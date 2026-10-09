@@ -19,10 +19,10 @@ use App\Http\Requests\RegisterRequest;
 use App\Http\Requests\ResendVerificationRequest;
 use App\Http\Requests\ResetPasswordRequest;
 use App\Http\Requests\VerifyEmailRequest;
+use App\Http\Resources\UserResourceData;
 use App\Http\Responses\NoContentResponse;
 use App\Models\User;
 use Illuminate\Container\Attributes\CurrentUser;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\ValidationException;
 
 final class AuthController extends Controller
@@ -30,16 +30,16 @@ final class AuthController extends Controller
     public function login(
         LoginRequest $request,
         LoginUserAction $action,
-    ): JsonResponse {
+    ): UserResourceData {
 
         $user = $action->execute($request->toDto());
 
-        return new JsonResponse($user);
+        return UserResourceData::from($user);
     }
 
-    public function me(#[CurrentUser] User $user): JsonResponse
+    public function me(#[CurrentUser] User $user): UserResourceData
     {
-        return new JsonResponse($user);
+        return UserResourceData::from($user);
     }
 
     public function destroy(LogoutUserAction $action): NoContentResponse
