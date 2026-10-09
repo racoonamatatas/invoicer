@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 use App\Mail\PasswordChanged;
 use App\Models\User;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
@@ -83,6 +84,28 @@ describe('Changing the password', function (): void {
         $this->assertDatabaseMissing('sessions', ['id' => 'jan-phone']);
         $this->assertDatabaseHas('sessions', ['id' => $currentSessionId, 'user_id' => $user->id]);
         $this->assertDatabaseHas('sessions', ['id' => 'piet-laptop', 'user_id' => $otherUser->id]);
+    });
+
+    it('should return 401 (unauthorized) on the next request from another session after the password changed, whatever the session driver', function (): void {
+        // Arrange
+        $user = User::factory()->create(['password' => 'old-horse-battery1']);
+        $this->actingAs($user, 'web');
+        // A Referer from the SPA makes the requests stateful, so Sanctum runs its session checks.
+        $this->withHeader('Referer', config('app.url'));
+        // What another device's session holds since its login: a fingerprint of the old password.
+        $otherSessionPasswordHash = Auth::guard('web')->hashPasswordForCookie($user->password);
+        $this->putJson('/api/auth/password', [
+            'current_password' => 'old-horse-battery1',
+            'password' => 'new-horse-battery2',
+            'password_confirmation' => 'new-horse-battery2',
+        ])->assertNoContent();
+
+        // Act
+        $response = $this->withSession(['password_hash_web' => $otherSessionPasswordHash])
+            ->getJson('/api/auth/user');
+
+        // Assert
+        $response->assertUnauthorized();
     });
 
     it('should return 204 (no content) and queue a password-changed mail with the forgot-password link to the user', function (): void {
