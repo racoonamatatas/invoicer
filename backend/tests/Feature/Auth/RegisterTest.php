@@ -104,6 +104,28 @@ describe('Registering', function (): void {
         $this->assertDatabaseHas('users', ['email' => 'jan@example.com']);
     });
 
+    // Guards third-party code: Laravel's NotPwnedVerifier rejects leaked passwords, not RegisterRequest.
+    // Catches uncompromised() being dropped from the password policy, or Laravel misreading the API's answer.
+    it('should return 422 (unprocessable) with a password error and create no user when the password appears in a data leak', function (): void {
+        // Arrange
+        $password = 'correct-horse-battery2';
+        // Read by the fake haveibeenpwned API in tests/TestCase.php (pwnedRange()), which then reports this password as leaked.
+        $this->leakedPasswords = [$password];
+
+        // Act
+        $response = $this->postJson('/api/auth/register', [
+            'name' => 'Jan Jansen',
+            'email' => 'jan@example.com',
+            'password' => $password,
+            'password_confirmation' => $password,
+        ]);
+
+        // Assert
+        $response->assertUnprocessable();
+        $response->assertOnlyJsonValidationErrors(['password']);
+        $this->assertDatabaseCount('users', 0);
+    });
+
     it('should return 429 (too many requests) on the 6th request from one IP within a minute, even for different emails', function (): void {
         // Arrange
         $payload = [
