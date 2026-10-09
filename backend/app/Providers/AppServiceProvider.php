@@ -21,7 +21,11 @@ class AppServiceProvider extends ServiceProvider
     }
 
     /**
-     * Bootstrap any application services.
+     * Registers the named rate limiters used by the throttle:<name> middleware.
+     *
+     * A limiter's bucket is its name plus the string given to by(): requests that produce the same
+     * string share one counter. The same by() string under two limiter names gives two separate
+     * counters, so the ip:/email: prefixes only keep apart the limits within one limiter (see login).
      */
     public function boot(RateLimiter $rateLimiter): void
     {
@@ -29,7 +33,7 @@ class AppServiceProvider extends ServiceProvider
         $rateLimiter->for('verify-email', static fn (Request $request): Limit => Limit::perMinute(5)->by('ip:'.$request->ip()));
 
         // One bucket per email: prevents one's inbox being flooded with mails from different mail-sending routes.
-        $rateLimiter->for('mail-per-email', static fn (Request $request): Limit => Limit::perHour(5)->by('email:'.Str::lower($request->string('email')->toString())));
+        $rateLimiter->for('mail-per-email', static fn (Request $request): Limit => Limit::perHour(5)->by(self::emailBucketKey($request)));
 
         // Per-IP stops one client mass-creating accounts.
         $rateLimiter->for('register', static fn (Request $request): Limit => Limit::perMinute(5)->by('ip:'.$request->ip()));
@@ -49,7 +53,18 @@ class AppServiceProvider extends ServiceProvider
         // Per-IP stops one client guessing many accounts; per-email stops many IPs guessing one account.
         $rateLimiter->for('login', static fn (Request $request): array => [
             Limit::perMinute(5)->by('ip:'.$request->ip()),
-            Limit::perMinutes(15, 10)->by('email:'.Str::lower($request->string('email')->toString())),
+            Limit::perMinutes(15, 10)->by(self::emailBucketKey($request)),
         ]);
+    }
+
+    /**
+     * Rate limiters run before validation, so the email can be missing or not a string.
+     * Non-strings all share the 'email:' bucket; validation rejects them with a 422 afterwards.
+     */
+    private static function emailBucketKey(Request $request): string
+    {
+        $email = $request->input('email');
+
+        return is_string($email) ? 'email:'.Str::lower($email) : 'email:';
     }
 }
