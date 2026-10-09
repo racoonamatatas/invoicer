@@ -6,6 +6,7 @@ namespace App\Http\Requests;
 
 use App\DataTransferObjects\Input\Auth\RegisterUserData;
 use App\Validation\PasswordRules;
+use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 
 final class RegisterRequest extends FormRequest
