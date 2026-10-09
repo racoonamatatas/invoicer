@@ -8,6 +8,7 @@ final readonly class LoginUserData
 {
     public function __construct(
         public string $email,
+        #[\SensitiveParameter]
         public string $password,
     ) {}
 }
