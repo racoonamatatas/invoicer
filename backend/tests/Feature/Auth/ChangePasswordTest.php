@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 use App\Mail\PasswordChanged;
 use App\Models\User;
+use Illuminate\Auth\SessionGuard;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -93,7 +94,12 @@ describe('Changing the password', function (): void {
         // A Referer from the SPA makes the requests stateful, so Sanctum runs its session checks.
         $this->withHeader('Referer', config('app.url'));
         // What another device's session holds since its login: a fingerprint of the old password.
-        $otherSessionPasswordHash = Auth::guard('web')->hashPasswordForCookie($user->password);
+        $guard = Auth::guard('web');
+        if (! $guard instanceof SessionGuard)
+        {
+            throw new LogicException('The web guard must be session-based for this test.');
+        }
+        $otherSessionPasswordHash = $guard->hashPasswordForCookie($user->password);
         $this->putJson('/api/auth/password', [
             'current_password' => 'old-horse-battery1',
             'password' => 'new-horse-battery2',
