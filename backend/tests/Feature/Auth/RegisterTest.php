@@ -82,10 +82,27 @@ describe('Registering', function (): void {
     })->with([
         'missing name' => [['name' => ''], 'name'],
         'invalid email' => [['email' => 'not-an-email'], 'email'],
-        'password too short' => [['password' => 'short', 'password_confirmation' => 'short'], 'password'],
+        'password one character below the minimum' => [['password' => 'horse-battery2', 'password_confirmation' => 'horse-battery2'], 'password'],
         'password too long' => [['password' => str_repeat('a', 73), 'password_confirmation' => str_repeat('a', 73)], 'password'],
         'confirmation mismatch' => [['password_confirmation' => 'something-else'], 'password'],
     ]);
+
+    it('should return 204 (no content) and register the user for a password of exactly the minimum length', function (): void {
+        // Arrange
+        $password = 'horse-battery22'; // 15 characters: the minimum set in AppServiceProvider.
+
+        // Act
+        $response = $this->postJson('/api/auth/register', [
+            'name' => 'Jan Jansen',
+            'email' => 'jan@example.com',
+            'password' => $password,
+            'password_confirmation' => $password,
+        ]);
+
+        // Assert
+        $response->assertNoContent();
+        $this->assertDatabaseHas('users', ['email' => 'jan@example.com']);
+    });
 
     it('should return 429 (too many requests) on the 6th request from one IP within a minute, even for different emails', function (): void {
         // Arrange
