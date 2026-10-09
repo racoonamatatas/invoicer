@@ -5,7 +5,7 @@ declare(strict_types = 1);
 use App\Models\User;
 
 describe('Fetching the current user', function (): void {
-    it('should return the logged-in user', function (): void {
+    it('should return 200 (ok) with only the id, name and email of the logged-in user', function (): void {
         // Arrange
         $user = User::factory()->create();
         $this->actingAs($user, 'web');
@@ -15,8 +15,12 @@ describe('Fetching the current user', function (): void {
 
         // Assert
         $response->assertOk();
-        $response->assertJsonPath('id', $user->id);
-        $response->assertJsonPath('email', $user->email);
+        // Exact: a new column on users must not reach the browser unless it is added on purpose.
+        $response->assertExactJson([
+            'id' => $user->id,
+            'name' => $user->name,
+            'email' => $user->email,
+        ]);
     });
 
     it('should reject a guest', function (): void {

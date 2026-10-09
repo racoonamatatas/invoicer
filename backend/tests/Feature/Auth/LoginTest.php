@@ -21,6 +21,26 @@ describe('Logging in', function (): void {
         $this->assertAuthenticatedAs($user, 'web');
     });
 
+    it('should return 200 (ok) with only the id, name and email of the user', function (): void {
+        // Arrange
+        $user = User::factory()->create();
+
+        // Act
+        $response = $this->postJson('/api/auth/login', [
+            'email' => $user->email,
+            'password' => 'password',
+        ]);
+
+        // Assert
+        $response->assertOk();
+        // Exact: a new column on users must not reach the browser unless it is added on purpose.
+        $response->assertExactJson([
+            'id' => $user->id,
+            'name' => $user->name,
+            'email' => $user->email,
+        ]);
+    });
+
     it('should return 200 (ok) and log in when the email differs from the stored one only in casing', function (): void {
         // Arrange
         $user = User::factory()->create(['email' => 'jan@example.com']);
