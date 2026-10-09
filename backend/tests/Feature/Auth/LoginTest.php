@@ -20,7 +20,7 @@ describe('Logging in', function (): void {
         $this->assertAuthenticatedAs($user, 'web');
     });
 
-    it('should return 200 and log in when the email differs from the stored one only in casing', function (): void {
+    it('should return 200 (ok) and log in when the email differs from the stored one only in casing', function (): void {
         // Arrange
         $user = User::factory()->create(['email' => 'jan@example.com']);
 
