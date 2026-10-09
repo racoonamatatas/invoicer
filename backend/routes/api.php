@@ -13,8 +13,10 @@ Route::prefix('auth')->group(function (): void {
     Route::post('forgot-password', [AuthController::class, 'forgotPassword'])->middleware(['throttle:forgot-password', 'throttle:mail-per-email']);
     Route::post('reset-password', [AuthController::class, 'resetPassword'])->middleware('throttle:reset-password');
 
+    // Middleware for requests that require a logged in user.
     Route::middleware('auth:sanctum')->group(function (): void {
         Route::get('user', [AuthController::class, 'me']);
         Route::delete('logout', [AuthController::class, 'destroy']);
+        Route::put('password', [AuthController::class, 'changePassword'])->middleware('throttle:change-password');
     });
 });

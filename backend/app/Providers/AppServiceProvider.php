@@ -43,6 +43,9 @@ class AppServiceProvider extends ServiceProvider
         // IP only: reset tokens are unguessable, so this caps bcrypt work per client rather than guessing.
         $rateLimiter->for('reset-password', static fn (Request $request): Limit => Limit::perMinute(5)->by('ip:'.$request->ip()));
 
+        // Per-user: caps current-password guesses from a taken-over session; switching IPs buys no extra guesses.
+        $rateLimiter->for('change-password', static fn (Request $request): Limit => Limit::perMinute(5)->by('user:'.$request->user()?->getAuthIdentifier()));
+
         // Per-IP stops one client guessing many accounts; per-email stops many IPs guessing one account.
         $rateLimiter->for('login', static fn (Request $request): array => [
             Limit::perMinute(5)->by('ip:'.$request->ip()),

@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace App\Http\Controllers;
 
+use App\Actions\Auth\ChangePasswordAction;
 use App\Actions\Auth\LoginUserAction;
 use App\Actions\Auth\LogoutUserAction;
 use App\Actions\Auth\RegisterUserAction;
@@ -11,6 +12,7 @@ use App\Actions\Auth\ResendVerificationAction;
 use App\Actions\Auth\ResetPasswordAction;
 use App\Actions\Auth\SendPasswordResetLinkAction;
 use App\Actions\Auth\VerifyEmailAction;
+use App\Http\Requests\ChangePasswordRequest;
 use App\Http\Requests\ForgotPasswordRequest;
 use App\Http\Requests\LoginRequest;
 use App\Http\Requests\RegisterRequest;
@@ -84,6 +86,13 @@ final class AuthController extends Controller
         {
             throw ValidationException::withMessages(['token' => __('This reset link is invalid or has expired.')]);
         }
+
+        return new NoContentResponse;
+    }
+
+    public function changePassword(ChangePasswordRequest $request, ChangePasswordAction $action, #[CurrentUser] User $user): NoContentResponse
+    {
+        $action->execute($user, $request->toDto());
 
         return new NoContentResponse;
     }
