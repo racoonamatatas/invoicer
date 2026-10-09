@@ -9,6 +9,7 @@ use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rules\Password;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -21,13 +22,32 @@ class AppServiceProvider extends ServiceProvider
     }
 
     /**
+     * Bootstrap any application services.
+     */
+    public function boot(RateLimiter $rateLimiter): void
+    {
+        $this->configurePasswordPolicy();
+        $this->configureRateLimiters($rateLimiter);
+    }
+
+    /**
+     * The rules every new password must pass (register, reset, change), via PasswordRules::forNewPassword().
+     */
+    private function configurePasswordPolicy(): void
+    {
+        // NIST SP 800-63B: at least 15 characters when the password is the only login factor, no composition
+        // rules, and reject passwords known from breaches (checked against haveibeenpwned).
+        Password::defaults(static fn (): Password => Password::min(15)->uncompromised());
+    }
+
+    /**
      * Registers the named rate limiters used by the throttle:<name> middleware.
      *
      * A limiter's bucket is its name plus the string given to by(): requests that produce the same
      * string share one counter. The same by() string under two limiter names gives two separate
      * counters, so the ip:/email: prefixes only keep apart the limits within one limiter (see login).
      */
-    public function boot(RateLimiter $rateLimiter): void
+    private function configureRateLimiters(RateLimiter $rateLimiter): void
     {
         // One bucket per route: the plain throttle:N,M middleware keys guests on IP alone, so every route using it shares one bucket.
         $rateLimiter->for('verify-email', static fn (Request $request): Limit => Limit::perMinute(5)->by('ip:'.$request->ip()));
