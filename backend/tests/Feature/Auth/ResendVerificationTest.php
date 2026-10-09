@@ -83,12 +83,12 @@ describe('Resending a verification email', function (): void {
         Mail::assertNothingOutgoing();
     });
 
-    it('should return 429 (too many requests) on the 4th resend for one email within an hour, even from different IPs', function (): void {
+    it('should return 429 (too many requests) on the 6th resend for one email within an hour, even from different IPs', function (): void {
         // Arrange
         $payload = ['email' => 'jan@example.com'];
 
         // Start at 1: the counter is the IP's last octet, and .0 is a network address, not a host.
-        for ($attempt = 1; $attempt <= 3; $attempt++)
+        for ($attempt = 1; $attempt <= 5; $attempt++)
         {
             $this->withServerVariables(['REMOTE_ADDR' => '10.0.0.'.$attempt])
                 ->postJson('/api/auth/resend-verification', $payload)
@@ -96,7 +96,7 @@ describe('Resending a verification email', function (): void {
         }
 
         // Act
-        $response = $this->withServerVariables(['REMOTE_ADDR' => '10.0.0.4'])
+        $response = $this->withServerVariables(['REMOTE_ADDR' => '10.0.0.6'])
             ->postJson('/api/auth/resend-verification', $payload);
 
         // Assert
