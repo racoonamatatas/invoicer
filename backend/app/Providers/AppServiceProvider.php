@@ -28,31 +28,25 @@ class AppServiceProvider extends ServiceProvider
         // One bucket per route: the plain throttle:N,M middleware keys guests on IP alone, so every route using it shares one bucket.
         $rateLimiter->for('verify-email', static fn (Request $request): Limit => Limit::perMinute(5)->by('ip:'.$request->ip()));
 
-        // Per-IP stops one client mass-creating accounts; per-email stops many IPs flooding one inbox, since every attempt sends a mail.
-        $rateLimiter->for('register', static fn (Request $request): array => [
-            Limit::perMinute(5)->by('ip:'.$request->ip()),
-            Limit::perHour(3)->by('email:'.Str::lower($request->string('email')->toString())),
-        ]);
+        // One bucket per email: prevents one's inbox being flooded with mails from different mail-sending routes.
+        $rateLimiter->for('mail-per-email', static fn (Request $request): Limit => Limit::perHour(5)->by('email:'.Str::lower($request->string('email')->toString())));
+
+        // Per-IP stops one client mass-creating accounts.
+        $rateLimiter->for('register', static fn (Request $request): Limit => Limit::perMinute(5)->by('ip:'.$request->ip()));
+
+        // Per-IP stops one client spraying many emails.
+        $rateLimiter->for('resend-verification', static fn (Request $request): Limit => Limit::perMinute(5)->by('ip:'.$request->ip()));
+
+        // Per-IP stops one client spraying many emails.
+        $rateLimiter->for('forgot-password', static fn (Request $request): Limit => Limit::perMinute(5)->by('ip:'.$request->ip()));
+
+        // IP only: reset tokens are unguessable, so this caps bcrypt work per client rather than guessing.
+        $rateLimiter->for('reset-password', static fn (Request $request): Limit => Limit::perMinute(5)->by('ip:'.$request->ip()));
 
         // Per-IP stops one client guessing many accounts; per-email stops many IPs guessing one account.
         $rateLimiter->for('login', static fn (Request $request): array => [
             Limit::perMinute(5)->by('ip:'.$request->ip()),
             Limit::perMinutes(15, 10)->by('email:'.Str::lower($request->string('email')->toString())),
         ]);
-
-        // Per-IP stops one client spraying many emails; per-email stops many IPs flooding one inbox.
-        $rateLimiter->for('resend-verification', static fn (Request $request): array => [
-            Limit::perMinute(5)->by('ip:'.$request->ip()),
-            Limit::perHour(3)->by('email:'.Str::lower($request->string('email')->toString())),
-        ]);
-
-        // Same threats as resend: one client spraying many inboxes, many IPs flooding one inbox.
-        $rateLimiter->for('forgot-password', static fn (Request $request): array => [
-            Limit::perMinute(5)->by('ip:'.$request->ip()),
-            Limit::perHour(3)->by('email:'.Str::lower($request->string('email')->toString())),
-        ]);
-
-        // IP only: reset tokens are unguessable, so this caps bcrypt work per client rather than guessing.
-        $rateLimiter->for('reset-password', static fn (Request $request): Limit => Limit::perMinute(5)->by('ip:'.$request->ip()));
     }
 }
