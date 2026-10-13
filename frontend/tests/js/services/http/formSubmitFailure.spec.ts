@@ -82,4 +82,22 @@ describe('parseFormSubmitFailure', () =>
         // Assert
         expect(result).toStrictEqual({ kind: 'other' });
     });
+
+    it.for([
+        // A bug in the page's own submit function.
+        { name: 'plain error', thrown: new Error('boom') },
+        // Legal JavaScript: anything can be thrown.
+        { name: 'string', thrown: 'boom' },
+        // What Promise.reject() with no argument rejects with.
+        { name: 'undefined', thrown: undefined },
+        // The server was unreachable, so there is no response at all.
+        { name: 'network failure', thrown: new AxiosError('Network Error', AxiosError.ERR_NETWORK) },
+    ])('should return an OtherFailure for anything thrown that is not an axios error with a response: $name', ({ thrown }) =>
+    {
+        // Act
+        const result = parseFormSubmitFailure(thrown);
+
+        // Assert
+        expect(result).toStrictEqual({ kind: 'other' });
+    });
 });
