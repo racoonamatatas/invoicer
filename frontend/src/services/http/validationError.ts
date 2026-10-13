@@ -14,6 +14,17 @@ interface LaravelValidationBody
     errors: Record<string, string[]>;
 }
 
+const isLaravelValidationBody = (data: unknown): data is LaravelValidationBody =>
+{
+    return typeof data === 'object'
+           && data !== null
+           && 'message' in data
+           && typeof data.message === 'string'
+           && 'errors' in data
+           && typeof data.errors === 'object'
+           && data.errors !== null;
+};
+
 export const parseValidationError = (error: unknown): ValidationResult =>
 {
     if (!isAxiosError(error) || error.response?.status !== 422)
@@ -21,8 +32,12 @@ export const parseValidationError = (error: unknown): ValidationResult =>
         return { kind: 'other' };
     }
 
-    // TODO: check the body's shape instead of trusting it (tests 2 and 3).
-    const body = error.response.data as LaravelValidationBody;
+    const body = error.response.data;
+
+    if (!isLaravelValidationBody(body))
+    {
+        return { kind: 'other' };
+    }
 
     return { kind: 'validation', message: body.message, errors: body.errors };
 };
