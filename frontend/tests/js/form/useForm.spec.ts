@@ -43,4 +43,18 @@ describe('useForm', () =>
         expect(form.errors.value).toStrictEqual({});
         expect(form.message.value).toBe('');
     });
+
+    it('should re-throw the original error and reset isPending when the request fails with a 500 (server error)', async () =>
+    {
+        // Arrange: an OtherFailure, which the form can't show per field
+        const form = useForm();
+        const error = axiosErrorWith(500, { message: 'Server Error' });
+        const send = () => Promise.reject(error);
+
+        // Act + Assert: the same error instance reaches the page, not a copy or an OtherFailure
+        await expect(form.submit(send)).rejects.toBe(error);
+
+        // Assert: the button is usable again after a failure the page handles
+        expect(form.isPending.value).toBe(false);
+    });
 });
