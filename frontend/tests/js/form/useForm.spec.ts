@@ -82,4 +82,20 @@ describe('useForm', () =>
         expect(send).toHaveBeenCalledTimes(1);
         expect(form.isPending.value).toBe(false);
     });
+
+    it('should keep a form\'s errors when another form on the page submits', async () =>
+    {
+        // Arrange: the login page's two forms; login failed validation
+        const login = useForm();
+        const resend = useForm();
+        await login.submit(sendFailingWith422);
+
+        // Act: the user clicks resend, the request the old global bag cleared errors on
+        await resend.submit(sendSucceeding);
+
+        // Assert: login still shows its error, and resend never had one
+        expect(login.errors.value).toStrictEqual({ email: ['The email field is required.'] });
+        expect(login.message.value).toBe('The email field is required.');
+        expect(resend.errors.value).toStrictEqual({});
+    });
 });
