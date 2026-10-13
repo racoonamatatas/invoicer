@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 
 import { AxiosError, AxiosHeaders } from 'axios';
-import { parseFormSubmitFailure } from '@/services/http/formSubmitFailure';
+import { parseFormSubmitFailure } from '@/form/formSubmitFailure';
 
 // Builds the AxiosError a failed request throws. AxiosResponse requires every field
 // (statusText, headers, config with AxiosHeaders) under strict types, so each test
