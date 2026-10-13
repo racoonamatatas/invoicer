@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 
 import { AxiosError, AxiosHeaders } from 'axios';
-import { parseValidationError } from '@/services/http/validationError';
+import { parseFormSubmitFailure } from '@/services/http/formSubmitFailure';
 
 // Builds the AxiosError a failed request throws. AxiosResponse requires every field
 // (statusText, headers, config with AxiosHeaders) under strict types, so each test
@@ -19,9 +19,9 @@ const axiosErrorWith = (status: number, data: unknown) =>
     });
 };
 
-describe('parseValidationError', () =>
+describe('parseFormSubmitFailure', () =>
 {
-    it('returns validation for a 422 (unprocessable content) with message and errors', () =>
+    it('should return a ValidationFailure with the message and errors of a 422 (unprocessable) LaravelValidationBody', () =>
     {
         // Arrange
         const error = axiosErrorWith(422, {
@@ -30,7 +30,7 @@ describe('parseValidationError', () =>
         });
 
         // Act
-        const result = parseValidationError(error);
+        const result = parseFormSubmitFailure(error);
 
         // Assert
         expect(result).toStrictEqual({
@@ -49,13 +49,13 @@ describe('parseValidationError', () =>
         { name: 'no message', body: { errors: { email: ['Required.'] } } },
         // What a proxy or maintenance page sends.
         { name: 'not an object', body: '<html>Service Unavailable</html>' },
-    ])('returns other for a 422 (unprocessable content) whose body is not Laravel\'s validation shape: $name', ({ body }) =>
+    ])('should return an OtherFailure when a 422 (unprocessable) body is not a LaravelValidationBody: $name', ({ body }) =>
     {
         // Arrange
         const error = axiosErrorWith(422, body);
 
         // Act
-        const result = parseValidationError(error);
+        const result = parseFormSubmitFailure(error);
 
         // Assert
         expect(result).toStrictEqual({ kind: 'other' });

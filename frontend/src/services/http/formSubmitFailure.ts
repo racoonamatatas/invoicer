@@ -1,15 +1,28 @@
 import { isAxiosError } from 'axios';
 
-// What a failed request means for a form. 'validation' is a Laravel 422 whose
-// errors can be shown per field; 'other' is everything else (server errors,
-// network failures, malformed 422s) and is left to the caller to handle.
+// A Laravel 422 whose errors can be shown next to the form's fields.
+export interface ValidationFailure
+{
+    kind: 'validation';
+    message: string;
+    errors: Record<string, string[]>;
+}
+
+// Everything else (server errors, network failures, malformed 422s). The form
+// can't show it per field, so it is left to the caller to handle.
+export interface OtherFailure
+{
+    kind: 'other';
+}
+
+// Why a form submit failed, as a form sees it. Other contexts (loading a page,
+// say) would split failures differently, hence the form-specific name.
+// Plain data that is returned, not an Error subclass that is thrown.
 // Check `kind` before reading `errors`: TypeScript narrows on it.
-export type ValidationResult =
-    | { kind: 'validation'; message: string; errors: Record<string, string[]> }
-    | { kind: 'other' };
+export type FormSubmitFailure = ValidationFailure | OtherFailure;
 
 // The body Laravel's validator sends with a 422. Kept private: only this file
-// knows Laravel's format; everything else uses ValidationResult.
+// knows Laravel's format; everything else uses FormSubmitFailure.
 interface LaravelValidationBody
 {
     message: string;
@@ -34,9 +47,9 @@ const isLaravelValidationBody = (data: unknown): data is LaravelValidationBody =
                Array.isArray(value) && value.every((item: unknown) => typeof item === 'string'));
 };
 
-// Translates whatever a failed request threw into a ValidationResult. `error` is
-// unknown because anything can be thrown, not only axios errors.
-export const parseValidationError = (error: unknown): ValidationResult =>
+// Translates whatever a failed form submit threw into a FormSubmitFailure.
+// `error` is unknown because anything can be thrown, not only axios errors.
+export const parseFormSubmitFailure = (error: unknown): FormSubmitFailure =>
 {
     if (!isAxiosError(error) || error.response?.status !== 422)
     {
