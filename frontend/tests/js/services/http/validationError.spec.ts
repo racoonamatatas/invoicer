@@ -23,15 +23,32 @@ describe('parseValidationError', () =>
 {
     it('returns validation for a 422 (unprocessable content) with message and errors', () =>
     {
+        // Arrange
         const error = axiosErrorWith(422, {
             message: 'The email field is required.',
             errors: { email: ['The email field is required.'] },
         });
 
-        expect(parseValidationError(error)).toStrictEqual({
+        // Act
+        const result = parseValidationError(error);
+
+        // Assert
+        expect(result).toStrictEqual({
             kind: 'validation',
             message: 'The email field is required.',
             errors: { email: ['The email field is required.'] },
         });
+    });
+
+    it('returns other for a 422 (unprocessable content) without errors', () =>
+    {
+        // Arrange: what Laravel's abort(422, '...') sends
+        const error = axiosErrorWith(422, { message: 'Invoice already sent' });
+
+        // Act
+        const result = parseValidationError(error);
+
+        // Assert
+        expect(result).toStrictEqual({ kind: 'other' });
     });
 });
