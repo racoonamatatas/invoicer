@@ -1,7 +1,8 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 
 import { useForm } from '@/form/useForm';
 import { axiosErrorWith } from '../utility/axiosErrorWith';
+import { createDeferred } from '../utility/createDeferred';
 
 // A send that fails the way postRequest does on a Laravel validation error.
 const sendFailingWith422 = async () =>
@@ -55,6 +56,30 @@ describe('useForm', () =>
         await expect(form.submit(send)).rejects.toBe(error);
 
         // Assert: the button is usable again after a failure the page handles
+        expect(form.isPending.value).toBe(false);
+    });
+
+    it('should ignore a second submit while the first request is in flight', async () =>
+    {
+        // Arrange: a request the test finishes by hand, so it can look while it is in flight
+        const form = useForm();
+        const request = createDeferred();
+        const send = vi.fn(() => request.promise);
+
+        // Act: a double click, both submits in the same tick
+        const first = form.submit(send);
+        const second = form.submit(send);
+
+        // Assert: only one request went out, and the form shows it is busy
+        expect(send).toHaveBeenCalledTimes(1);
+        expect(form.isPending.value).toBe(true);
+
+        // Act: the request finishes
+        request.resolve();
+        await Promise.all([first, second]);
+
+        // Assert: still one request, and the form is usable again
+        expect(send).toHaveBeenCalledTimes(1);
         expect(form.isPending.value).toBe(false);
     });
 });
