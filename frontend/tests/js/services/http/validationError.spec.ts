@@ -40,10 +40,19 @@ describe('parseValidationError', () =>
         });
     });
 
-    it('returns other for a 422 (unprocessable content) without errors', () =>
+    it.for([
+        // What Laravel's abort(422, '...') sends.
+        { name: 'no errors', body: { message: 'Invoice already sent' } },
+        { name: 'errors values not arrays', body: { message: 'Invalid.', errors: { email: 'Required.' } } },
+        { name: 'errors values not strings', body: { message: 'Invalid.', errors: { email: [42] } } },
+        { name: 'errors is an array', body: { message: 'Invalid.', errors: [] } },
+        { name: 'no message', body: { errors: { email: ['Required.'] } } },
+        // What a proxy or maintenance page sends.
+        { name: 'not an object', body: '<html>Service Unavailable</html>' },
+    ])('returns other for a 422 (unprocessable content) whose body is not Laravel\'s validation shape: $name', ({ body }) =>
     {
-        // Arrange: what Laravel's abort(422, '...') sends
-        const error = axiosErrorWith(422, { message: 'Invoice already sent' });
+        // Arrange
+        const error = axiosErrorWith(422, body);
 
         // Act
         const result = parseValidationError(error);
