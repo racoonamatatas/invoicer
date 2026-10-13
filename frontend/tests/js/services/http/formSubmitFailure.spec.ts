@@ -60,4 +60,26 @@ describe('parseFormSubmitFailure', () =>
         // Assert
         expect(result).toStrictEqual({ kind: 'other' });
     });
+
+    it.for([
+        { label: '400 (bad request)', status: 400 },
+        // Laravel's status when the session's CSRF token has expired.
+        { label: '419 (csrf token mismatch)', status: 419 },
+        // Every auth route is throttled.
+        { label: '429 (too many requests)', status: 429 },
+        { label: '500 (server error)', status: 500 },
+    ])('should return an OtherFailure for $label even with a LaravelValidationBody', ({ status }) =>
+    {
+        // Arrange: a valid body, so only the status can make it an OtherFailure
+        const error = axiosErrorWith(status, {
+            message: 'The email field is required.',
+            errors: { email: ['The email field is required.'] },
+        });
+
+        // Act
+        const result = parseFormSubmitFailure(error);
+
+        // Assert
+        expect(result).toStrictEqual({ kind: 'other' });
+    });
 });
