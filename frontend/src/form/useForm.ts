@@ -3,7 +3,8 @@ import { parseFormSubmitFailure } from './formSubmitFailure';
 
 // One form's submit state. Each call creates its own refs, so two forms on a
 // page never share or clear each other's errors.
-export const useForm = (formName: string) =>
+// TField lists the form's fields, so a typo in fieldError() is a type error.
+export const useForm = <TField extends string>(formName: string) =>
 {
     const errors = ref<Record<string, string[]>>({});
     const message = ref('');
@@ -51,7 +52,7 @@ export const useForm = (formName: string) =>
     // This field's first error and the id its input points to, or null
     // when the field has no error. Called from the template, so it re-runs
     // whenever errors changes.
-    const fieldError = (field: string): { message: string; id: string } | null =>
+    const fieldError = (field: TField): { message: string; id: string } | null =>
     {
         const message = errors.value[field]?.[0];
 
