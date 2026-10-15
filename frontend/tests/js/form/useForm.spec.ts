@@ -125,4 +125,25 @@ describe('useForm', () =>
         // Assert: password has nothing to show, so its input gets no aria attributes
         expect(form.fieldError('password')).toBeNull();
     });
+
+    it('should return only the first message when the 422 (unprocessable) has several for a field', async () =>
+    {
+        // Arrange: Laravel sends one message per failed rule
+        const form = useForm('register');
+        const send = () => Promise.reject(axiosErrorWith(422, {
+            message: 'The password field must be at least 8 characters. (and 1 more error)',
+            errors: {
+                password: [
+                    'The password field must be at least 8 characters.',
+                    'The password field must contain at least one number.',
+                ],
+            },
+        }));
+
+        // Act
+        await form.submit(send);
+
+        // Assert: one message under the input, not a list
+        expect(form.fieldError('password')?.message).toBe('The password field must be at least 8 characters.');
+    });
 });
