@@ -3,7 +3,7 @@ import { parseFormSubmitFailure } from './formSubmitFailure';
 
 // One form's submit state. Each call creates its own refs, so two forms on a
 // page never share or clear each other's errors.
-export const useForm = () =>
+export const useForm = (formName: string) =>
 {
     const errors = ref<Record<string, string[]>>({});
     const message = ref('');
@@ -48,11 +48,22 @@ export const useForm = () =>
         }
     };
 
+    // This field's first error and the id its input points to, or null
+    // when the field has no error. Called from the template, so it re-runs
+    // whenever errors changes.
+    const fieldError = (field: string): { message: string; id: string } | null =>
+    {
+        const message = errors.value[field]?.[0];
+
+        return message === undefined ? null : { message, id: `${formName}-${field}-error` };
+    };
+
     // readonly: pages read the state; only submit() writes it.
     return {
         errors: readonly(errors),
         message: readonly(message),
         isPending: readonly(isPending),
         submit,
+        fieldError,
     };
 };

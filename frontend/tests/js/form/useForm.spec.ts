@@ -21,7 +21,7 @@ describe('useForm', () =>
     it('should fill errors and message when the request fails with a 422 (unprocessable)', async () =>
     {
         // Arrange
-        const form = useForm();
+        const form = useForm('login');
 
         // Act: would throw, and fail the test, if submit re-threw a validation failure
         await form.submit(sendFailingWith422);
@@ -34,7 +34,7 @@ describe('useForm', () =>
     it('should clear errors and message when the next submit succeeds', async () =>
     {
         // Arrange: a first submit that leaves errors and a message behind
-        const form = useForm();
+        const form = useForm('login');
         await form.submit(sendFailingWith422);
 
         // Act
@@ -48,7 +48,7 @@ describe('useForm', () =>
     it('should re-throw the original error and reset isPending when the request fails with a 500 (server error)', async () =>
     {
         // Arrange: an OtherFailure, which the form can't show per field
-        const form = useForm();
+        const form = useForm('login');
         const error = axiosErrorWith(500, { message: 'Server Error' });
         const send = () => Promise.reject(error);
 
@@ -62,7 +62,7 @@ describe('useForm', () =>
     it('should ignore a second submit while the first request is in flight', async () =>
     {
         // Arrange: a request the test finishes by hand, so it can look while it is in flight
-        const form = useForm();
+        const form = useForm('login');
         const request = createDeferred();
         const send = vi.fn(() => request.promise);
 
@@ -86,8 +86,8 @@ describe('useForm', () =>
     it('should keep a form\'s errors when another form on the page submits', async () =>
     {
         // Arrange: the login page's two forms; login failed validation
-        const login = useForm();
-        const resend = useForm();
+        const login =  useForm('login');
+        const resend =  useForm('resend');
         await login.submit(sendFailingWith422);
 
         // Act: the user clicks resend, the request the old global bag cleared errors on
