@@ -98,4 +98,19 @@ describe('useForm', () =>
         expect(login.message.value).toBe('The email field is required.');
         expect(resend.errors.value).toStrictEqual({});
     });
+
+    it('should return a field\'s error and an id prefixed with the form name after a 422 (unprocessable)', async () =>
+    {
+        // Arrange
+        const form = useForm('login');
+
+        // Act
+        await form.submit(sendFailingWith422);
+
+        // Assert: the id is what the input's aria-describedby will point at
+        expect(form.fieldError('email')).toStrictEqual({
+            message: 'The email field is required.',
+            id: 'login-email-error',
+        });
+    });
 });
