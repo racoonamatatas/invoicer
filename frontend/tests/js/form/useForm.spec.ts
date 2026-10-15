@@ -146,4 +146,15 @@ describe('useForm', () =>
         // Assert: one message under the input, not a list
         expect(form.fieldError('password')?.message).toBe('The password field must be at least 8 characters.');
     });
+
+    it('should fail type-check when fieldError gets a field the form does not have', () =>
+    {
+        // Arrange
+        const form = useForm<'email' | 'password'>('login');
+
+        // Assert: checked by npm run type-check, not by vitest. If the typo
+        // compiles, the directive is unused and type-check fails instead.
+        // @ts-expect-error 'emial' is not 'email' | 'password'
+        form.fieldError('emial');
+    });
 });
