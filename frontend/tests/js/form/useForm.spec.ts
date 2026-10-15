@@ -113,4 +113,16 @@ describe('useForm', () =>
             id: 'login-email-error',
         });
     });
+
+    it('should return null for a field the 422 (unprocessable) has no error for', async () =>
+    {
+        // Arrange
+        const form = useForm('login');
+
+        // Act: the 422 only has an error for email
+        await form.submit(sendFailingWith422);
+
+        // Assert: password has nothing to show, so its input gets no aria attributes
+        expect(form.fieldError('password')).toBeNull();
+    });
 });
