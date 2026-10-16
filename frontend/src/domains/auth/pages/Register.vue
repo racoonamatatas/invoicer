@@ -16,7 +16,15 @@ const nameError = computed(() => fieldError('name'));
 const emailError = computed(() => fieldError('email'));
 const passwordError = computed(() => fieldError('password'));
 
-const onSubmit = () => submit(() => register(form.value));
+const isRegistered = ref(false);
+
+// The flag is set inside the callback: submit() resolves the same way after
+// a 422, so only reaching that line proves the register succeeded.
+const onSubmit = () => submit(async () =>
+{
+    await register(form.value);
+    isRegistered.value = true;
+});
 
 </script>
 
@@ -24,7 +32,13 @@ const onSubmit = () => submit(() => register(form.value));
 <template>
     <div>
         <h1>Create an account</h1>
-        <form aria-label="Create an account" @submit.prevent="onSubmit">
+        <!-- Always rendered: a screen reader only announces changes inside a
+             live region it already knows about. The same text for a new and an
+             existing email, so the page reveals nothing about which accounts exist. -->
+        <div role="status">
+            <p v-if="isRegistered">Check your inbox at {{ form.email }}. We've sent you an email with the next step.</p>
+        </div>
+        <form v-if="!isRegistered" aria-label="Create an account" @submit.prevent="onSubmit">
             <div>
                 <label for="register-name">Name</label>
                 <input
