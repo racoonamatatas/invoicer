@@ -6,7 +6,7 @@ import { useRouter } from 'vue-router';
 // Project imports
 import type { LoginCredentials } from '@/services/auth';
 import { useAuthStore } from '@/domains/auth/store';
-import { useForm } from '@/form/useForm';
+import { useForm } from '@/composables/useForm';
 
 const form = ref<LoginCredentials>({ email: '', password: '' });
 const store = useAuthStore();

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Project imports
 import { useAuthStore } from '@/domains/auth/store';
-import { useForm } from '@/form/useForm';
+import { useForm } from '@/composables/useForm';
 
 const store = useAuthStore();
 

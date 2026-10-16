@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 
-import { useForm } from '@/form/useForm';
+import { useForm } from '@/composables/useForm';
 import { axiosErrorWith } from '../utility/axiosErrorWith';
 import { createDeferred } from '../utility/createDeferred';
 

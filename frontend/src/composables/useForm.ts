@@ -1,5 +1,5 @@
 import { readonly, ref } from 'vue';
-import { parseFormSubmitFailure } from './formSubmitFailure';
+import { parseFormSubmitFailure } from '@/form/formSubmitFailure';
 
 // One form's submit state. Each call creates its own refs, so two forms on a
 // page never share or clear each other's errors.

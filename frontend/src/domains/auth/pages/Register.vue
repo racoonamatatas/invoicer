@@ -4,7 +4,7 @@ import { computed, ref } from 'vue';
 
 // Project imports
 import { register, type Registration } from '@/services/auth';
-import { useForm } from '@/form/useForm';
+import { useForm } from '@/composables/useForm';
 
 const form = ref<Registration>({ name: '', email: '', password: '', password_confirmation: '' });
 const { submit, isPending, fieldError } = useForm<keyof Registration>('register');
