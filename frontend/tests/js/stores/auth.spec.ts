@@ -33,4 +33,21 @@ describe('auth store', () =>
         expect(store.user).toStrictEqual(user);
         expect(store.isLoggedIn).toBe(true);
     });
+
+    it('should clear user and isLoggedIn when logout gets a 204 (no content)', async () =>
+    {
+        // Arrange: logged in through login(), since user is private to the store
+        vi.mocked(auth.login).mockResolvedValue(user);
+        vi.mocked(auth.logout).mockResolvedValue();
+        const store = useAuthStore();
+        await store.login({ email: 'jan@example.nl', password: 'secret-password' });
+
+        // Act
+        await store.logout();
+
+        // Assert: the backend was asked once, and the store no longer holds a user
+        expect(auth.logout).toHaveBeenCalledOnce();
+        expect(store.user).toBeNull();
+        expect(store.isLoggedIn).toBe(false);
+    });
 });
