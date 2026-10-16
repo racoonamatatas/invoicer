@@ -24,6 +24,8 @@ export const useAuthStore = defineStore('auth', () =>
         user.value = await auth.login(credentials);
     };
 
+    // Clears user only after the backend confirms. If the request fails, the
+    // session still exists, so the frontend keeps showing the user as logged in.
     const logout = async (): Promise<void> =>
     {
         await auth.logout();
