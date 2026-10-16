@@ -3,8 +3,8 @@ import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, it, expect, vi } from 'vitest';
 
 import * as auth from '@/services/auth';
-import { useAuthStore } from '@/stores/auth';
-import { axiosErrorWith } from '../utility/axiosErrorWith';
+import { useAuthStore } from '@/domains/auth/store';
+import { axiosErrorWith } from '../../utility/axiosErrorWith';
 
 // Every export of the auth service becomes a vi.fn(), so no request leaves the test.
 vi.mock('@/services/auth');
