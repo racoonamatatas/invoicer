@@ -19,6 +19,16 @@ describe('auth store', () =>
         vi.resetAllMocks();
     });
 
+    it('should start with no user and isLoggedIn false', () =>
+    {
+        // Act
+        const store = useAuthStore();
+
+        // Assert: nobody is logged in until login() or restore() says so
+        expect(store.user).toBeNull();
+        expect(store.isLoggedIn).toBe(false);
+    });
+
     it('should fill user and set isLoggedIn when login gets a 200 (ok)', async () =>
     {
         // Arrange: auth.login is a stub (canned user) and a spy (records its call)
