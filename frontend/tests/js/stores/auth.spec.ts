@@ -3,6 +3,7 @@ import { beforeEach, describe, it, expect, vi } from 'vitest';
 
 import * as auth from '@/services/auth';
 import { useAuthStore } from '@/stores/auth';
+import { axiosErrorWith } from '../utility/axiosErrorWith';
 
 // Every export of the auth service becomes a vi.fn(), so no request leaves the test.
 vi.mock('@/services/auth');
@@ -49,5 +50,22 @@ describe('auth store', () =>
         expect(auth.logout).toHaveBeenCalledOnce();
         expect(store.user).toBeNull();
         expect(store.isLoggedIn).toBe(false);
+    });
+
+    it('should keep user and isLoggedIn when logout fails with a 500 (server error)', async () =>
+    {
+        // Arrange: logged in, and the backend fails the logout, so the session still exists
+        const error = axiosErrorWith(500, { message: 'Server Error' });
+        vi.mocked(auth.login).mockResolvedValue(user);
+        vi.mocked(auth.logout).mockRejectedValue(error);
+        const store = useAuthStore();
+        await store.login({ email: 'jan@example.nl', password: 'secret-password' });
+
+        // Act + Assert: the page gets the original error to handle
+        await expect(store.logout()).rejects.toBe(error);
+
+        // Assert: the frontend still matches the backend, where the user is logged in
+        expect(store.user).toStrictEqual(user);
+        expect(store.isLoggedIn).toBe(true);
     });
 });
