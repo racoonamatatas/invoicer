@@ -1,6 +1,7 @@
 <script setup lang="ts">
 // Package imports
 import { computed, ref } from 'vue';
+import { useRouter } from 'vue-router';
 
 // Project imports
 import type { LoginCredentials } from '@/services/auth';
@@ -9,6 +10,7 @@ import { useForm } from '@/form/useForm';
 
 const form = ref<LoginCredentials>({ email: '', password: '' });
 const store = useAuthStore();
+const router = useRouter();
 const { submit, isPending, fieldError } = useForm<keyof LoginCredentials>('login');
 
 // One value per field, so the error text and both aria attributes read
@@ -16,7 +18,13 @@ const { submit, isPending, fieldError } = useForm<keyof LoginCredentials>('login
 const emailError = computed(() => fieldError('email'));
 const passwordError = computed(() => fieldError('password'));
 
-const onSubmit = () => submit(() => store.login(form.value));
+// The push sits inside the callback: submit() resolves the same way after a
+// 422, so only reaching the push proves the login succeeded.
+const onSubmit = () => submit(async () =>
+{
+    await store.login(form.value);
+    await router.push({ name: 'dashboard' });
+});
 
 </script>
 
