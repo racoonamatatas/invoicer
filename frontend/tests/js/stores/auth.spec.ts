@@ -93,4 +93,20 @@ describe('auth store', () =>
         expect(store.user).toStrictEqual(user);
         expect(store.isLoggedIn).toBe(true);
     });
+
+    it('should clear user without throwing when restore gets a 401 (unauthenticated)', async () =>
+    {
+        // Arrange: logged in, then the session expired on the backend
+        vi.mocked(auth.login).mockResolvedValue(user);
+        vi.mocked(auth.fetchUser).mockRejectedValue(axiosErrorWith(401, { message: 'Unauthenticated.' }));
+        const store = useAuthStore();
+        await store.login({ email: 'jan@example.nl', password: 'secret-password' });
+
+        // Act + Assert: a 401 is an answer ("nobody"), not a failure, so nothing reaches the page
+        await expect(store.restore()).resolves.toBeUndefined();
+
+        // Assert
+        expect(store.user).toBeNull();
+        expect(store.isLoggedIn).toBe(false);
+    });
 });
