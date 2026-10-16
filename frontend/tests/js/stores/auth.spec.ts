@@ -1,3 +1,4 @@
+import { AxiosError } from 'axios';
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, it, expect, vi } from 'vitest';
 
@@ -108,5 +109,29 @@ describe('auth store', () =>
         // Assert
         expect(store.user).toBeNull();
         expect(store.isLoggedIn).toBe(false);
+    });
+
+    // Every axios error except a 401: the server answered (or didn't) without
+    // saying the session is gone. The network error has no response at all.
+    it.for([
+        { name: 'a 403 (forbidden)', error: axiosErrorWith(403, { message: 'Forbidden' }) },
+        { name: 'a 419 (page expired)', error: axiosErrorWith(419, { message: 'Page Expired' }) },
+        { name: 'a 500 (server error)', error: axiosErrorWith(500, { message: 'Server Error' }) },
+        { name: 'a 503 (service unavailable)', error: axiosErrorWith(503, { message: 'Service Unavailable' }) },
+        { name: 'a network error (no response)', error: new AxiosError('Network Error', AxiosError.ERR_NETWORK) },
+    ])('should re-throw and keep user when restore fails with an error that is not a 401 (unauthenticated): $name', async ({ error }) =>
+    {
+        // Arrange: logged in, then fetching the user fails
+        vi.mocked(auth.login).mockResolvedValue(user);
+        vi.mocked(auth.fetchUser).mockRejectedValue(error);
+        const store = useAuthStore();
+        await store.login({ email: 'jan@example.nl', password: 'secret-password' });
+
+        // Act + Assert: the page gets the original error to handle
+        await expect(store.restore()).rejects.toBe(error);
+
+        // Assert: the user is not logged out by a failure that isn't about the session
+        expect(store.user).toStrictEqual(user);
+        expect(store.isLoggedIn).toBe(true);
     });
 });
