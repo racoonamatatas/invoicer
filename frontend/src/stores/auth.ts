@@ -1,4 +1,5 @@
 // Package imports
+import { isAxiosError } from 'axios';
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 
@@ -32,10 +33,32 @@ export const useAuthStore = defineStore('auth', () =>
         user.value = null;
     };
 
+    const restore = async (): Promise<void> =>
+    {
+        try
+        {
+            user.value = await auth.fetchUser();
+        }
+        catch (error)
+        {
+            // Only a 401 (unauthenticated) proves there is no session.
+            // Any other error says nothing about the session, so it is
+            // rethrown instead of logging out the user.
+            if (isAxiosError(error) && error.response?.status === 401)
+            {
+                user.value = null;
+                return;
+            }
+
+            throw error;
+        }
+    };
+
     return {
         user: currentUser,
         isLoggedIn,
         login,
         logout,
+        restore,
     };
 });
