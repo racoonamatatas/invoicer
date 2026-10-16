@@ -18,4 +18,17 @@ describe('AppRoute', () =>
         // Assert: the whole record, so a missing or extra field fails too
         expect(record).toStrictEqual({ path: '/', name: 'dashboard', component: page, meta: { public: false } });
     });
+
+    it('should return the same route from public() and give a record with meta.public true', () =>
+    {
+        // Arrange
+        const route = new AppRoute('/login', 'login', page);
+
+        // Act
+        const returned = route.public();
+
+        // Assert: the same object, so .public() can be chained onto new AppRoute(...)
+        expect(returned).toBe(route);
+        expect(route.toRecord()).toStrictEqual({ path: '/login', name: 'login', component: page, meta: { public: true } });
+    });
 });
