@@ -40,5 +40,13 @@ export default defineConfigWithVueTs(
         },
     },
 
+    {
+        name: 'app/pages',
+        // Pages are only loaded by the router, never used as tags, so they can't
+        // clash with HTML elements; the folder already says "page".
+        files: ['src/domains/*/pages/**/*.vue'],
+        rules: { 'vue/multi-word-component-names': 'off' },
+    },
+
     ...pluginOxlint.buildFromOxlintConfigFile('.oxlintrc.json'),
 );
