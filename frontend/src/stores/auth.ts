@@ -24,9 +24,16 @@ export const useAuthStore = defineStore('auth', () =>
         user.value = await auth.login(credentials);
     };
 
+    const logout = async (): Promise<void> =>
+    {
+        await auth.logout();
+        user.value = null;
+    };
+
     return {
         user: currentUser,
         isLoggedIn,
         login,
+        logout,
     };
 });
