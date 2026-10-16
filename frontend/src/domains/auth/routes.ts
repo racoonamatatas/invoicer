@@ -1,6 +1,5 @@
-import type { RouteRecordRaw } from 'vue-router';
+import { AppRoute } from '@/router/AppRoute';
 
-
-export const authRoutes: RouteRecordRaw[] = [
-    { path: '/login', component: () => import('./pages/Login.vue'), name: 'login' },
+export const authRoutes: AppRoute[] = [
+    new AppRoute('/login', 'login', () => import('./pages/Login.vue')).public(),
 ];

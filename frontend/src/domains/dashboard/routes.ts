@@ -1,6 +1,5 @@
-import type { RouteRecordRaw } from 'vue-router';
+import { AppRoute } from '@/router/AppRoute';
 
-
-export const dashboardRoutes: RouteRecordRaw[] = [
-    { path: '/', component: () => import('./pages/Dashboard.vue'), name: 'dashboard' },
+export const dashboardRoutes: AppRoute[] = [
+    new AppRoute('/', 'dashboard', () => import('./pages/Dashboard.vue')),
 ];
