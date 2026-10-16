@@ -134,4 +134,22 @@ describe('auth store', () =>
         expect(store.user).toStrictEqual(user);
         expect(store.isLoggedIn).toBe(true);
     });
+
+    it('should re-throw and keep user when restore fails with a 401 (unauthenticated) that is not an AxiosError', async () =>
+    {
+        // Arrange: logged in, then fetchUser fails. Note: the error has status 401
+        // but is not an AxiosError; only the isAxiosError check tells them apart
+        const error = { response: { status: 401 } };
+        vi.mocked(auth.login).mockResolvedValue(user);
+        vi.mocked(auth.fetchUser).mockRejectedValue(error);
+        const store = useAuthStore();
+        await store.login({ email: 'jan@example.nl', password: 'secret-password' });
+
+        // Act + Assert: the page gets the original error to handle
+        await expect(store.restore()).rejects.toBe(error);
+
+        // Assert: a 401 that didn't come from axios is not proof that the session is gone
+        expect(store.user).toStrictEqual(user);
+        expect(store.isLoggedIn).toBe(true);
+    });
 });
