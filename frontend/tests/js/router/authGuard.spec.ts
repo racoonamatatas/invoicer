@@ -46,4 +46,13 @@ describe('authGuard', () =>
         // Assert
         expect(result).toBe(true);
     });
+
+    it('should let a logged-out visitor open a public route', () =>
+    {
+        // Act: the store starts logged out; /login is public, or this would loop
+        const result = authGuard(routeWith({ public: true }));
+
+        // Assert
+        expect(result).toBe(true);
+    });
 });
