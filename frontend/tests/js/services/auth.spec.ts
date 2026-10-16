@@ -1,8 +1,8 @@
 import type { AxiosResponse } from 'axios';
 import { beforeEach, describe, it, expect, vi } from 'vitest';
 
-import { fetchUser, login, register } from '@/services/auth';
-import { getRequest, postRequest } from '@/services/http';
+import { fetchUser, login, logout, register } from '@/services/auth';
+import { deleteRequest, getRequest, postRequest } from '@/services/http';
 
 // Every export of the http module becomes a vi.fn(), so no request leaves the test.
 vi.mock('@/services/http');
@@ -56,5 +56,18 @@ describe('auth service', () =>
         // Assert: one request to the right route, and the user itself comes back, not the response
         expect(getRequest).toHaveBeenCalledExactlyOnceWith('/auth/user');
         expect(result).toBe(user);
+    });
+
+    it('should delete /auth/logout and return nothing from the 204 (no content) response', async () =>
+    {
+        // Arrange: axios gives an empty string as the data of a 204
+        vi.mocked(deleteRequest).mockResolvedValue({ data: '' } as AxiosResponse);
+
+        // Act
+        const result = await logout();
+
+        // Assert: one request to the right route, and nothing leaks out to the page
+        expect(deleteRequest).toHaveBeenCalledExactlyOnceWith('/auth/logout');
+        expect(result).toBeUndefined();
     });
 });
