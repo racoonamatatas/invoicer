@@ -68,4 +68,19 @@ describe('auth store', () =>
         expect(store.user).toStrictEqual(user);
         expect(store.isLoggedIn).toBe(true);
     });
+
+    it('should fill user and set isLoggedIn when restore gets a 200 (ok)', async () =>
+    {
+        // Arrange: auth.fetchUser is a stub (canned user) and a spy (records its call)
+        vi.mocked(auth.fetchUser).mockResolvedValue(user);
+        const store = useAuthStore();
+
+        // Act: what the app does on page load, when the session cookie is still valid
+        await store.restore();
+
+        // Assert: the backend was asked once, and the store holds its user
+        expect(auth.fetchUser).toHaveBeenCalledOnce();
+        expect(store.user).toStrictEqual(user);
+        expect(store.isLoggedIn).toBe(true);
+    });
 });
