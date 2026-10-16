@@ -34,7 +34,7 @@ describe('auth service', () =>
     it('should post the registration to /auth/register and return nothing from the 204 (no content) response', async () =>
     {
         // Arrange: axios gives an empty string as the data of a 204
-        const registration = { name: 'Jan de Vries', email: 'jan@example.nl', password: 'secret-password' };
+        const registration = { name: 'Jan de Vries', email: 'jan@example.nl', password: 'secret-password', password_confirmation: 'secret-password' };
         vi.mocked(postRequest).mockResolvedValue({ data: '' } as AxiosResponse);
 
         // Act

@@ -22,6 +22,7 @@ export interface Registration
     name: string;
     email: string;
     password: string;
+    password_confirmation: string;
 }
 
 // Logs in and returns the user. A 422 (bad credentials, unverified email) is
