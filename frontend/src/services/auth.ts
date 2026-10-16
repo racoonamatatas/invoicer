@@ -17,6 +17,7 @@ export interface LoginCredentials
 }
 
 // What the register form sends. Keys match RegisterRequest's rules.
+// password_confirmation is the field Laravel's 'confirmed' rule reads.
 export interface Registration
 {
     name: string;
