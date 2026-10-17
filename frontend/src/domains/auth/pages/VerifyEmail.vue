@@ -6,6 +6,7 @@ import { RouterLink, useRoute } from 'vue-router';
 // Project imports
 import { verifyEmail, type EmailVerification } from '@/services/auth';
 import { useForm } from '@/composables/useForm';
+import ResendVerificationForm from '@/domains/auth/components/ResendVerificationForm.vue';
 
 const route = useRoute();
 const token = computed(() => typeof route.query.token === 'string' ? route.query.token : '');
@@ -39,5 +40,12 @@ const onVerify = () => submit(async () =>
         <p v-if="!token">This link is incomplete. Open the link from your email again.</p>
         <!-- Hidden after a 422: a used or expired token can't start working. -->
         <button v-else-if="!isVerified && !tokenError" type="button" :disabled="isPending" @click="onVerify">Verify my email</button>
+
+        <!-- A link without a token needs a new mail as much as an expired one.
+             The heading lives here, not in the form: its level depends on the page. -->
+        <template v-if="!token || tokenError">
+            <h2>Get a new link</h2>
+            <ResendVerificationForm />
+        </template>
     </div>
 </template>
