@@ -82,6 +82,27 @@ describe('VerifyEmail page', () =>
         expect(findResendForm(wrapper).exists()).toBe(false);
     });
 
+    it('should remove the spent token from the URL and show neither the incomplete text nor a new-link form after a 204 (no content)', async () =>
+    {
+        // Arrange: auth.verifyEmail is a stub (resolves, like a 204)
+        vi.mocked(auth.verifyEmail).mockResolvedValue();
+        const wrapper = await mountVerifyEmail();
+
+        // Act
+        await findVerifyButton(wrapper).trigger('click');
+        await flushPromises();
+
+        // Assert (outcome): the token is gone from the address bar, so a refresh
+        // or a copied URL can't post the spent token again
+        expect(wrapper.vm.$route.query).toStrictEqual({});
+
+        // Assert (outcome): a URL without a token still reads as verified, not as
+        // an incomplete link
+        expect(wrapper.find('[role="status"]').text()).toContain('Your email is verified.');
+        expect(wrapper.text()).not.toContain('This link is incomplete.');
+        expect(findResendForm(wrapper).exists()).toBe(false);
+    });
+
     it('should show the invalid-link message, hide the verify button and offer a new link when verifyEmail fails with a 422 (unprocessable)', async () =>
     {
         // Arrange: auth.verifyEmail is a stub that fails the way the backend
