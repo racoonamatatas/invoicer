@@ -11,7 +11,7 @@ import ResendVerificationForm from '@/domains/auth/components/ResendVerification
 const route = useRoute();
 const token = computed(() => typeof route.query.token === 'string' ? route.query.token : '');
 
-const { submit, isPending, fieldError } = useForm<keyof EmailVerification>('verify-email');
+const { submit, isPending, fieldError, throttleMessage } = useForm<keyof EmailVerification>('verify-email');
 const isVerified = ref(false);
 const tokenError = computed(() => fieldError('token'));
 
@@ -35,6 +35,9 @@ const onVerify = () => submit(async () =>
         <div role="status">
             <p v-if="isVerified">Your email is verified. <RouterLink :to="{ name: 'login' }">Log in</RouterLink></p>
             <p v-else-if="tokenError" :id="tokenError.id">{{ tokenError.message }}</p>
+            <!-- The token wasn't checked, so it may still be good: the button
+                 stays for a retry once the wait is over. -->
+            <p v-else-if="throttleMessage">{{ throttleMessage }}</p>
         </div>
 
         <p v-if="!token">This link is incomplete. Open the link from your email again.</p>

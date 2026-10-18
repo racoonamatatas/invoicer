@@ -7,15 +7,18 @@ import { resendVerification, type VerificationResend } from '@/services/auth';
 import { useForm } from '@/composables/useForm';
 
 const form = ref<VerificationResend>({ email: '' });
-const { submit, isPending, fieldError } = useForm<keyof VerificationResend>('resend-verification');
+const { submit, isPending, fieldError, throttleMessage } = useForm<keyof VerificationResend>('resend-verification');
 
 const emailError = computed(() => fieldError('email'));
 const isSent = ref(false);
 
 // The flag is set inside the callback: submit() resolves the same way after
-// a 422, so only reaching that line proves the request was accepted.
+// a 422 or a 429, so only reaching that line proves the request was accepted.
+// Cleared first, so an earlier success doesn't stay on screen when this send
+// is throttled. Inside the callback, so a blocked double click clears nothing.
 const onSubmit = () => submit(async () =>
 {
+    isSent.value = false;
     await resendVerification(form.value.email);
     isSent.value = true;
 });
@@ -28,6 +31,7 @@ const onSubmit = () => submit(async () =>
              so the form reveals nothing about which accounts exist. -->
         <div role="status">
             <p v-if="isSent">If that email has an unverified account, we've sent a new link to it.</p>
+            <p v-else-if="throttleMessage">{{ throttleMessage }}</p>
         </div>
         <!-- Stays visible after sending, so a mistyped email can be fixed and
              sent again. -->
