@@ -57,14 +57,10 @@ const isLaravelValidationBody = (data: unknown): data is LaravelValidationBody =
 };
 
 // Retry-After may also be an HTTP date; Laravel sends whole seconds, so
-// anything else (a date, a missing header) becomes null.
+// anything else (a date, a missing header) becomes null. Response header
+// values arrive as strings, so a string of digits is the only shape to read.
 const readRetryAfter = (value: unknown): number | null =>
 {
-    if (typeof value === 'number' && Number.isInteger(value) && value >= 0)
-    {
-        return value;
-    }
-
     if (typeof value === 'string' && /^\d+$/.test(value))
     {
         return Number(value);
