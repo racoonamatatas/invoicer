@@ -8,6 +8,15 @@ export interface ValidationFailure
     errors: Record<string, string[]>;
 }
 
+// A 429 from Laravel's throttle middleware: too many attempts. Every form
+// route is throttled. retryAfterSeconds comes from the Retry-After header,
+// or is null when the header is missing or not a number of seconds.
+export interface ThrottledFailure
+{
+    kind: 'throttled';
+    retryAfterSeconds: number | null;
+}
+
 // Everything else (server errors, network failures, malformed 422s). The form
 // can't show it per field, so it is left to the caller to handle.
 export interface OtherFailure
@@ -19,7 +28,7 @@ export interface OtherFailure
 // say) would split failures differently, hence the form-specific name.
 // Plain data that is returned, not an Error subclass that is thrown.
 // Check `kind` before reading `errors`: TypeScript narrows on it.
-export type FormSubmitFailure = ValidationFailure | OtherFailure;
+export type FormSubmitFailure = ValidationFailure | ThrottledFailure | OtherFailure;
 
 // The body Laravel's validator sends with a 422. Kept private: only this file
 // knows Laravel's format; everything else uses FormSubmitFailure.
@@ -47,10 +56,29 @@ const isLaravelValidationBody = (data: unknown): data is LaravelValidationBody =
                Array.isArray(value) && value.every((item: unknown) => typeof item === 'string'));
 };
 
+// Retry-After may also be an HTTP date; Laravel sends whole seconds, so
+// anything else (a date, a missing header) becomes null. Response header
+// values arrive as strings, so a string of digits is the only shape to read.
+const readRetryAfter = (value: unknown): number | null =>
+{
+    if (typeof value === 'string' && /^\d+$/.test(value))
+    {
+        return Number(value);
+    }
+
+    return null;
+};
+
 // Translates whatever a failed form submit threw into a FormSubmitFailure.
 // `error` is unknown because anything can be thrown, not only axios errors.
 export const parseFormSubmitFailure = (error: unknown): FormSubmitFailure =>
 {
+    // Axios lowercases response header names, hence 'retry-after'.
+    if (isAxiosError(error) && error.response?.status === 429)
+    {
+        return { kind: 'throttled', retryAfterSeconds: readRetryAfter(error.response.headers['retry-after']) };
+    }
+
     if (!isAxiosError(error) || error.response?.status !== 422)
     {
         return { kind: 'other' };

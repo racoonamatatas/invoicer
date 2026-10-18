@@ -1,6 +1,11 @@
 import type { RouteRecordRaw, RouteRecordSingleView } from 'vue-router';
 
 // A page or a lazy import of one, as Vue Router accepts it.
+// Routes pass a lazy import, () => import('./pages/X.vue'): each page becomes
+// its own chunk, downloaded on first visit, so heavy pages (invoice editor,
+// PDF, charts) never slow down the login page. The pages are small today,
+// but switching later would touch every route. The cost: a chunk can fail
+// to download after a deploy (INV-0026), and tests must wait for it.
 type RouteComponent = RouteRecordSingleView['component'];
 
 // A route that is protected unless it says otherwise (fail closed): only

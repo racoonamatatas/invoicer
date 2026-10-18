@@ -7,7 +7,7 @@ import { register, type Registration } from '@/services/auth';
 import { useForm } from '@/composables/useForm';
 
 const form = ref<Registration>({ name: '', email: '', password: '', password_confirmation: '' });
-const { submit, isPending, fieldError } = useForm<keyof Registration>('register');
+const { submit, isPending, fieldError, throttleMessage } = useForm<keyof Registration>('register');
 
 // One value per field, so the error text and both aria attributes read
 // from the same source. No password_confirmation: Laravel's 'confirmed'
@@ -37,6 +37,7 @@ const onSubmit = () => submit(async () =>
              existing email, so the page reveals nothing about which accounts exist. -->
         <div role="status">
             <p v-if="isRegistered">Check your inbox at {{ form.email }}. We've sent you an email with the next step.</p>
+            <p v-else-if="throttleMessage">{{ throttleMessage }}</p>
         </div>
         <form v-if="!isRegistered" aria-label="Create an account" @submit.prevent="onSubmit">
             <div>
