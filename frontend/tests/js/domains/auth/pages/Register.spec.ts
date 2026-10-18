@@ -147,6 +147,27 @@ describe('Register page', () =>
         expect(button.attributes('disabled')).toBeUndefined();
     });
 
+    it('should show the throttle message in the live region, keep the form and not hand the error on when register fails with a 429 (too many requests)', async () =>
+    {
+        // Arrange: auth.register is a stub that fails the way Laravel's throttle
+        // middleware does. errorHandler is a spy standing in for app.config.errorHandler
+        vi.mocked(auth.register).mockRejectedValue(axiosErrorWith(429, { message: 'Too Many Attempts.' }, { 'retry-after': '3120' }));
+        const errorHandler = vi.fn<(error: unknown) => void>();
+        const wrapper = mountRegister(errorHandler);
+
+        // Act
+        await submitRegistration(wrapper);
+        await flushPromises();
+
+        // Assert (outcome): the wait is shown where a screen reader announces it,
+        // and the form stays so the user can try again later
+        expect(wrapper.find('[role="status"]').text()).toBe('Too many attempts. Try again in 52 minutes.');
+        expect(wrapper.find('form').exists()).toBe(true);
+
+        // Assert (interaction): the page handled the 429 itself
+        expect(errorHandler).not.toHaveBeenCalled();
+    });
+
     it('should hand the original error to the app error handler and show no message when register fails with a 500 (server error)', async () =>
     {
         // Arrange: auth.register is a stub that fails with an error no field can

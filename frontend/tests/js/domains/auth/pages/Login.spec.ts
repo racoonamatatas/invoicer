@@ -144,6 +144,39 @@ describe('Login page', () =>
         expect(button.attributes('disabled')).toBeUndefined();
     });
 
+    it('should render the status region empty before any submit, so a screen reader already knows it', async () =>
+    {
+        // Act
+        const { wrapper } = await mountLogin();
+
+        // Assert: the live region is there, and says nothing yet
+        const status = wrapper.find('[role="status"]');
+        expect(status.exists()).toBe(true);
+        expect(status.text()).toBe('');
+    });
+
+    it('should show the throttle message in the live region, not navigate and not hand the error on when login fails with a 429 (too many requests)', async () =>
+    {
+        // Arrange: auth.login is a stub that fails the way Laravel's throttle
+        // middleware does. router.push is a spy that still navigates, and
+        // errorHandler is a spy standing in for app.config.errorHandler
+        vi.mocked(auth.login).mockRejectedValue(axiosErrorWith(429, { message: 'Too Many Attempts.' }, { 'retry-after': '60' }));
+        const errorHandler = vi.fn<(error: unknown) => void>();
+        const { wrapper, router } = await mountLogin(errorHandler);
+        const push = vi.spyOn(router, 'push');
+
+        // Act
+        await submitCredentials(wrapper);
+        await flushPromises();
+
+        // Assert (outcome): the wait is shown where a screen reader announces it
+        expect(wrapper.find('[role="status"]').text()).toBe('Too many attempts. Try again in 1 minute.');
+
+        // Assert (interaction): no navigation was started, and the page handled the 429 itself
+        expect(push).not.toHaveBeenCalled();
+        expect(errorHandler).not.toHaveBeenCalled();
+    });
+
     it('should hand the original error to the app error handler and stay on login when login fails with a 500 (server error)', async () =>
     {
         // Arrange: auth.login is a stub that fails with an error no field can
