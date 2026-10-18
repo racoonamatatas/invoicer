@@ -2,7 +2,8 @@ import { readonly, ref } from 'vue';
 import { parseFormSubmitFailure } from '@/form/formSubmitFailure';
 
 // What a form shows for a 429. Built here, so every form says it the same way.
-// Rounded up: 30 seconds left reads as 1 minute, never 0.
+// Rounded up, and at least 1: 30 seconds left reads as 1 minute, and so does
+// the 0 Laravel sends when the window ends within the same second.
 const throttleMessageFor = (retryAfterSeconds: number | null): string =>
 {
     if (retryAfterSeconds === null)
@@ -10,7 +11,7 @@ const throttleMessageFor = (retryAfterSeconds: number | null): string =>
         return 'Too many attempts. Try again later.';
     }
 
-    const minutes = Math.ceil(retryAfterSeconds / 60);
+    const minutes = Math.max(1, Math.ceil(retryAfterSeconds / 60));
 
     return `Too many attempts. Try again in ${minutes} ${minutes === 1 ? 'minute' : 'minutes'}.`;
 };
