@@ -47,13 +47,11 @@ describe('parseFormSubmitFailure', () =>
     });
 
     it.for([
-        { label: '400 (bad request)', status: 400 },
+        { name: '400 (bad request)', status: 400 },
         // Laravel's status when the session's CSRF token has expired.
-        { label: '419 (csrf token mismatch)', status: 419 },
-        // Every auth route is throttled.
-        { label: '429 (too many requests)', status: 429 },
-        { label: '500 (server error)', status: 500 },
-    ])('should return an OtherFailure for $label even with a LaravelValidationBody', ({ status }) =>
+        { name: '419 (csrf token mismatch)', status: 419 },
+        { name: '500 (server error)', status: 500 },
+    ])('should return an OtherFailure even with a LaravelValidationBody: $name', ({ status }) =>
     {
         // Arrange: a valid body, so only the status can make it an OtherFailure
         const error = axiosErrorWith(status, {
@@ -66,6 +64,25 @@ describe('parseFormSubmitFailure', () =>
 
         // Assert
         expect(result).toStrictEqual({ kind: 'other' });
+    });
+
+    // Every form route is throttled. Laravel sends Retry-After in whole seconds;
+    // the HTTP standard also allows a date, which the form can't count down from.
+    it.for([
+        { name: 'seconds', retryAfter: '90', retryAfterSeconds: 90 },
+        { name: 'missing', retryAfter: null, retryAfterSeconds: null },
+        { name: 'http date', retryAfter: 'Wed, 21 Oct 2026 07:28:00 GMT', retryAfterSeconds: null },
+    ])('should return a ThrottledFailure with the Retry-After seconds for a 429 (too many requests): $name', ({ retryAfter, retryAfterSeconds }) =>
+    {
+        // Arrange: the body Laravel's throttle middleware sends
+        const headers: Record<string, string> = retryAfter === null ? {} : { 'retry-after': retryAfter };
+        const error = axiosErrorWith(429, { message: 'Too Many Attempts.' }, headers);
+
+        // Act
+        const result = parseFormSubmitFailure(error);
+
+        // Assert
+        expect(result).toStrictEqual({ kind: 'throttled', retryAfterSeconds });
     });
 
     it.for([
