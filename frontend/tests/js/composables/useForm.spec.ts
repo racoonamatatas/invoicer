@@ -147,6 +147,46 @@ describe('useForm', () =>
         expect(form.fieldError('password')?.message).toBe('The password field must be at least 8 characters.');
     });
 
+    // Rounded up, so a few seconds left never reads as 0 minutes.
+    it.for([
+        { name: '30 seconds', retryAfter: '30', throttleMessage: 'Too many attempts. Try again in 1 minute.' },
+        { name: '60 seconds', retryAfter: '60', throttleMessage: 'Too many attempts. Try again in 1 minute.' },
+        { name: '61 seconds', retryAfter: '61', throttleMessage: 'Too many attempts. Try again in 2 minutes.' },
+        { name: '3120 seconds', retryAfter: '3120', throttleMessage: 'Too many attempts. Try again in 52 minutes.' },
+        { name: 'no Retry-After', retryAfter: null, throttleMessage: 'Too many attempts. Try again later.' },
+    ])('should set throttleMessage and not re-throw when the request fails with a 429 (too many requests): $name', async ({ retryAfter, throttleMessage }) =>
+    {
+        // Arrange: a send that fails the way Laravel's throttle middleware does
+        const form = useForm('resend-verification');
+        const headers: Record<string, string> = retryAfter === null ? {} : { 'retry-after': retryAfter };
+        const send = () => Promise.reject(axiosErrorWith(429, { message: 'Too Many Attempts.' }, headers));
+
+        // Act: would throw, and fail the test, if submit re-threw a 429
+        await form.submit(send);
+
+        // Assert
+        expect(form.throttleMessage.value).toBe(throttleMessage);
+    });
+
+    it('should clear throttleMessage when the next submit starts', async () =>
+    {
+        // Arrange: a first submit that was throttled, and a second request
+        // the test holds open, to look before it settles
+        const form = useForm('resend-verification');
+        await form.submit(() => Promise.reject(axiosErrorWith(429, { message: 'Too Many Attempts.' }, { 'retry-after': '60' })));
+        const request = createDeferred();
+
+        // Act
+        const second = form.submit(() => request.promise);
+
+        // Assert: cleared as soon as the user tries again, not only on success
+        expect(form.throttleMessage.value).toBe('');
+
+        // Act: let the request finish, so nothing is left pending after the test
+        request.resolve();
+        await second;
+    });
+
     it('should fail type-check when fieldError gets a field the form does not have', () =>
     {
         // Arrange
