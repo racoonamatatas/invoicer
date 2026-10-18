@@ -11,7 +11,7 @@ import { useForm } from '@/composables/useForm';
 const form = ref<LoginCredentials>({ email: '', password: '' });
 const store = useAuthStore();
 const router = useRouter();
-const { submit, isPending, fieldError } = useForm<keyof LoginCredentials>('login');
+const { submit, isPending, fieldError, throttleMessage } = useForm<keyof LoginCredentials>('login');
 
 // One value per field, so the error text and both aria attributes read
 // from the same source.
@@ -31,6 +31,11 @@ const onSubmit = () => submit(async () =>
 <template>
     <div>
         <h1>Log in</h1>
+        <!-- Always rendered: a screen reader only announces changes inside a
+             live region it already knows about. -->
+        <div role="status">
+            <p v-if="throttleMessage">{{ throttleMessage }}</p>
+        </div>
         <form aria-label="Log in" @submit.prevent="onSubmit">
             <div>
                 <label for="login-email">Email</label>
