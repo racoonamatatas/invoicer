@@ -147,8 +147,11 @@ describe('useForm', () =>
         expect(form.fieldError('password')?.message).toBe('The password field must be at least 8 characters.');
     });
 
-    // Rounded up, so a few seconds left never reads as 0 minutes.
+    // Rounded up, so a few seconds left never reads as 0 minutes. Laravel sends 0
+    // when the window ends within the same second. 3120 seconds is 52 minutes,
+    // a wait the hourly mail-per-email limit can produce.
     it.for([
+        { name: '0 seconds', retryAfter: '0', throttleMessage: 'Too many attempts. Try again in 1 minute.' },
         { name: '30 seconds', retryAfter: '30', throttleMessage: 'Too many attempts. Try again in 1 minute.' },
         { name: '60 seconds', retryAfter: '60', throttleMessage: 'Too many attempts. Try again in 1 minute.' },
         { name: '61 seconds', retryAfter: '61', throttleMessage: 'Too many attempts. Try again in 2 minutes.' },
