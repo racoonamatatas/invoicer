@@ -52,7 +52,9 @@ describe('VerifyEmail page', () =>
         // The button is enough to show the page is waiting for the click: it
         // only renders while the token is present, not yet verified and not
         // rejected, so neither outcome of a post has been reached
-        expect(findVerifyButton(wrapper).text()).toBe('Verify my email');
+        const button = findVerifyButton(wrapper);
+        expect(button.exists()).toBe(true);
+        expect(button.text()).toBe('Verify my email');
     });
 
     it('should post the token from the link and show the verified message with a login link when verifyEmail gets a 204 (no content)', async () =>
@@ -71,7 +73,9 @@ describe('VerifyEmail page', () =>
         // Assert (outcome): the message sits in the live region and links to login
         const status = wrapper.find('[role="status"]');
         expect(status.text()).toContain('Your email is verified.');
-        expect(status.find('a').attributes('href')).toBe('/login');
+        const loginLink = status.find('a');
+        expect(loginLink.exists()).toBe(true);
+        expect(loginLink.attributes('href')).toBe('/login');
 
         // Assert: nothing is left to do, so no button and no resend form
         expect(findVerifyButton(wrapper).exists()).toBe(false);
@@ -96,7 +100,9 @@ describe('VerifyEmail page', () =>
 
         // Assert: the dead token can't be retried, and a new link is offered instead
         expect(findVerifyButton(wrapper).exists()).toBe(false);
-        expect(wrapper.find('h2').text()).toBe('Get a new link');
+        const heading = wrapper.find('h2');
+        expect(heading.exists()).toBe(true);
+        expect(heading.text()).toBe('Get a new link');
         expect(findResendForm(wrapper).exists()).toBe(true);
     });
 
@@ -120,7 +126,9 @@ describe('VerifyEmail page', () =>
         expect(auth.verifyEmail).not.toHaveBeenCalled();
 
         // Assert: a new link is offered instead
-        expect(wrapper.find('h2').text()).toBe('Get a new link');
+        const heading = wrapper.find('h2');
+        expect(heading.exists()).toBe(true);
+        expect(heading.text()).toBe('Get a new link');
         expect(findResendForm(wrapper).exists()).toBe(true);
     });
 
@@ -128,7 +136,7 @@ describe('VerifyEmail page', () =>
     {
         // Arrange: auth.verifyEmail is a stub whose request the test finishes by hand
         const request = createDeferred();
-        vi.mocked(auth.verifyEmail).mockReturnValue(request.promise.then(() => undefined));
+        vi.mocked(auth.verifyEmail).mockReturnValue(request.promise);
         const wrapper = await mountVerifyEmail();
         const button = findVerifyButton(wrapper);
 
