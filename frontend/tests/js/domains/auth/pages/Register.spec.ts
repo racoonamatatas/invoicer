@@ -150,7 +150,8 @@ describe('Register page', () =>
     it('should show the throttle message in the live region, keep the form and not hand the error on when register fails with a 429 (too many requests)', async () =>
     {
         // Arrange: auth.register is a stub that fails the way Laravel's throttle
-        // middleware does. errorHandler is a spy standing in for app.config.errorHandler
+        // middleware does. errorHandler is a spy standing in for app.config.errorHandler.
+        // 3120 seconds is 52 minutes, a wait register's hourly mail-per-email limit can produce
         vi.mocked(auth.register).mockRejectedValue(axiosErrorWith(429, { message: 'Too Many Attempts.' }, { 'retry-after': '3120' }));
         const errorHandler = vi.fn<(error: unknown) => void>();
         const wrapper = mountRegister(errorHandler);
