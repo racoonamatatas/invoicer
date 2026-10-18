@@ -133,6 +133,48 @@ describe('ResendVerificationForm', () =>
         expect(button.attributes('disabled')).toBeUndefined();
     });
 
+    it('should show the throttle message in the live region and not hand the error on when resendVerification fails with a 429 (too many requests)', async () =>
+    {
+        // Arrange: auth.resendVerification is a stub that fails the way Laravel's
+        // throttle middleware does. errorHandler is a spy standing in for
+        // app.config.errorHandler, to prove the 429 never reaches it
+        vi.mocked(auth.resendVerification).mockRejectedValue(axiosErrorWith(429, { message: 'Too Many Attempts.' }, { 'retry-after': '120' }));
+        const errorHandler = vi.fn<(error: unknown) => void>();
+        const wrapper = mountForm(errorHandler);
+
+        // Act
+        await submitEmail(wrapper);
+        await flushPromises();
+
+        // Assert (outcome): the wait is shown where a screen reader announces it
+        expect(wrapper.find('[role="status"]').text()).toBe('Too many attempts. Try again in 2 minutes.');
+
+        // Assert (interaction): the form handled the 429 itself
+        expect(errorHandler).not.toHaveBeenCalled();
+    });
+
+    it('should replace an earlier confirmation with the throttle message when the next send gets a 429 (too many requests)', async () =>
+    {
+        // Arrange: auth.resendVerification is a stub that accepts the first send
+        // and throttles the second
+        vi.mocked(auth.resendVerification)
+            .mockResolvedValueOnce()
+            .mockRejectedValueOnce(axiosErrorWith(429, { message: 'Too Many Attempts.' }, { 'retry-after': '60' }));
+        const wrapper = mountForm();
+        await submitEmail(wrapper);
+        await flushPromises();
+
+        // Assert: the first send was confirmed
+        expect(wrapper.find('[role="status"]').text()).toBe(confirmation);
+
+        // Act
+        await submitEmail(wrapper);
+        await flushPromises();
+
+        // Assert: the old confirmation is gone; only the wait is shown
+        expect(wrapper.find('[role="status"]').text()).toBe('Too many attempts. Try again in 1 minute.');
+    });
+
     it('should hand the original error to the app error handler and show no confirmation when resendVerification fails with a 500 (server error)', async () =>
     {
         // Arrange: auth.resendVerification is a stub that fails with an error no

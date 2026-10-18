@@ -158,6 +158,33 @@ describe('VerifyEmail page', () =>
         expect(wrapper.find('[role="status"]').text()).toContain('Your email is verified.');
     });
 
+    it('should show the throttle message in the live region and keep the verify button when verifyEmail fails with a 429 (too many requests)', async () =>
+    {
+        // Arrange: auth.verifyEmail is a stub that fails the way Laravel's
+        // throttle middleware does. errorHandler is a spy standing in for
+        // app.config.errorHandler, to prove the 429 never reaches it
+        vi.mocked(auth.verifyEmail).mockRejectedValue(axiosErrorWith(429, { message: 'Too Many Attempts.' }, { 'retry-after': '45' }));
+        const errorHandler = vi.fn<(error: unknown) => void>();
+        const wrapper = await mountVerifyEmail({ token }, errorHandler);
+
+        // Act
+        await findVerifyButton(wrapper).trigger('click');
+        await flushPromises();
+
+        // Assert (outcome): the wait is shown where a screen reader announces it
+        expect(wrapper.find('[role="status"]').text()).toBe('Too many attempts. Try again in 1 minute.');
+
+        // Assert (outcome): the token wasn't checked, so the button stays for a
+        // retry and no new link is pushed on the user
+        const button = findVerifyButton(wrapper);
+        expect(button.exists()).toBe(true);
+        expect(button.attributes('disabled')).toBeUndefined();
+        expect(findResendForm(wrapper).exists()).toBe(false);
+
+        // Assert (interaction): the page handled the 429 itself
+        expect(errorHandler).not.toHaveBeenCalled();
+    });
+
     it('should hand the original error to the app error handler and keep the verify button usable when verifyEmail fails with a 500 (server error)', async () =>
     {
         // Arrange: auth.verifyEmail is a stub that fails with an error no field
