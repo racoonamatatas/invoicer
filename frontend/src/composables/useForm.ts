@@ -1,6 +1,20 @@
 import { readonly, ref } from 'vue';
 import { parseFormSubmitFailure } from '@/form/formSubmitFailure';
 
+// What a form shows for a 429. Built here, so every form says it the same way.
+// Rounded up: 30 seconds left reads as 1 minute, never 0.
+const throttleMessageFor = (retryAfterSeconds: number | null): string =>
+{
+    if (retryAfterSeconds === null)
+    {
+        return 'Too many attempts. Try again later.';
+    }
+
+    const minutes = Math.ceil(retryAfterSeconds / 60);
+
+    return `Too many attempts. Try again in ${minutes} ${minutes === 1 ? 'minute' : 'minutes'}.`;
+};
+
 // One form's submit state. Each call creates its own refs, so two forms on a
 // page never share or clear each other's errors.
 // TField lists the form's fields, so a typo in fieldError() is a type error.
@@ -8,10 +22,11 @@ export const useForm = <TField extends string>(formName: string) =>
 {
     const errors = ref<Record<string, string[]>>({});
     const message = ref('');
+    const throttleMessage = ref('');
     const isPending = ref(false);
 
-    // Runs the page's request. Validation failures land in this form's errors;
-    // anything else is re-thrown for the page to handle.
+    // Runs the page's request. Validation failures land in this form's errors,
+    // a 429 in throttleMessage; anything else is re-thrown for the page to handle.
     const submit = async (send: () => Promise<unknown>): Promise<void> =>
     {
         // Double-submit guard: a second click while a request is in flight does nothing.
@@ -24,6 +39,7 @@ export const useForm = <TField extends string>(formName: string) =>
         isPending.value = true;
         errors.value = {};
         message.value = '';
+        throttleMessage.value = '';
 
         try
         {
@@ -36,6 +52,14 @@ export const useForm = <TField extends string>(formName: string) =>
             if (failure.kind === 'other')
             {
                 throw error; // the original, so the page sees what really happened
+            }
+
+            // Shown by the form, so not re-thrown.
+            if (failure.kind === 'throttled')
+            {
+                throttleMessage.value = throttleMessageFor(failure.retryAfterSeconds);
+
+                return;
             }
 
             errors.value = failure.errors;
@@ -63,6 +87,7 @@ export const useForm = <TField extends string>(formName: string) =>
     return {
         errors: readonly(errors),
         message: readonly(message),
+        throttleMessage: readonly(throttleMessage),
         isPending: readonly(isPending),
         submit,
         fieldError,
