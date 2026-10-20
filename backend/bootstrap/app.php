@@ -2,11 +2,13 @@
 
 declare(strict_types = 1);
 
+use App\Enums\ErrorCode;
 use App\Exceptions\Auth\EmailNotVerifiedException;
 use App\Exceptions\Auth\InvalidCredentialsException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 
@@ -31,9 +33,16 @@ return Application::configure(basePath: dirname(__DIR__))
             ]),
         );
 
-        $exceptions->map(
-            fn (EmailNotVerifiedException $exception) => ValidationException::withMessages([
-                'email' => __('Verify your email before logging in.'),
-            ]),
+        // render() instead of map(): ValidationException can't carry extra keys.
+        $exceptions->render(
+            function (EmailNotVerifiedException $exception): JsonResponse {
+                $message = __('Verify your email before logging in.');
+
+                return response()->json([
+                    'message' => $message,
+                    'errors' => ['email' => [$message]],
+                    'code' => ErrorCode::EmailNotVerified->value,
+                ], 422);
+            }
         );
     })->create();
