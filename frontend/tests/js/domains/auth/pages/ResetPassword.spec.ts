@@ -246,6 +246,8 @@ describe('ResetPassword page', () =>
         { name: 'the email is missing', query: { token } },
         { name: 'the token is empty', query: { token: '', email } },
         { name: 'the token is repeated', query: { token: [token, token], email } },
+        { name: 'the email is empty', query: { token, email: '' } },
+        { name: 'the email is repeated', query: { token, email: [email, email] } },
     ])('should say the link is incomplete, link to /forgot-password and show no form when $name', async ({ query }) =>
     {
         // Act: open the link, and nothing else
