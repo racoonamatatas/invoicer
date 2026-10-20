@@ -6,7 +6,7 @@ import { axiosErrorWith } from '../utility/axiosErrorWith';
 
 describe('parseFormSubmitFailure', () =>
 {
-    it('should return a ValidationFailure with the message and errors of a 422 (unprocessable) LaravelValidationBody', () =>
+    it('should return a ValidationFailure with the message and errors of a 422 (unprocessable) LaravelValidationBody, and a null code when the body has none', () =>
     {
         // Arrange
         const error = axiosErrorWith(422, {
@@ -23,6 +23,27 @@ describe('parseFormSubmitFailure', () =>
             message: 'The email field is required.',
             errors: { email: ['The email field is required.'] },
             code: null,
+        });
+    });
+
+    it('should return a ValidationFailure with code email_not_verified when a 422 (unprocessable) body carries that code', () =>
+    {
+        // Arrange: the body the backend sends for an unverified login
+        const error = axiosErrorWith(422, {
+            message: 'Verify your email before logging in.',
+            errors: { email: ['Verify your email before logging in.'] },
+            code: 'email_not_verified',
+        });
+
+        // Act
+        const result = parseFormSubmitFailure(error);
+
+        // Assert: the whole object, so reading the code is proven not to disturb message or errors
+        expect(result).toStrictEqual({
+            kind: 'validation',
+            message: 'Verify your email before logging in.',
+            errors: { email: ['Verify your email before logging in.'] },
+            code: 'email_not_verified',
         });
     });
 
