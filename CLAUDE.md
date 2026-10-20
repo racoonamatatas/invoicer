@@ -17,7 +17,7 @@ This repo is **public**: no secrets, no private URLs, no details about other cod
 
 ## Critical gotchas
 
-- **Run `git` from the repo root.** Paths are repo-relative, so `git add backend/...` from inside `backend/` fails.
+- **Run `git` from the repo root.** Paths are relative to your cwd, so copy-pasted `backend/...` paths only work from the repo root.
 - **Frontend tools: use `./node_modules/.bin/<tool>` from `frontend/`.** A bare `npx` can pick up a different, global copy.
 - **`npm run test:unit` starts Vitest in watch mode and never exits.** Use `vitest run`.
 - **`npm run lint` runs with `--fix`.** To check without changing files, run `eslint .` and `oxlint .` directly.
