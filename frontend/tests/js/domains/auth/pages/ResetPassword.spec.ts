@@ -1,4 +1,5 @@
 import { flushPromises, mount } from '@vue/test-utils';
+import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, it, expect, vi } from 'vitest';
 import { createMemoryHistory, createRouter, type LocationQueryRaw } from 'vue-router';
 
@@ -21,17 +22,20 @@ const invalidLink = 'This reset link is invalid or has expired.';
 const resetForm = 'form[aria-label="Choose a new password"]';
 
 // Mounts ResetPassword on /reset-password with the app's real routes and the
-// given query, the way the link in the mail opens it. ResetPassword uses no
-// store, so no Pinia.
+// given query, the way the link in the mail opens it. A fresh Pinia per
+// mount, so no test starts with another's logged-in user.
 const mountResetPassword = async (query: LocationQueryRaw = { token, email }, errorHandler?: (error: unknown) => void) =>
 {
+    const pinia = createPinia();
+    setActivePinia(pinia);
+
     const router = createRouter({
         history: createMemoryHistory(),
         routes: authRoutes.map((route) => route.toRecord()),
     });
     await router.push({ name: 'resetPassword', query });
 
-    return mount(ResetPassword, { global: { plugins: [router], config: { errorHandler } } });
+    return mount(ResetPassword, { global: { plugins: [pinia, router], config: { errorHandler } } });
 };
 
 type Wrapper = Awaited<ReturnType<typeof mountResetPassword>>;
