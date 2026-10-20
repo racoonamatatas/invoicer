@@ -207,6 +207,15 @@ describe('ForgotPassword page', () =>
         expect(wrapper.find('button[type="submit"]').attributes('disabled')).toBeUndefined();
     });
 
+    it('should mark the email input as the username, so a password manager offers the saved account', async () =>
+    {
+        // Act
+        const wrapper = await mountForgotPassword();
+
+        // Assert: the same token as Login and ResetPassword, so all three match one saved login
+        expect(wrapper.find('#forgot-password-email').attributes('autocomplete')).toBe('username');
+    });
+
     it('should link back to /login', async () =>
     {
         // Act
