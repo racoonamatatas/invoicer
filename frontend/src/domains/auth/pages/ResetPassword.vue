@@ -94,6 +94,9 @@ const onSubmit = () => submit(async () =>
                 />
             </div>
             <button type="submit" :disabled="isPending">Change password</button>
+            <!-- Inside the form, so it shows only while the form does: every
+                 other state already has its own link out. -->
+            <p><RouterLink :to="{ name: 'login' }">Back to log in</RouterLink></p>
         </form>
     </div>
 </template>
