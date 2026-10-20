@@ -16,6 +16,10 @@ vi.mock('@/services/auth');
 const user = { id: 1, name: 'Jan de Vries', email: 'jan@example.nl' };
 const credentials = { email: 'jan@example.nl', password: 'secret-password' };
 
+// Shared, so the test that finds the resend form also proves the selector
+// matches it. Otherwise a typo would make "not shown" pass on its own.
+const resendForm = 'form[aria-label="Get a new verification link"]';
+
 // Mounts Login on /login with the app's real routes. The memory history is a
 // fake: a working in-memory stand-in for the browser's address bar. No guard
 // is registered, so the test only sees what Login itself does.
@@ -133,10 +137,28 @@ describe('Login page', () =>
         await flushPromises();
 
         // Assert: found by its accessible name, the way a screen reader finds it
-        expect(wrapper.find('form[aria-label="Get a new verification link"]').exists()).toBe(true);
+        expect(wrapper.find(resendForm).exists()).toBe(true);
 
         // Assert: the email typed into the login form reached the resend form
         expect(wrapper.get<HTMLInputElement>('#resend-verification-email').element.value).toBe(credentials.email);
+    });
+
+    it('should not show the resend form when login fails with a 422 (unprocessable) for wrong credentials', async () =>
+    {
+        // Arrange: a plain validation failure, without a code
+        const message = 'These credentials do not match our records.';
+        vi.mocked(auth.login).mockRejectedValue(axiosErrorWith(422, { message, errors: { email: [message] } }));
+        const { wrapper } = await mountLogin();
+
+        // Act
+        await submitCredentials(wrapper);
+        await flushPromises();
+
+        // Assert: the 422 has been rendered, so the absence below isn't just "too early"
+        expect(wrapper.find('#login-email-error').text()).toBe(message);
+
+        // Assert
+        expect(wrapper.find(resendForm).exists()).toBe(false);
     });
 
     it('should disable the submit button while login is in flight and enable it again after a 200 (ok)', async () =>
