@@ -283,4 +283,14 @@ describe('Login page', () =>
         expect(router.currentRoute.value.name).toBe('login');
         expect(wrapper.find('button[type="submit"]').attributes('disabled')).toBeUndefined();
     });
+
+    it('should link to /forgot-password', async () =>
+    {
+        // Act
+        const { wrapper } = await mountLogin();
+
+        // Assert: found by its text, the way a user finds it
+        const link = wrapper.findAll('a').find((anchor) => anchor.text() === 'Forgot your password?');
+        expect(link?.attributes('href')).toBe('/forgot-password');
+    });
 });
