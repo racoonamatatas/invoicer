@@ -1,7 +1,7 @@
 import type { AxiosResponse } from 'axios';
 import { beforeEach, describe, it, expect, vi } from 'vitest';
 
-import { fetchUser, login, logout, register, resendVerification, verifyEmail } from '@/services/auth';
+import { fetchUser, forgotPassword, login, logout, register, resendVerification, resetPassword, verifyEmail } from '@/services/auth';
 import { deleteRequest, getRequest, postRequest } from '@/services/http';
 
 // Every export of the http module becomes a vi.fn(), so no request leaves the test.
@@ -70,6 +70,37 @@ describe('auth service', () =>
 
         // Assert (interaction): one request to the right route, with the email under the key the backend reads
         expect(postRequest).toHaveBeenCalledExactlyOnceWith('/auth/resend-verification', { email: 'jan@example.nl' });
+
+        // Assert (outcome): nothing leaks out to the page
+        expect(result).toBeUndefined();
+    });
+
+    it('should post the email to /auth/forgot-password and return nothing from the 204 (no content) response', async () =>
+    {
+        // Arrange: postRequest is a stub (empty 204 data) and a spy (records its call)
+        vi.mocked(postRequest).mockResolvedValue({ data: '' } as AxiosResponse);
+
+        // Act
+        const result = await forgotPassword('jan@example.nl');
+
+        // Assert (interaction): one request to the right route, with the email under the key the backend reads
+        expect(postRequest).toHaveBeenCalledExactlyOnceWith('/auth/forgot-password', { email: 'jan@example.nl' });
+
+        // Assert (outcome): nothing leaks out to the page
+        expect(result).toBeUndefined();
+    });
+
+    it('should post the reset to /auth/reset-password and return nothing from the 204 (no content) response', async () =>
+    {
+        // Arrange: the token and email come from the mailed link, the passwords from the form
+        const reset = { token: 'a1b2c3-token-from-the-mail', email: 'jan@example.nl', password: 'new-secret-password', password_confirmation: 'new-secret-password' };
+        vi.mocked(postRequest).mockResolvedValue({ data: '' } as AxiosResponse);
+
+        // Act
+        const result = await resetPassword(reset);
+
+        // Assert (interaction): one request to the right route, with every field the backend reads
+        expect(postRequest).toHaveBeenCalledExactlyOnceWith('/auth/reset-password', reset);
 
         // Assert (outcome): nothing leaks out to the page
         expect(result).toBeUndefined();
