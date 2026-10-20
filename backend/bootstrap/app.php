@@ -45,4 +45,9 @@ return Application::configure(basePath: dirname(__DIR__))
                 ], 422);
             }
         );
+
+        // An unverified login is an expected outcome, not an error. map() used to
+        // keep it out of the log by turning it into a ValidationException; render()
+        // keeps the original class, so it has to be excluded by name.
+        $exceptions->dontReport(EmailNotVerifiedException::class);
     })->create();
