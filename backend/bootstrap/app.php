@@ -34,6 +34,8 @@ return Application::configure(basePath: dirname(__DIR__))
         );
 
         // render() instead of map(): ValidationException can't carry extra keys.
+        // Always JSON, skipping shouldRenderJsonWhen above: only api/auth/login
+        // throws this, and web.php serves nothing but the SPA shell.
         $exceptions->render(
             function (EmailNotVerifiedException $exception): JsonResponse {
                 $message = __('Verify your email before logging in.');
