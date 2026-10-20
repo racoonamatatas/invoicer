@@ -1,3 +1,29 @@
+# Backend
+
+A JSON API under `/api`. The SPA logs in through Sanctum's session cookie, and `routes/web.php` only serves the SPA shell.
+Commands and commit conventions: the root [`CLAUDE.md`](../CLAUDE.md). The Boost block below is generated: `boost:update` rewrites everything between its tags, so project rules go here, above it.
+
+## The request path
+
+`FormRequest` → `toDto()` → `Action::execute()` → a `*ResourceData` or `NoContentResponse`.
+
+- **FormRequests** (`app/Http/Requests/`) validate, and `toDto()` turns the input into a typed DTO (`app/DataTransferObjects/Input/<Area>/`). Shared rules, such as password rules, live in `app/Validation/`.
+- **Actions** (`app/Actions/<Area>/`) are `final readonly` classes with one `execute()` method and their dependencies injected through the constructor. They hold the business logic.
+- **Controllers** stay thin: they hand the DTO to an Action and wrap the result.
+- **Domain exceptions** (`app/Exceptions/<Area>/`) are turned into HTTP responses in `bootstrap/app.php`. An expected outcome, like an unverified login, is added to `dontReport` there, so it doesn't log a stack trace.
+- **`App\Enums\ErrorCode`** values are a contract with the frontend's `errorCodes` list. Add new cases; never rename a value.
+
+## Style
+
+- `declare(strict_types = 1);` in every file. Pint enforces it, along with this repo's brace layout (`pint.json`).
+- Type narrowing uses `if (...) { throw ...; }`, not `assert()`: assertions are compiled out in production, and Intelephense ignores `@psalm-assert`.
+
+## Tests
+
+- Pest, with `describe('…')` and `it('should …')`. Feature tests per endpoint live in `tests/Feature/<Area>/`.
+- A test of what goes over the wire asserts the literal string (`'email_not_verified'`), not the enum, so that renaming the enum value fails the test.
+- When a test proves something the framework does for us, its comment starts with `Guards third-party code:` and names the framework class, e.g. `Laravel's SessionGuard::validate() pads failed logins, not LoginUserAction.`
+
 <laravel-boost-guidelines>
 === foundation rules ===
 
