@@ -62,6 +62,17 @@ describe('ResetPassword page', () =>
         expect(input.attributes('readonly')).toBeDefined();
     });
 
+    it('should link back to /login next to the form, so a valid link has a way out too', async () =>
+    {
+        // Act
+        const wrapper = await mountResetPassword();
+
+        // Assert: the form is showing, and so is the way back, found by its text the way a user finds it
+        expect(wrapper.find(resetForm).exists()).toBe(true);
+        const link = wrapper.findAll('a').find((anchor) => anchor.text() === 'Back to log in');
+        expect(link?.attributes('href')).toBe('/login');
+    });
+
     it('should post the token and email from the link with the typed passwords and show the changed message with a login link when resetPassword gets a 204 (no content)', async () =>
     {
         // Arrange: auth.resetPassword is a stub (resolves, like a 204) and a spy (records its call)
