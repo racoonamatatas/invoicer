@@ -67,6 +67,20 @@ describe('useForm', () =>
         expect(form.code.value).toBe('email_not_verified');
     });
 
+    it('should clear code when the next submit succeeds', async () =>
+    {
+        // Arrange: a first submit that leaves a code behind
+        const form = useForm('login');
+        await form.submit(sendFailingWithUnverified422);
+
+        // Act: a success, not a plain 422: the 422 branch would overwrite code
+        // with null itself, so only a success proves the reset at the start
+        await form.submit(sendSucceeding);
+
+        // Assert
+        expect(form.code.value).toBeNull();
+    });
+
     it('should re-throw the original error and reset isPending when the request fails with a 500 (server error)', async () =>
     {
         // Arrange: an OtherFailure, which the form can't show per field
