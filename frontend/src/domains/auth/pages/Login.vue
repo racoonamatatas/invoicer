@@ -36,6 +36,9 @@ const onSubmit = () => submit(async () =>
              live region it already knows about. -->
         <div role="status">
             <p v-if="throttleMessage">{{ throttleMessage }}</p>
+            <!-- The resend form below appears outside this region, so without
+                 this line a screen reader user isn't told it exists. -->
+            <p v-else-if="code === 'email_not_verified'">Your email isn't verified yet. You can get a new link below.</p>
         </div>
         <form aria-label="Log in" @submit.prevent="onSubmit">
             <div>
