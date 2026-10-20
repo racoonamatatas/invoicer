@@ -1,7 +1,7 @@
 # Backend
 
 A JSON API under `/api`. The SPA logs in through Sanctum's session cookie, and `routes/web.php` only serves the SPA shell.
-Commands and commit conventions: the root [`CLAUDE.md`](../CLAUDE.md). The Boost block below is generated: `boost:update` rewrites everything between its tags, so project rules go here, above it.
+Commands and commit conventions: the root [`CLAUDE.md`](../CLAUDE.md). The Boost block below is generated: `boost:update` rewrites everything between its tags, so project rules go here, above it. Where these rules and the generated block disagree, these win (e.g. `vendor/bin/pint --test` is this repo's style check).
 
 ## The request path
 
