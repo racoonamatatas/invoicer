@@ -44,7 +44,7 @@ const onSubmit = () => submit(async () =>
                     id="forgot-password-email"
                     v-model="form.email"
                     type="email"
-                    autocomplete="email"
+                    autocomplete="username"
                     :aria-invalid="emailError !== null"
                     :aria-describedby="emailError?.id"
                 />
