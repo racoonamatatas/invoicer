@@ -40,6 +40,24 @@ export interface VerificationResend
     email: string;
 }
 
+// What the forgot-password form sends. The key matches
+// ForgotPasswordRequest's rules, so it is also the key of a 422's errors.
+export interface PasswordForgot
+{
+    email: string;
+}
+
+// What the reset-password page sends. Keys match ResetPasswordRequest's rules.
+// password_confirmation is the field Laravel's 'confirmed' rule reads, and an
+// invalid or expired token comes back as a 422 under token.
+export interface PasswordReset
+{
+    token: string;
+    email: string;
+    password: string;
+    password_confirmation: string;
+}
+
 // Logs in and returns the user. A 422 (bad credentials, unverified email) is
 // thrown, not caught, so useForm's submit() can show it next to the field.
 export const login = async (credentials: LoginCredentials): Promise<User> =>
@@ -70,6 +88,21 @@ export const verifyEmail = async (token: string): Promise<void> =>
 export const resendVerification = async (email: string): Promise<void> =>
 {
     await postRequest<VerificationResend, void>('/auth/resend-verification', { email });
+};
+
+// Mails a password reset link, but only when the email belongs to an account.
+// Always 204 (no content), so the page can't tell which (no account
+// enumeration) and there is nothing to return.
+export const forgotPassword = async (email: string): Promise<void> =>
+{
+    await postRequest<PasswordForgot, void>('/auth/forgot-password', { email });
+};
+
+// Sets the new password: 204 (no content). A 422 (invalid token, weak or
+// unconfirmed password) is thrown, not caught, so useForm's submit() can show it.
+export const resetPassword = async (reset: PasswordReset): Promise<void> =>
+{
+    await postRequest<PasswordReset, void>('/auth/reset-password', reset);
 };
 
 // The logged-in user. Throws a 401 (unauthenticated) when there is no session.
