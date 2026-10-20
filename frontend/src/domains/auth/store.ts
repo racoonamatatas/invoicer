@@ -33,6 +33,14 @@ export const useAuthStore = defineStore('auth', () =>
         user.value = null;
     };
 
+    // Forgets the user without asking the backend, for when the backend has
+    // already ended the session itself: a password reset deletes every
+    // session of the account. No request, so nothing here can fail.
+    const clear = (): void =>
+    {
+        user.value = null;
+    };
+
     const restore = async (): Promise<void> =>
     {
         try
@@ -59,6 +67,7 @@ export const useAuthStore = defineStore('auth', () =>
         isLoggedIn,
         login,
         logout,
+        clear,
         restore,
     };
 });
