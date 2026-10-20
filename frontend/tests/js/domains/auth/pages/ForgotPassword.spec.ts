@@ -92,6 +92,24 @@ describe('ForgotPassword page', () =>
         expect(auth.forgotPassword).toHaveBeenLastCalledWith(email);
     });
 
+    it('should clear the confirmation as soon as the email is edited after a 204 (no content)', async () =>
+    {
+        // Arrange: auth.forgotPassword is a stub (resolves, like a 204)
+        vi.mocked(auth.forgotPassword).mockResolvedValue();
+        const wrapper = await mountForgotPassword();
+        await submitEmail(wrapper);
+        await flushPromises();
+
+        // Assert: the first send was confirmed
+        expect(wrapper.find('[role="status"]').text()).toBe(confirmation);
+
+        // Act: start typing a different address, without sending it
+        await wrapper.find('#forgot-password-email').setValue('piet@example.nl');
+
+        // Assert: nothing claims a link went to the new address
+        expect(wrapper.find('[role="status"]').text()).toBe('');
+    });
+
     it('should show the error under the input and link it with aria-invalid and aria-describedby when forgotPassword fails with a 422 (unprocessable)', async () =>
     {
         // Arrange: auth.forgotPassword is a stub that fails the way Laravel validation does
