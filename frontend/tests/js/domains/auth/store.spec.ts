@@ -80,6 +80,26 @@ describe('auth store', () =>
         expect(store.isLoggedIn).toBe(true);
     });
 
+    it('should clear user and isLoggedIn on clear without sending a request', async () =>
+    {
+        // Arrange: log in the way a page does
+        vi.mocked(auth.login).mockResolvedValue(user);
+        const store = useAuthStore();
+        await store.login({ email: 'jan@example.nl', password: 'secret-password' });
+        expect(store.isLoggedIn).toBe(true);
+
+        // Act
+        store.clear();
+
+        // Assert (outcome): nobody is logged in any more
+        expect(store.user).toBeNull();
+        expect(store.isLoggedIn).toBe(false);
+
+        // Assert (interaction): the backend already ended the session, so it isn't asked again
+        expect(auth.logout).not.toHaveBeenCalled();
+        expect(auth.fetchUser).not.toHaveBeenCalled();
+    });
+
     it('should fill user and set isLoggedIn when restore gets a 200 (ok)', async () =>
     {
         // Arrange: auth.fetchUser is a stub (canned user) and a spy (records its call)

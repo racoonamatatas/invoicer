@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Package imports
 import { computed, ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { RouterLink, useRouter } from 'vue-router';
 
 // Project imports
 import type { LoginCredentials } from '@/services/auth';
@@ -67,6 +67,7 @@ const onSubmit = () => submit(async () =>
             </div>
             <button type="submit" :disabled="isPending">Log in</button>
         </form>
+        <p><RouterLink :to="{ name: 'forgotPassword' }">Forgot your password?</RouterLink></p>
         <!-- submit() resets `code` at every attempt, so the form remounts with a
              fresh prefill on each unverified 422 (unprocessable) -->
         <template v-if="code === 'email_not_verified'">
