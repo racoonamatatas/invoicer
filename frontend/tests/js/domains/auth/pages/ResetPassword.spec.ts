@@ -5,6 +5,7 @@ import { createMemoryHistory, createRouter, type LocationQueryRaw } from 'vue-ro
 
 import { authRoutes } from '@/domains/auth/routes';
 import ResetPassword from '@/domains/auth/pages/ResetPassword.vue';
+import { useAuthStore } from '@/domains/auth/store';
 import * as auth from '@/services/auth';
 import { axiosErrorWith } from '../../../utility/axiosErrorWith';
 import { createDeferred } from '../../../utility/createDeferred';
@@ -97,6 +98,28 @@ describe('ResetPassword page', () =>
 
         // Assert: nothing is left to do, so the form is gone
         expect(wrapper.find(resetForm).exists()).toBe(false);
+    });
+
+    it('should log a logged-in user out of the auth store when resetPassword gets a 204 (no content)', async () =>
+    {
+        // Arrange: the page is reachable while logged in, since it is public.
+        // Log in through the store the way a page does
+        vi.mocked(auth.login).mockResolvedValue({ id: 1, name: 'Jan de Vries', email });
+        vi.mocked(auth.resetPassword).mockResolvedValue();
+        const wrapper = await mountResetPassword();
+        const store = useAuthStore();
+        await store.login({ email, password: 'the-old-password' });
+        expect(store.isLoggedIn).toBe(true);
+
+        // Act
+        await submitPasswords(wrapper);
+        await flushPromises();
+
+        // Assert (outcome): the backend deleted every session, and the store now agrees
+        expect(store.isLoggedIn).toBe(false);
+
+        // Assert (interaction): no logout request, since there is no session left to end
+        expect(auth.logout).not.toHaveBeenCalled();
     });
 
     it('should remove the token and email from the URL and not show the incomplete text after a 204 (no content)', async () =>
