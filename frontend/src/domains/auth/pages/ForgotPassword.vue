@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Package imports
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { RouterLink } from 'vue-router';
 
 // Project imports
@@ -12,6 +12,14 @@ const { submit, isPending, fieldError, throttleMessage } = useForm<keyof Passwor
 
 const emailError = computed(() => fieldError('email'));
 const isSent = ref(false);
+
+// The confirmation is about the address that was sent. Once the user edits
+// it, keeping "we've sent a link to it" on screen would claim a send that
+// never happened for the new address.
+watch(() => form.value.email, () =>
+{
+    isSent.value = false;
+});
 
 // The flag is set inside the callback: submit() resolves the same way after
 // a 422 or a 429, so only reaching that line proves the request was accepted.
