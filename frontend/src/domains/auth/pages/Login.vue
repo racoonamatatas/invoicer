@@ -5,13 +5,14 @@ import { useRouter } from 'vue-router';
 
 // Project imports
 import type { LoginCredentials } from '@/services/auth';
+import ResendVerificationForm from '@/domains/auth/components/ResendVerificationForm.vue';
 import { useAuthStore } from '@/domains/auth/store';
 import { useForm } from '@/composables/useForm';
 
 const form = ref<LoginCredentials>({ email: '', password: '' });
 const store = useAuthStore();
 const router = useRouter();
-const { submit, isPending, fieldError, throttleMessage } = useForm<keyof LoginCredentials>('login');
+const { submit, isPending, fieldError, throttleMessage, code } = useForm<keyof LoginCredentials>('login');
 
 // One value per field, so the error text and both aria attributes read
 // from the same source.
@@ -63,5 +64,11 @@ const onSubmit = () => submit(async () =>
             </div>
             <button type="submit" :disabled="isPending">Log in</button>
         </form>
+        <!-- submit() resets `code` at every attempt, so the form remounts with a
+             fresh prefill on each unverified 422 (unprocessable) -->
+        <template v-if="code === 'email_not_verified'">
+            <h2>Get a new link</h2>
+            <ResendVerificationForm :initial-email="form.email" />
+        </template>
     </div>
 </template>
