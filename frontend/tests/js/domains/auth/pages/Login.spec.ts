@@ -143,6 +143,24 @@ describe('Login page', () =>
         expect(wrapper.get<HTMLInputElement>('#resend-verification-email').element.value).toBe(credentials.email);
     });
 
+    it('should announce the resend form in the live region when login fails with a 422 (unprocessable) for an unverified email', async () =>
+    {
+        // Arrange
+        vi.mocked(auth.login).mockRejectedValue(axiosErrorWith(422, {
+            message: 'Verify your email before logging in.',
+            errors: { email: ['Verify your email before logging in.'] },
+            code: 'email_not_verified',
+        }));
+        const { wrapper } = await mountLogin();
+
+        // Act
+        await submitCredentials(wrapper);
+        await flushPromises();
+
+        // Assert: the first status region is the login page's own; the resend form has one too
+        expect(wrapper.find('[role="status"]').text()).toBe('Your email isn\'t verified yet. You can get a new link below.');
+    });
+
     it('should not show the resend form when login fails with a 422 (unprocessable) for wrong credentials', async () =>
     {
         // Arrange: a plain validation failure, without a code
