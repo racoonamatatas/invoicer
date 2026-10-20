@@ -22,6 +22,7 @@ describe('parseFormSubmitFailure', () =>
             kind: 'validation',
             message: 'The email field is required.',
             errors: { email: ['The email field is required.'] },
+            code: null,
         });
     });
 
