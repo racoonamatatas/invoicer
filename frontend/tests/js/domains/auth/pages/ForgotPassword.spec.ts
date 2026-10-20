@@ -3,7 +3,6 @@ import { beforeEach, describe, it, expect, vi } from 'vitest';
 import { createMemoryHistory, createRouter } from 'vue-router';
 
 import { authRoutes } from '@/domains/auth/routes';
-import { dashboardRoutes } from '@/domains/dashboard/routes';
 import ForgotPassword from '@/domains/auth/pages/ForgotPassword.vue';
 import * as auth from '@/services/auth';
 import { axiosErrorWith } from '../../../utility/axiosErrorWith';
@@ -21,7 +20,7 @@ const mountForgotPassword = async (errorHandler?: (error: unknown) => void) =>
 {
     const router = createRouter({
         history: createMemoryHistory(),
-        routes: [...authRoutes, ...dashboardRoutes].map((route) => route.toRecord()),
+        routes: authRoutes.map((route) => route.toRecord()),
     });
     await router.push({ name: 'forgotPassword' });
 
