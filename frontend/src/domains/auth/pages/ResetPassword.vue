@@ -14,6 +14,10 @@ const store = useAuthStore();
 
 // Read once, not as computeds: after success the URL is cleared on purpose,
 // and the page must not then read as an incomplete link.
+// Safe only because the page is entered by a full page load (the mailed
+// link). Vue Router reuses this instance for a same-route navigation, so an
+// in-app link to resetPassword with a different query would keep posting the
+// old token: such a link would need these as computeds.
 const token = typeof route.query.token === 'string' ? route.query.token : '';
 const email = typeof route.query.email === 'string' ? route.query.email : '';
 
