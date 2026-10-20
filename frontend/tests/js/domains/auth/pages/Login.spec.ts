@@ -118,6 +118,27 @@ describe('Login page', () =>
         expect(router.currentRoute.value.name).toBe('login');
     });
 
+    it('should show the resend form prefilled with the typed email when login fails with a 422 (unprocessable) for an unverified email', async () =>
+    {
+        // Arrange: auth.login is a stub that fails the way the backend does for an unverified email
+        vi.mocked(auth.login).mockRejectedValue(axiosErrorWith(422, {
+            message: 'Verify your email before logging in.',
+            errors: { email: ['Verify your email before logging in.'] },
+            code: 'email_not_verified',
+        }));
+        const { wrapper } = await mountLogin();
+
+        // Act
+        await submitCredentials(wrapper);
+        await flushPromises();
+
+        // Assert: found by its accessible name, the way a screen reader finds it
+        expect(wrapper.find('form[aria-label="Get a new verification link"]').exists()).toBe(true);
+
+        // Assert: the email typed into the login form reached the resend form
+        expect(wrapper.get<HTMLInputElement>('#resend-verification-email').element.value).toBe(credentials.email);
+    });
+
     it('should disable the submit button while login is in flight and enable it again after a 200 (ok)', async () =>
     {
         // Arrange: auth.login is a stub whose request the test finishes by hand
