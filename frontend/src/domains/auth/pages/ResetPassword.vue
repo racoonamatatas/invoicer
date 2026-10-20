@@ -5,10 +5,12 @@ import { RouterLink, useRoute, useRouter } from 'vue-router';
 
 // Project imports
 import { resetPassword, type PasswordReset } from '@/services/auth';
+import { useAuthStore } from '@/domains/auth/store';
 import { useForm } from '@/composables/useForm';
 
 const route = useRoute();
 const router = useRouter();
+const store = useAuthStore();
 
 // Read once, not as computeds: after success the URL is cleared on purpose,
 // and the page must not then read as an incomplete link.
@@ -32,10 +34,14 @@ const linkError = computed(() => fieldError('token') ?? fieldError('email'));
 // After success the token and email are removed from the URL, so they don't
 // stay in the history or leak to the next page. Set the flag first: the
 // password is changed even if the URL change fails.
+// The reset deleted every session of the account, this browser's included,
+// so a user who was logged in here is now logged out: the store is told,
+// or authGuard would keep opening protected routes until the next 401.
 const onSubmit = () => submit(async () =>
 {
     await resetPassword({ token, email, ...form.value });
     isReset.value = true;
+    store.clear();
     await router.replace({ name: 'resetPassword' });
 });
 </script>
