@@ -89,6 +89,8 @@ const onSubmit = () => submit(async () =>
                     v-model="form.password_confirmation"
                     type="password"
                     autocomplete="new-password"
+                    :aria-invalid="passwordError !== null"
+                    :aria-describedby="passwordError?.id"
                 />
             </div>
             <button type="submit" :disabled="isPending">Change password</button>
