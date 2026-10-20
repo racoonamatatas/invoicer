@@ -42,7 +42,10 @@ const onSubmit = () => submit(async () =>
     await resetPassword({ token, email, ...form.value });
     isReset.value = true;
     store.clear();
-    await router.replace({ name: 'resetPassword' });
+    // Caught, not left to submit(): it would hand a rejection to the app's
+    // error handler, and an error page after a reset that worked would read as
+    // a failed reset. Losing the cleanup only leaves a spent token in the URL.
+    await router.replace({ name: 'resetPassword' }).catch(() => undefined);
 });
 </script>
 
