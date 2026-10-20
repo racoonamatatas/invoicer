@@ -144,6 +144,22 @@ describe('Logging in', function (): void {
         $response->assertJsonPath('code', 'email_not_verified');
     });
 
+    it('should return 422 (unprocessable) without a code when the password is wrong, even for an unverified email', function (): void {
+        // Arrange
+        $user = User::factory()->unverified()->create();
+
+        // Act
+        $response = $this->postJson('/api/auth/login', [
+            'email' => $user->email,
+            'password' => 'incorrect',
+        ]);
+
+        // Assert
+        // The code reveals that an account exists and is unverified, so it may only follow a matching password.
+        $response->assertUnprocessable();
+        $response->assertJsonMissingPath('code');
+    });
+
     it('should return 429 (too many requests) on the 6th login from one IP within a minute, even for different emails', function (): void {
         // Arrange
         for ($attempt = 1; $attempt <= 5; $attempt++)
