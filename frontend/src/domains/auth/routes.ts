@@ -5,4 +5,5 @@ export const authRoutes: AppRoute[] = [
     new AppRoute('/register', 'register', () => import('./pages/Register.vue')).public(),
     new AppRoute('/verify-email', 'verifyEmail', () => import('./pages/VerifyEmail.vue')).public(),
     new AppRoute('/forgot-password', 'forgotPassword', () => import('./pages/ForgotPassword.vue')).public(),
+    new AppRoute('/reset-password', 'resetPassword', () => import('./pages/ResetPassword.vue')).public(),
 ];
