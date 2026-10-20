@@ -157,6 +157,29 @@ describe('ResetPassword page', () =>
         expect(wrapper.find('[role="status"]').text()).toBe('');
     });
 
+    it('should mark the confirmation input invalid and point it at the password error when resetPassword fails with a 422 (unprocessable) under password', async () =>
+    {
+        // Arrange: Laravel reports a mismatch under password, never under
+        // password_confirmation, so the confirmation input has to share that error
+        const message = 'The password field confirmation does not match.';
+        vi.mocked(auth.resetPassword).mockRejectedValue(axiosErrorWith(422, { message, errors: { password: [message] } }));
+        const wrapper = await mountResetPassword();
+        const input = wrapper.find('#reset-password-password-confirmation');
+
+        // Assert: before any error, the input is marked valid and points nowhere
+        expect(input.attributes('aria-invalid')).toBe('false');
+        expect(input.attributes('aria-describedby')).toBeUndefined();
+
+        // Act
+        await submitPasswords(wrapper);
+        await flushPromises();
+
+        // Assert: a screen reader on the confirmation field hears the same error
+        expect(wrapper.find('#reset-password-password-error').text()).toBe(message);
+        expect(input.attributes('aria-invalid')).toBe('true');
+        expect(input.attributes('aria-describedby')).toBe('reset-password-password-error');
+    });
+
     // A repeated query key arrives as an array, which the page can't post
     // either, so it counts as incomplete just like a missing one.
     it.for([
