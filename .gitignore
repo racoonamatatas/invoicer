@@ -66,3 +66,6 @@
 # Repo-wide
 .DS_Store
 Thumbs.db
+
+# Claude Code: per-machine permissions stay local
+/.claude/settings.local.json
