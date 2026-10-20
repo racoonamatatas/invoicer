@@ -16,6 +16,10 @@ vi.mock('@/services/auth');
 const user = { id: 1, name: 'Jan de Vries', email: 'jan@example.nl' };
 const credentials = { email: 'jan@example.nl', password: 'secret-password' };
 
+// Shared, so the test that finds the resend form also proves the selector
+// matches it. Otherwise a typo would make "not shown" pass on its own.
+const resendForm = 'form[aria-label="Get a new verification link"]';
+
 // Mounts Login on /login with the app's real routes. The memory history is a
 // fake: a working in-memory stand-in for the browser's address bar. No guard
 // is registered, so the test only sees what Login itself does.
@@ -116,6 +120,86 @@ describe('Login page', () =>
 
         // Assert (outcome)
         expect(router.currentRoute.value.name).toBe('login');
+    });
+
+    it('should show the resend form prefilled with the typed email when login fails with a 422 (unprocessable) for an unverified email', async () =>
+    {
+        // Arrange: auth.login is a stub that fails the way the backend does for an unverified email
+        vi.mocked(auth.login).mockRejectedValue(axiosErrorWith(422, {
+            message: 'Verify your email before logging in.',
+            errors: { email: ['Verify your email before logging in.'] },
+            code: 'email_not_verified',
+        }));
+        const { wrapper } = await mountLogin();
+
+        // Act
+        await submitCredentials(wrapper);
+        await flushPromises();
+
+        // Assert: found by its accessible name, the way a screen reader finds it
+        expect(wrapper.find(resendForm).exists()).toBe(true);
+
+        // Assert: the email typed into the login form reached the resend form
+        expect(wrapper.get<HTMLInputElement>('#resend-verification-email').element.value).toBe(credentials.email);
+    });
+
+    it('should announce the resend form in the live region when login fails with a 422 (unprocessable) for an unverified email', async () =>
+    {
+        // Arrange
+        vi.mocked(auth.login).mockRejectedValue(axiosErrorWith(422, {
+            message: 'Verify your email before logging in.',
+            errors: { email: ['Verify your email before logging in.'] },
+            code: 'email_not_verified',
+        }));
+        const { wrapper } = await mountLogin();
+
+        // Act
+        await submitCredentials(wrapper);
+        await flushPromises();
+
+        // Assert: the first status region is the login page's own; the resend form has one too
+        expect(wrapper.find('[role="status"]').text()).toBe('Your email isn\'t verified yet. You can get a new link below.');
+    });
+
+    it('should not show the resend form when login fails with a 422 (unprocessable) for wrong credentials', async () =>
+    {
+        // Arrange: a plain validation failure, without a code
+        const message = 'These credentials do not match our records.';
+        vi.mocked(auth.login).mockRejectedValue(axiosErrorWith(422, { message, errors: { email: [message] } }));
+        const { wrapper } = await mountLogin();
+
+        // Act
+        await submitCredentials(wrapper);
+        await flushPromises();
+
+        // Assert: the 422 has been rendered, so the absence below isn't just "too early"
+        expect(wrapper.find('#login-email-error').text()).toBe(message);
+
+        // Assert
+        expect(wrapper.find(resendForm).exists()).toBe(false);
+    });
+
+    it('should prefill the resend form with the new email when a second login with a different email also fails with a 422 (unprocessable) for an unverified email', async () =>
+    {
+        // Arrange: every login gets the unverified 422, and the first one has
+        // already shown the resend form with the first email
+        vi.mocked(auth.login).mockRejectedValue(axiosErrorWith(422, {
+            message: 'Verify your email before logging in.',
+            errors: { email: ['Verify your email before logging in.'] },
+            code: 'email_not_verified',
+        }));
+        const { wrapper } = await mountLogin();
+        await submitCredentials(wrapper);
+        await flushPromises();
+
+        // Act: the login form by name, since the resend form is a second form on the page now
+        await wrapper.find('#login-email').setValue('piet@example.nl');
+        await wrapper.find('form[aria-label="Log in"]').trigger('submit');
+        await flushPromises();
+
+        // Assert: the resend form copies initialEmail only once, so the new
+        // address only arrives because submit() resets code, which remounts it
+        expect(wrapper.get<HTMLInputElement>('#resend-verification-email').element.value).toBe('piet@example.nl');
     });
 
     it('should disable the submit button while login is in flight and enable it again after a 200 (ok)', async () =>

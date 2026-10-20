@@ -6,7 +6,12 @@ import { computed, ref } from 'vue';
 import { resendVerification, type VerificationResend } from '@/services/auth';
 import { useForm } from '@/composables/useForm';
 
-const form = ref<VerificationResend>({ email: '' });
+// Prefills the email field when the page mounting it already contains the email.
+const { initialEmail = '' } = defineProps<{ initialEmail?: string }>();
+
+// The value from `initialEmail` is copied once; afterwards the field belongs to the user
+// so a later change to the prop doesn't overwrite what the user typed
+const form = ref<VerificationResend>({ email: initialEmail });
 const { submit, isPending, fieldError, throttleMessage } = useForm<keyof VerificationResend>('resend-verification');
 
 const emailError = computed(() => fieldError('email'));

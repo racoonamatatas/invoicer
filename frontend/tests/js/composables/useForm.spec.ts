@@ -13,6 +13,16 @@ const sendFailingWith422 = async () =>
     });
 };
 
+// A send that fails the way the backend's login does for an unverified email.
+const sendFailingWithUnverified422 = async () =>
+{
+    throw axiosErrorWith(422, {
+        message: 'Verify your email before logging in.',
+        errors: { email: ['Verify your email before logging in.'] },
+        code: 'email_not_verified',
+    });
+};
+
 // A send that succeeds, as a request does once the user has fixed the field.
 const sendSucceeding = () => Promise.resolve();
 
@@ -43,6 +53,32 @@ describe('useForm', () =>
         // Assert
         expect(form.errors.value).toStrictEqual({});
         expect(form.message.value).toBe('');
+    });
+
+    it('should set code when the request fails with a 422 (unprocessable) that carries email_not_verified', async () =>
+    {
+        // Arrange
+        const form = useForm('login');
+
+        // Act: the real parser runs, so this also proves the parser and useForm connect
+        await form.submit(sendFailingWithUnverified422);
+
+        // Assert
+        expect(form.code.value).toBe('email_not_verified');
+    });
+
+    it('should clear code when the next submit succeeds', async () =>
+    {
+        // Arrange: a first submit that leaves a code behind
+        const form = useForm('login');
+        await form.submit(sendFailingWithUnverified422);
+
+        // Act: a success, not a plain 422: the 422 branch would overwrite code
+        // with null itself, so only a success proves the reset at the start
+        await form.submit(sendSucceeding);
+
+        // Assert
+        expect(form.code.value).toBeNull();
     });
 
     it('should re-throw the original error and reset isPending when the request fails with a 500 (server error)', async () =>

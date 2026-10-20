@@ -58,6 +58,23 @@ describe('ResendVerificationForm', () =>
         expect(wrapper.find('[role="status"]').text()).toBe(confirmation);
     });
 
+    it('should show initialEmail in the field and post it without retyping when resendVerification gets a 204 (no content)', async () =>
+    {
+        // Arrange: mounted inline, since mountForm takes no props
+        vi.mocked(auth.resendVerification).mockResolvedValue();
+        const wrapper = mount(ResendVerificationForm, { props: { initialEmail: email } });
+
+        // Act: submit directly, not via submitEmail, which would type over the prefill
+        await wrapper.find('form').trigger('submit');
+        await flushPromises();
+
+        // Assert (outcome): the user sees the prefilled address
+        expect(wrapper.get<HTMLInputElement>('#resend-verification-email').element.value).toBe(email);
+
+        // Assert (interaction): the field is bound, so the prefill reaches the request
+        expect(auth.resendVerification).toHaveBeenCalledExactlyOnceWith(email);
+    });
+
     it('should keep the form after a 204 (no content) and post a corrected email when it is sent again', async () =>
     {
         // Arrange: auth.resendVerification is a stub (resolves, like a 204) and a

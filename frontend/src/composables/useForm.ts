@@ -1,5 +1,5 @@
 import { readonly, ref } from 'vue';
-import { parseFormSubmitFailure } from '@/form/formSubmitFailure';
+import { parseFormSubmitFailure, type ErrorCode } from '@/form/formSubmitFailure';
 
 // What a form shows for a 429. Built here, so every form says it the same way.
 // Rounded up, and at least 1: 30 seconds left reads as 1 minute, and so does
@@ -23,6 +23,8 @@ export const useForm = <TField extends string>(formName: string) =>
 {
     const errors = ref<Record<string, string[]>>({});
     const message = ref('');
+    // Set only by a 422 that carries a known code; null for every other outcome.
+    const code = ref<ErrorCode | null>(null);
     const throttleMessage = ref('');
     const isPending = ref(false);
 
@@ -40,6 +42,7 @@ export const useForm = <TField extends string>(formName: string) =>
         isPending.value = true;
         errors.value = {};
         message.value = '';
+        code.value = null;
         throttleMessage.value = '';
 
         try
@@ -65,6 +68,7 @@ export const useForm = <TField extends string>(formName: string) =>
 
             errors.value = failure.errors;
             message.value = failure.message;
+            code.value = failure.code;
         }
         finally
         {
@@ -88,6 +92,7 @@ export const useForm = <TField extends string>(formName: string) =>
     return {
         errors: readonly(errors),
         message: readonly(message),
+        code: readonly(code),
         throttleMessage: readonly(throttleMessage),
         isPending: readonly(isPending),
         submit,
