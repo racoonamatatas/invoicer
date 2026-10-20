@@ -122,6 +122,27 @@ describe('ResetPassword page', () =>
         expect(auth.logout).not.toHaveBeenCalled();
     });
 
+    it('should show the changed message and not hand the error on when resetPassword gets a 204 (no content) but the URL cleanup fails', async () =>
+    {
+        // Arrange: router.replace is a stub that rejects, standing in for a
+        // guard that throws. errorHandler is a spy standing in for
+        // app.config.errorHandler, to prove the rejection never reaches it
+        vi.mocked(auth.resetPassword).mockResolvedValue();
+        const errorHandler = vi.fn<(error: unknown) => void>();
+        const wrapper = await mountResetPassword({ token, email }, errorHandler);
+        vi.spyOn(wrapper.vm.$router, 'replace').mockRejectedValue(new Error('navigation failed'));
+
+        // Act
+        await submitPasswords(wrapper);
+        await flushPromises();
+
+        // Assert (outcome): the password did change, and the page says so
+        expect(wrapper.find('[role="status"]').text()).toContain('Your password is changed.');
+
+        // Assert (interaction): no error page for a reset that worked
+        expect(errorHandler).not.toHaveBeenCalled();
+    });
+
     it('should remove the token and email from the URL and not show the incomplete text after a 204 (no content)', async () =>
     {
         // Arrange: auth.resetPassword is a stub (resolves, like a 204)
