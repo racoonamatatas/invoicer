@@ -127,6 +127,23 @@ describe('Logging in', function (): void {
         $this->assertGuest('web');
     });
 
+    it('should return 422 (unprocessable) with code email_not_verified when the email is unverified', function (): void {
+        // Arrange
+        $user = User::factory()->unverified()->create();
+
+        // Act
+        // The correct password: a wrong one fails on credentials before verification is checked.
+        $response = $this->postJson('/api/auth/login', [
+            'email' => $user->email,
+            'password' => 'password',
+        ]);
+
+        // Assert
+        // A literal, not the enum: the frontend depends on this exact string.
+        $response->assertUnprocessable();
+        $response->assertJsonPath('code', 'email_not_verified');
+    });
+
     it('should return 429 (too many requests) on the 6th login from one IP within a minute, even for different emails', function (): void {
         // Arrange
         for ($attempt = 1; $attempt <= 5; $attempt++)
