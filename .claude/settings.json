@@ -1,0 +1,26 @@
+{
+    "permissions": {
+        "allow": [
+            "Bash(php artisan test:*)",
+            "Bash(vendor/bin/pint --test:*)",
+            "Bash(./node_modules/.bin/vitest run:*)",
+            "Bash(./node_modules/.bin/vue-tsc:*)",
+            "Bash(./node_modules/.bin/eslint .)",
+            "Bash(./node_modules/.bin/oxlint .)"
+        ]
+    },
+    "hooks": {
+        "PostToolUse": [
+            {
+                "matcher": "Edit|Write",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/format-on-edit.sh",
+                        "timeout": 30
+                    }
+                ]
+            }
+        ]
+    }
+}
