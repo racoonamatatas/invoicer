@@ -12,7 +12,7 @@ const route = useRoute();
 const router = useRouter();
 const token = computed(() => typeof route.query.token === 'string' ? route.query.token : '');
 
-const { submit, isPending, fieldError, throttleMessage } = useForm<keyof EmailVerification>('verify-email');
+const { submit, isPending, fieldError, throttleMessage, generalMessage } = useForm<keyof EmailVerification>('verify-email', { token: true });
 const isVerified = ref(false);
 const tokenError = computed(() => fieldError('token'));
 
@@ -43,6 +43,7 @@ const onVerify = () => submit(async () =>
             <!-- The token wasn't checked, so it may still be good: the button
                  stays for a retry once the wait is over. -->
             <p v-else-if="throttleMessage">{{ throttleMessage }}</p>
+            <p v-else-if="generalMessage">{{ generalMessage }}</p>
         </div>
 
         <!-- isVerified first: after success the token is gone from the URL on

@@ -7,7 +7,12 @@ import { register, type Registration } from '@/services/auth';
 import { useForm } from '@/composables/useForm';
 
 const form = ref<Registration>({ name: '', email: '', password: '', password_confirmation: '' });
-const { submit, isPending, fieldError, throttleMessage } = useForm<keyof Registration>('register');
+// password_confirmation: false, because Laravel's confirmed rule reports a
+// mismatch under password. Trade-off: if a 422 ever carried an error under
+// password_confirmation next to an error on a displayed field, that error
+// would show nowhere, since generalMessage only covers a 422 with no
+// displayed error at all. Today the backend never sends one.
+const { submit, isPending, fieldError, throttleMessage, generalMessage } = useForm<keyof Registration>('register', { name: true, email: true, password: true, password_confirmation: false });
 
 // One value per field, so the error text and both aria attributes read
 // from the same source. No password_confirmation: Laravel's 'confirmed'
@@ -38,6 +43,7 @@ const onSubmit = () => submit(async () =>
         <div role="status">
             <p v-if="isRegistered">Check your inbox at {{ form.email }}. We've sent you an email with the next step.</p>
             <p v-else-if="throttleMessage">{{ throttleMessage }}</p>
+            <p v-else-if="generalMessage">{{ generalMessage }}</p>
         </div>
         <form v-if="!isRegistered" aria-label="Create an account" @submit.prevent="onSubmit">
             <div>

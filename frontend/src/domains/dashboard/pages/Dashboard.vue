@@ -7,7 +7,7 @@ const store = useAuthStore();
 
 // No fields, so no field errors: useForm is here for its double-click guard,
 // isPending, and its re-throw of failures.
-const { submit, isPending } = useForm('logout');
+const { submit, isPending } = useForm('logout', {});
 
 // The reload sits inside the callback, so a failed logout keeps the user
 // here, still logged in. A full page load, not router.push: every store and

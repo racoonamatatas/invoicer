@@ -23,7 +23,12 @@ const email = typeof route.query.email === 'string' ? route.query.email : '';
 
 // Only the fields the user types; token and email come from the link.
 const form = ref<Pick<PasswordReset, 'password' | 'password_confirmation'>>({ password: '', password_confirmation: '' });
-const { submit, isPending, fieldError, throttleMessage } = useForm<keyof PasswordReset>('reset-password');
+// password_confirmation: false, because Laravel's confirmed rule reports a
+// mismatch under password. Trade-off: if a 422 ever carried an error under
+// password_confirmation next to an error on a displayed field, that error
+// would show nowhere, since generalMessage only covers a 422 with no
+// displayed error at all. Today the backend never sends one.
+const { submit, isPending, fieldError, throttleMessage, generalMessage } = useForm<keyof PasswordReset>('reset-password', { token: true, email: true, password: true, password_confirmation: false });
 const isReset = ref(false);
 
 // Laravel's 'confirmed' rule reports a mismatch under password, not under
@@ -68,6 +73,7 @@ const onSubmit = () => submit(async () =>
             <!-- The token wasn't checked, so it may still be good: the form
                  stays for a retry once the wait is over. -->
             <p v-else-if="throttleMessage">{{ throttleMessage }}</p>
+            <p v-else-if="generalMessage">{{ generalMessage }}</p>
         </div>
 
         <p v-if="!token || !email">

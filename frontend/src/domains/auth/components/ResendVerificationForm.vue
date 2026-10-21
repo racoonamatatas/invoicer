@@ -12,7 +12,7 @@ const { initialEmail = '' } = defineProps<{ initialEmail?: string }>();
 // The value from `initialEmail` is copied once; afterwards the field belongs to the user
 // so a later change to the prop doesn't overwrite what the user typed
 const form = ref<VerificationResend>({ email: initialEmail });
-const { submit, isPending, fieldError, throttleMessage } = useForm<keyof VerificationResend>('resend-verification');
+const { submit, isPending, fieldError, throttleMessage, generalMessage } = useForm<keyof VerificationResend>('resend-verification', { email: true });
 
 const emailError = computed(() => fieldError('email'));
 const isSent = ref(false);
@@ -37,6 +37,7 @@ const onSubmit = () => submit(async () =>
         <div role="status">
             <p v-if="isSent">If that email has an unverified account, we've sent a new link to it.</p>
             <p v-else-if="throttleMessage">{{ throttleMessage }}</p>
+            <p v-else-if="generalMessage">{{ generalMessage }}</p>
         </div>
         <!-- Stays visible after sending, so a mistyped email can be fixed and
              sent again. -->

@@ -118,6 +118,22 @@ describe('Register page', () =>
         expect(wrapper.find('[role="status"]').text()).toBe('');
     });
 
+    it('should show the message in the live region when register fails with a 422 (unprocessable) that has no field error', async () =>
+    {
+        // Arrange: a well-formed 422 with nothing to show next to a field, as
+        // after a generic ValidationException or a renamed key on the backend
+        const message = 'The given data was invalid.';
+        vi.mocked(auth.register).mockRejectedValue(axiosErrorWith(422, { message, errors: {} }));
+        const wrapper = mountRegister();
+
+        // Act
+        await submitRegistration(wrapper);
+        await flushPromises();
+
+        // Assert: without it the user would see no feedback at all
+        expect(wrapper.find('[role="status"]').text()).toBe(message);
+    });
+
     it('should disable the submit button while register is in flight and enable it again after a 422 (unprocessable)', async () =>
     {
         // Arrange: auth.register is a stub whose request the test fails by hand.

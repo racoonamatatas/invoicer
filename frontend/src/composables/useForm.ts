@@ -1,5 +1,6 @@
-import { readonly, ref } from 'vue';
+import { computed, readonly, ref } from 'vue';
 import { parseFormSubmitFailure, type ErrorCode } from '@/form/formSubmitFailure';
+import type { FormDisplaysFieldError } from '@/form/formDisplaysFieldError';
 
 // What a form shows for a 429. Built here, so every form says it the same way.
 // Rounded up, and at least 1: 30 seconds left reads as 1 minute, and so does
@@ -19,7 +20,9 @@ const throttleMessageFor = (retryAfterSeconds: number | null): string =>
 // One form's submit state. Each call creates its own refs, so two forms on a
 // page never share or clear each other's errors.
 // TField lists the form's fields, so a typo in fieldError() is a type error.
-export const useForm = <TField extends string>(formName: string) =>
+// It defaults to never, so a form that leaves it out can't call fieldError()
+// at all, instead of falling back to string and accepting any field name.
+export const useForm = <TField extends string = never>(formName: string, displaysFieldError: FormDisplaysFieldError<TField>) =>
 {
     const errors = ref<Record<string, string[]>>({});
     const message = ref('');
@@ -78,20 +81,42 @@ export const useForm = <TField extends string>(formName: string) =>
         }
     };
 
+    // The one place that decides whether a field has an error, so fieldError()
+    // and generalMessage can't disagree. The parser accepts an empty list
+    // (`{ email: [] }`), and that has nothing to show, so it counts as none.
+    const firstError = (field: string): string | undefined => errors.value[field]?.[0];
+
     // This field's first error and the id its input points to, or null
     // when the field has no error. Called from the template, so it re-runs
     // whenever errors changes.
     const fieldError = (field: TField): { message: string; id: string } | null =>
     {
-        const message = errors.value[field]?.[0];
+        const message = firstError(field);
 
         return message === undefined ? null : { message, id: `${formName}-${field}-error` };
     };
 
-    // readonly: pages read the state; only submit() writes it.
+    // The 422's message when no field the form displays has an error, so a 422
+    // the form has nowhere to show (an empty `errors`, or a key it doesn't
+    // render) still tells the user something. '' otherwise, including when
+    // there was no 422, because `message` is '' then.
+    const generalMessage = computed(() =>
+    {
+        // <boolean>: TypeScript can't read the value type through the
+        // conditional type, so without it `displayed` would be `any`. It's
+        // checked, not a cast: the argument must fit Record<string, boolean>.
+        const hasDisplayedError = Object.entries<boolean>(displaysFieldError)
+            .some(([field, displayed]) => displayed && firstError(field) !== undefined);
+
+        return hasDisplayedError ? '' : message.value;
+    });
+
+    // readonly: pages read the state; only submit() writes it. The raw
+    // message isn't returned: a page that rendered it would repeat a field's
+    // error next to that field. generalMessage is the only way to show it.
     return {
         errors: readonly(errors),
-        message: readonly(message),
+        generalMessage, // a computed, so already read-only
         code: readonly(code),
         throttleMessage: readonly(throttleMessage),
         isPending: readonly(isPending),

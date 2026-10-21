@@ -153,6 +153,22 @@ describe('VerifyEmail page', () =>
         expect(findResendForm(wrapper).exists()).toBe(true);
     });
 
+    it('should show the message in the live region when verifyEmail fails with a 422 (unprocessable) that has no field error', async () =>
+    {
+        // Arrange: a well-formed 422 with nothing to show next to a field, as
+        // after a generic ValidationException or a renamed key on the backend
+        const message = 'The given data was invalid.';
+        vi.mocked(auth.verifyEmail).mockRejectedValue(axiosErrorWith(422, { message, errors: {} }));
+        const wrapper = await mountVerifyEmail();
+
+        // Act
+        await findVerifyButton(wrapper).trigger('click');
+        await flushPromises();
+
+        // Assert: without it the user would see no feedback at all
+        expect(wrapper.find('[role="status"]').text()).toBe(message);
+    });
+
     it('should disable the verify button while verifyEmail is in flight', async () =>
     {
         // Arrange: auth.verifyEmail is a stub whose request the test finishes by hand

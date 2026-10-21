@@ -8,7 +8,7 @@ import { forgotPassword, type PasswordForgot } from '@/services/auth';
 import { useForm } from '@/composables/useForm';
 
 const form = ref<PasswordForgot>({ email: '' });
-const { submit, isPending, fieldError, throttleMessage } = useForm<keyof PasswordForgot>('forgot-password');
+const { submit, isPending, fieldError, throttleMessage, generalMessage } = useForm<keyof PasswordForgot>('forgot-password', { email: true });
 
 const emailError = computed(() => fieldError('email'));
 const isSent = ref(false);
@@ -42,6 +42,7 @@ const onSubmit = () => submit(async () =>
         <div role="status">
             <p v-if="isSent">If that email has an account, we've sent a password reset link to it.</p>
             <p v-else-if="throttleMessage">{{ throttleMessage }}</p>
+            <p v-else-if="generalMessage">{{ generalMessage }}</p>
         </div>
         <!-- Stays visible after sending, so a mistyped email can be fixed and
              sent again. -->
