@@ -226,6 +226,65 @@ describe('useForm', () =>
         await second;
     });
 
+    it('should set generalMessage to the message when a 422 (unprocessable) has an empty errors', async () =>
+    {
+        // Arrange: a well-formed 422 with no field to point at, e.g. a generic
+        // ValidationException on the backend
+        const form = useForm<'email' | 'password'>('login', { email: true, password: true });
+        const send = () => Promise.reject(axiosErrorWith(422, { message: 'The given data was invalid.', errors: {} }));
+
+        // Act
+        await form.submit(send);
+
+        // Assert
+        expect(form.generalMessage.value).toBe('The given data was invalid.');
+    });
+
+    it('should set generalMessage to the message when a 422 (unprocessable) only has an error the form does not display', async () =>
+    {
+        // Arrange: register sends password_confirmation but has no place on
+        // the page for its error, so it is marked false
+        const form = useForm<'password' | 'password_confirmation'>('register', { password: true, password_confirmation: false });
+        const send = () => Promise.reject(axiosErrorWith(422, {
+            message: 'The password confirmation field is required.',
+            errors: { password_confirmation: ['The password confirmation field is required.'] },
+        }));
+
+        // Act
+        await form.submit(send);
+
+        // Assert
+        expect(form.generalMessage.value).toBe('The password confirmation field is required.');
+    });
+
+    it('should leave generalMessage empty when a 422 (unprocessable) has an error the form displays', async () =>
+    {
+        // Arrange
+        const form = useForm<'email' | 'password'>('login', { email: true, password: true });
+
+        // Act
+        await form.submit(sendFailingWith422);
+
+        // Assert: the 422 arrived, so the empty generalMessage is a decision,
+        // not a response that never landed. The error shows next to email,
+        // so showing the message too would repeat it.
+        expect(form.message.value).toBe('The email field is required.');
+        expect(form.generalMessage.value).toBe('');
+    });
+
+    it('should clear generalMessage when the next submit succeeds', async () =>
+    {
+        // Arrange: a first submit that leaves a general message behind
+        const form = useForm<'email' | 'password'>('login', { email: true, password: true });
+        await form.submit(() => Promise.reject(axiosErrorWith(422, { message: 'The given data was invalid.', errors: {} })));
+
+        // Act
+        await form.submit(sendSucceeding);
+
+        // Assert
+        expect(form.generalMessage.value).toBe('');
+    });
+
     it('should fail type-check when fieldError gets a field the form does not have', () =>
     {
         // Arrange
