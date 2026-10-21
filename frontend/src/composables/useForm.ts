@@ -81,12 +81,17 @@ export const useForm = <TField extends string = never>(formName: string, display
         }
     };
 
+    // The one place that decides whether a field has an error, so fieldError()
+    // and generalMessage can't disagree. The parser accepts an empty list
+    // (`{ email: [] }`), and that has nothing to show, so it counts as none.
+    const firstError = (field: string): string | undefined => errors.value[field]?.[0];
+
     // This field's first error and the id its input points to, or null
     // when the field has no error. Called from the template, so it re-runs
     // whenever errors changes.
     const fieldError = (field: TField): { message: string; id: string } | null =>
     {
-        const message = errors.value[field]?.[0];
+        const message = firstError(field);
 
         return message === undefined ? null : { message, id: `${formName}-${field}-error` };
     };
@@ -101,7 +106,7 @@ export const useForm = <TField extends string = never>(formName: string, display
         // conditional type, so without it `displayed` would be `any`. It's
         // checked, not a cast: the argument must fit Record<string, boolean>.
         const hasDisplayedError = Object.entries<boolean>(displaysFieldError)
-            .some(([field, displayed]) => displayed && errors.value[field] !== undefined);
+            .some(([field, displayed]) => displayed && firstError(field) !== undefined);
 
         return hasDisplayedError ? '' : message.value;
     });
