@@ -28,9 +28,9 @@ const sendSucceeding = () => Promise.resolve();
 
 describe('useForm', () =>
 {
-    it('should fill errors and message when the request fails with a 422 (unprocessable)', async () =>
+    it('should fill errors and generalMessage when the request fails with a 422 (unprocessable)', async () =>
     {
-        // Arrange
+        // Arrange: no displayed fields, so generalMessage carries the 422's message
         const form = useForm('login', {});
 
         // Act: would throw, and fail the test, if submit re-threw a validation failure
@@ -38,10 +38,10 @@ describe('useForm', () =>
 
         // Assert
         expect(form.errors.value).toStrictEqual({ email: ['The email field is required.'] });
-        expect(form.message.value).toBe('The email field is required.');
+        expect(form.generalMessage.value).toBe('The email field is required.');
     });
 
-    it('should clear errors and message when the next submit succeeds', async () =>
+    it('should clear errors and generalMessage when the next submit succeeds', async () =>
     {
         // Arrange: a first submit that leaves errors and a message behind
         const form = useForm('login', {});
@@ -52,7 +52,7 @@ describe('useForm', () =>
 
         // Assert
         expect(form.errors.value).toStrictEqual({});
-        expect(form.message.value).toBe('');
+        expect(form.generalMessage.value).toBe('');
     });
 
     it('should set code when the request fails with a 422 (unprocessable) that carries email_not_verified', async () =>
@@ -131,7 +131,7 @@ describe('useForm', () =>
 
         // Assert: login still shows its error, and resend never had one
         expect(login.errors.value).toStrictEqual({ email: ['The email field is required.'] });
-        expect(login.message.value).toBe('The email field is required.');
+        expect(login.generalMessage.value).toBe('The email field is required.');
         expect(resend.errors.value).toStrictEqual({});
     });
 
@@ -268,7 +268,7 @@ describe('useForm', () =>
         // Assert: the 422 arrived, so the empty generalMessage is a decision,
         // not a response that never landed. The error shows next to email,
         // so showing the message too would repeat it.
-        expect(form.message.value).toBe('The email field is required.');
+        expect(form.fieldError('email')?.message).toBe('The email field is required.');
         expect(form.generalMessage.value).toBe('');
     });
 

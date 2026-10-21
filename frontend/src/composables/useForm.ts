@@ -111,10 +111,11 @@ export const useForm = <TField extends string = never>(formName: string, display
         return hasDisplayedError ? '' : message.value;
     });
 
-    // readonly: pages read the state; only submit() writes it.
+    // readonly: pages read the state; only submit() writes it. The raw
+    // message isn't returned: a page that rendered it would repeat a field's
+    // error next to that field. generalMessage is the only way to show it.
     return {
         errors: readonly(errors),
-        message: readonly(message),
         generalMessage, // a computed, so already read-only
         code: readonly(code),
         throttleMessage: readonly(throttleMessage),
