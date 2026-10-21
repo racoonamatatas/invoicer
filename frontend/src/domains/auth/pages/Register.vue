@@ -7,6 +7,11 @@ import { register, type Registration } from '@/services/auth';
 import { useForm } from '@/composables/useForm';
 
 const form = ref<Registration>({ name: '', email: '', password: '', password_confirmation: '' });
+// password_confirmation: false, because Laravel's confirmed rule reports a
+// mismatch under password. Trade-off: if a 422 ever carried an error under
+// password_confirmation next to an error on a displayed field, that error
+// would show nowhere, since generalMessage only covers a 422 with no
+// displayed error at all. Today the backend never sends one.
 const { submit, isPending, fieldError, throttleMessage, generalMessage } = useForm<keyof Registration>('register', { name: true, email: true, password: true, password_confirmation: false });
 
 // One value per field, so the error text and both aria attributes read
