@@ -1,4 +1,4 @@
-import { readonly, ref } from 'vue';
+import { computed, readonly, ref } from 'vue';
 import { parseFormSubmitFailure, type ErrorCode } from '@/form/formSubmitFailure';
 import type { FormDisplaysFieldError } from '@/form/formDisplaysFieldError';
 
@@ -22,7 +22,7 @@ const throttleMessageFor = (retryAfterSeconds: number | null): string =>
 // TField lists the form's fields, so a typo in fieldError() is a type error.
 // It defaults to never, so a form that leaves it out can't call fieldError()
 // at all, instead of falling back to string and accepting any field name.
-export const useForm = <TField extends string = never>(formName: string, _fields: FormDisplaysFieldError<TField>) =>
+export const useForm = <TField extends string = never>(formName: string, displaysFieldError: FormDisplaysFieldError<TField>) =>
 {
     const errors = ref<Record<string, string[]>>({});
     const message = ref('');
@@ -91,10 +91,26 @@ export const useForm = <TField extends string = never>(formName: string, _fields
         return message === undefined ? null : { message, id: `${formName}-${field}-error` };
     };
 
+    // The 422's message when no field the form displays has an error, so a 422
+    // the form has nowhere to show (an empty `errors`, or a key it doesn't
+    // render) still tells the user something. '' otherwise, including when
+    // there was no 422, because `message` is '' then.
+    const generalMessage = computed(() =>
+    {
+        // <boolean>: TypeScript can't read the value type through the
+        // conditional type, so without it `displayed` would be `any`. It's
+        // checked, not a cast: the argument must fit Record<string, boolean>.
+        const hasDisplayedError = Object.entries<boolean>(displaysFieldError)
+            .some(([field, displayed]) => displayed && errors.value[field] !== undefined);
+
+        return hasDisplayedError ? '' : message.value;
+    });
+
     // readonly: pages read the state; only submit() writes it.
     return {
         errors: readonly(errors),
         message: readonly(message),
+        generalMessage, // a computed, so already read-only
         code: readonly(code),
         throttleMessage: readonly(throttleMessage),
         isPending: readonly(isPending),
