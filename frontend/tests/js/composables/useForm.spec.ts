@@ -295,4 +295,21 @@ describe('useForm', () =>
         // @ts-expect-error 'emial' is not 'email' | 'password'
         form.fieldError('emial');
     });
+
+    it('should fail type-check when the fields leave out one of the form\'s fields', () =>
+    {
+        // Assert: checked by npm run type-check, not by vitest. Every field
+        // needs a true or false, so a forgotten one can't count as displayed.
+        // @ts-expect-error password is missing
+        useForm<'email' | 'password'>('login', { email: true });
+    });
+
+    it('should fail type-check when useForm gets fields but no generic', () =>
+    {
+        // Assert: checked by npm run type-check, not by vitest. Without the
+        // generic, TField is never; the fields must then be {}, or a form
+        // could list fields that fieldError() would never accept.
+        // @ts-expect-error email can't be a field when TField is never
+        useForm('login', { email: true });
+    });
 });
