@@ -99,6 +99,22 @@ describe('Login page', () =>
         expect(otherInput.attributes('aria-describedby')).toBeUndefined();
     });
 
+    it('should show the message in the live region when login fails with a 422 (unprocessable) that has no field error', async () =>
+    {
+        // Arrange: a well-formed 422 with nothing to show next to a field, as
+        // after a generic ValidationException or a renamed key on the backend
+        const message = 'The given data was invalid.';
+        vi.mocked(auth.login).mockRejectedValue(axiosErrorWith(422, { message, errors: {} }));
+        const { wrapper } = await mountLogin();
+
+        // Act
+        await submitCredentials(wrapper);
+        await flushPromises();
+
+        // Assert: without it the user would see no feedback at all
+        expect(wrapper.find('[role="status"]').text()).toBe(message);
+    });
+
     it('should not navigate when login fails with a 422 (unprocessable)', async () =>
     {
         // Arrange: auth.login is a stub that fails validation. router.push is a

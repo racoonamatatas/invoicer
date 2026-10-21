@@ -136,6 +136,22 @@ describe('ForgotPassword page', () =>
         expect(wrapper.find('[role="status"]').text()).toBe('');
     });
 
+    it('should show the message in the live region when forgotPassword fails with a 422 (unprocessable) that has no field error', async () =>
+    {
+        // Arrange: a well-formed 422 with nothing to show next to a field, as
+        // after a generic ValidationException or a renamed key on the backend
+        const message = 'The given data was invalid.';
+        vi.mocked(auth.forgotPassword).mockRejectedValue(axiosErrorWith(422, { message, errors: {} }));
+        const wrapper = await mountForgotPassword();
+
+        // Act
+        await submitEmail(wrapper);
+        await flushPromises();
+
+        // Assert: without it the user would see no feedback at all
+        expect(wrapper.find('[role="status"]').text()).toBe(message);
+    });
+
     it('should disable the submit button while forgotPassword is in flight and enable it again after a 204 (no content)', async () =>
     {
         // Arrange: auth.forgotPassword is a stub whose request the test finishes by hand

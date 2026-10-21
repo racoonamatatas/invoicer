@@ -262,6 +262,22 @@ describe('ResetPassword page', () =>
         expect(wrapper.find(resetForm).exists()).toBe(false);
     });
 
+    it('should show the message in the live region when resetPassword fails with a 422 (unprocessable) that has no field error', async () =>
+    {
+        // Arrange: a well-formed 422 with nothing to show next to a field, as
+        // after a generic ValidationException or a renamed key on the backend
+        const message = 'The given data was invalid.';
+        vi.mocked(auth.resetPassword).mockRejectedValue(axiosErrorWith(422, { message, errors: {} }));
+        const wrapper = await mountResetPassword();
+
+        // Act
+        await submitPasswords(wrapper);
+        await flushPromises();
+
+        // Assert: without it the user would see no feedback at all
+        expect(wrapper.find('[role="status"]').text()).toBe(message);
+    });
+
     it('should disable the submit button while resetPassword is in flight', async () =>
     {
         // Arrange: auth.resetPassword is a stub whose request the test finishes by hand
