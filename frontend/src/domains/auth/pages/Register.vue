@@ -7,7 +7,7 @@ import { register, type Registration } from '@/services/auth';
 import { useForm } from '@/composables/useForm';
 
 const form = ref<Registration>({ name: '', email: '', password: '', password_confirmation: '' });
-const { submit, isPending, fieldError, throttleMessage } = useForm<keyof Registration>('register', { name: true, email: true, password: true, password_confirmation: false });
+const { submit, isPending, fieldError, throttleMessage, generalMessage } = useForm<keyof Registration>('register', { name: true, email: true, password: true, password_confirmation: false });
 
 // One value per field, so the error text and both aria attributes read
 // from the same source. No password_confirmation: Laravel's 'confirmed'
@@ -38,6 +38,7 @@ const onSubmit = () => submit(async () =>
         <div role="status">
             <p v-if="isRegistered">Check your inbox at {{ form.email }}. We've sent you an email with the next step.</p>
             <p v-else-if="throttleMessage">{{ throttleMessage }}</p>
+            <p v-else-if="generalMessage">{{ generalMessage }}</p>
         </div>
         <form v-if="!isRegistered" aria-label="Create an account" @submit.prevent="onSubmit">
             <div>

@@ -12,7 +12,7 @@ import { useForm } from '@/composables/useForm';
 const form = ref<LoginCredentials>({ email: '', password: '' });
 const store = useAuthStore();
 const router = useRouter();
-const { submit, isPending, fieldError, throttleMessage, code } = useForm<keyof LoginCredentials>('login', { email: true, password: true });
+const { submit, isPending, fieldError, throttleMessage, code, generalMessage } = useForm<keyof LoginCredentials>('login', { email: true, password: true });
 
 // One value per field, so the error text and both aria attributes read
 // from the same source.
@@ -39,6 +39,7 @@ const onSubmit = () => submit(async () =>
             <!-- The resend form below appears outside this region, so without
                  this line a screen reader user isn't told it exists. -->
             <p v-else-if="code === 'email_not_verified'">Your email isn't verified yet. You can get a new link below.</p>
+            <p v-else-if="generalMessage">{{ generalMessage }}</p>
         </div>
         <form aria-label="Log in" @submit.prevent="onSubmit">
             <div>
