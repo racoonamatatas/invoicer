@@ -272,6 +272,21 @@ describe('useForm', () =>
         expect(form.generalMessage.value).toBe('');
     });
 
+    it('should set generalMessage to the message when a 422 (unprocessable) has an empty error list for a displayed field', async () =>
+    {
+        // Arrange: the parser accepts `email: []`, but fieldError() has nothing
+        // to show for it, so it must not count as a displayed error
+        const form = useForm<'email' | 'password'>('login', { email: true, password: true });
+        const send = () => Promise.reject(axiosErrorWith(422, { message: 'The given data was invalid.', errors: { email: [] } }));
+
+        // Act
+        await form.submit(send);
+
+        // Assert: nothing next to email, so the message is the user's only feedback
+        expect(form.fieldError('email')).toBeNull();
+        expect(form.generalMessage.value).toBe('The given data was invalid.');
+    });
+
     it('should clear generalMessage when the next submit succeeds', async () =>
     {
         // Arrange: a first submit that leaves a general message behind
