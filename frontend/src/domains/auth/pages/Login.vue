@@ -12,7 +12,7 @@ import { useForm } from '@/composables/useForm';
 const form = ref<LoginCredentials>({ email: '', password: '' });
 const store = useAuthStore();
 const router = useRouter();
-const { submit, isPending, fieldError, throttleMessage, code } = useForm<keyof LoginCredentials>('login');
+const { submit, isPending, fieldError, throttleMessage, code } = useForm<keyof LoginCredentials>('login', { email: true, password: true });
 
 // One value per field, so the error text and both aria attributes read
 // from the same source.

@@ -8,7 +8,7 @@ import { forgotPassword, type PasswordForgot } from '@/services/auth';
 import { useForm } from '@/composables/useForm';
 
 const form = ref<PasswordForgot>({ email: '' });
-const { submit, isPending, fieldError, throttleMessage } = useForm<keyof PasswordForgot>('forgot-password');
+const { submit, isPending, fieldError, throttleMessage } = useForm<keyof PasswordForgot>('forgot-password', { email: true });
 
 const emailError = computed(() => fieldError('email'));
 const isSent = ref(false);

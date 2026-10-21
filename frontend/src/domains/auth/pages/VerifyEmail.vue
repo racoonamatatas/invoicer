@@ -12,7 +12,7 @@ const route = useRoute();
 const router = useRouter();
 const token = computed(() => typeof route.query.token === 'string' ? route.query.token : '');
 
-const { submit, isPending, fieldError, throttleMessage } = useForm<keyof EmailVerification>('verify-email');
+const { submit, isPending, fieldError, throttleMessage } = useForm<keyof EmailVerification>('verify-email', { token: true });
 const isVerified = ref(false);
 const tokenError = computed(() => fieldError('token'));
 

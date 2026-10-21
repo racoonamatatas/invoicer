@@ -31,7 +31,7 @@ describe('useForm', () =>
     it('should fill errors and message when the request fails with a 422 (unprocessable)', async () =>
     {
         // Arrange
-        const form = useForm('login');
+        const form = useForm('login', {});
 
         // Act: would throw, and fail the test, if submit re-threw a validation failure
         await form.submit(sendFailingWith422);
@@ -44,7 +44,7 @@ describe('useForm', () =>
     it('should clear errors and message when the next submit succeeds', async () =>
     {
         // Arrange: a first submit that leaves errors and a message behind
-        const form = useForm('login');
+        const form = useForm('login', {});
         await form.submit(sendFailingWith422);
 
         // Act
@@ -58,7 +58,7 @@ describe('useForm', () =>
     it('should set code when the request fails with a 422 (unprocessable) that carries email_not_verified', async () =>
     {
         // Arrange
-        const form = useForm('login');
+        const form = useForm('login', {});
 
         // Act: the real parser runs, so this also proves the parser and useForm connect
         await form.submit(sendFailingWithUnverified422);
@@ -70,7 +70,7 @@ describe('useForm', () =>
     it('should clear code when the next submit succeeds', async () =>
     {
         // Arrange: a first submit that leaves a code behind
-        const form = useForm('login');
+        const form = useForm('login', {});
         await form.submit(sendFailingWithUnverified422);
 
         // Act: a success, not a plain 422: the 422 branch would overwrite code
@@ -84,7 +84,7 @@ describe('useForm', () =>
     it('should re-throw the original error and reset isPending when the request fails with a 500 (server error)', async () =>
     {
         // Arrange: an OtherFailure, which the form can't show per field
-        const form = useForm('login');
+        const form = useForm('login', {});
         const error = axiosErrorWith(500, { message: 'Server Error' });
         const send = () => Promise.reject(error);
 
@@ -98,7 +98,7 @@ describe('useForm', () =>
     it('should ignore a second submit while the first request is in flight', async () =>
     {
         // Arrange: a request the test finishes by hand, so it can look while it is in flight
-        const form = useForm('login');
+        const form = useForm('login', {});
         const request = createDeferred();
         const send = vi.fn(() => request.promise);
 
@@ -122,8 +122,8 @@ describe('useForm', () =>
     it('should keep a form\'s errors when another form on the page submits', async () =>
     {
         // Arrange: the login page's two forms; login failed validation
-        const login =  useForm('login');
-        const resend =  useForm('resend');
+        const login =  useForm('login', {});
+        const resend =  useForm('resend', {});
         await login.submit(sendFailingWith422);
 
         // Act: the user clicks resend, the request the old global bag cleared errors on
@@ -138,7 +138,7 @@ describe('useForm', () =>
     it('should return a field\'s error and an id prefixed with the form name after a 422 (unprocessable)', async () =>
     {
         // Arrange
-        const form = useForm('login');
+        const form = useForm<'email' | 'password'>('login', { email: true, password: true });
 
         // Act
         await form.submit(sendFailingWith422);
@@ -153,7 +153,7 @@ describe('useForm', () =>
     it('should return null for a field the 422 (unprocessable) has no error for', async () =>
     {
         // Arrange
-        const form = useForm('login');
+        const form = useForm<'email' | 'password'>('login', { email: true, password: true });
 
         // Act: the 422 only has an error for email
         await form.submit(sendFailingWith422);
@@ -165,7 +165,7 @@ describe('useForm', () =>
     it('should return only the first message when the 422 (unprocessable) has several for a field', async () =>
     {
         // Arrange: Laravel sends one message per failed rule
-        const form = useForm('register');
+        const form = useForm<'password'>('register', { password: true });
         const send = () => Promise.reject(axiosErrorWith(422, {
             message: 'The password field must be at least 8 characters. (and 1 more error)',
             errors: {
@@ -196,7 +196,7 @@ describe('useForm', () =>
     ])('should set throttleMessage and not re-throw when the request fails with a 429 (too many requests): $name', async ({ retryAfter, throttleMessage }) =>
     {
         // Arrange: a send that fails the way Laravel's throttle middleware does
-        const form = useForm('resend-verification');
+        const form = useForm('resend-verification', {});
         const headers: Record<string, string> = retryAfter === null ? {} : { 'retry-after': retryAfter };
         const send = () => Promise.reject(axiosErrorWith(429, { message: 'Too Many Attempts.' }, headers));
 
@@ -211,7 +211,7 @@ describe('useForm', () =>
     {
         // Arrange: a first submit that was throttled, and a second request
         // the test holds open, to look before it settles
-        const form = useForm('resend-verification');
+        const form = useForm('resend-verification', {});
         await form.submit(() => Promise.reject(axiosErrorWith(429, { message: 'Too Many Attempts.' }, { 'retry-after': '60' })));
         const request = createDeferred();
 
@@ -229,7 +229,7 @@ describe('useForm', () =>
     it('should fail type-check when fieldError gets a field the form does not have', () =>
     {
         // Arrange
-        const form = useForm<'email' | 'password'>('login');
+        const form = useForm<'email' | 'password'>('login', { email: true, password: true });
 
         // Assert: checked by npm run type-check, not by vitest. If the typo
         // compiles, the directive is unused and type-check fails instead.

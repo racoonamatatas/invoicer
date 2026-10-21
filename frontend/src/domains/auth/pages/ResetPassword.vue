@@ -23,7 +23,7 @@ const email = typeof route.query.email === 'string' ? route.query.email : '';
 
 // Only the fields the user types; token and email come from the link.
 const form = ref<Pick<PasswordReset, 'password' | 'password_confirmation'>>({ password: '', password_confirmation: '' });
-const { submit, isPending, fieldError, throttleMessage } = useForm<keyof PasswordReset>('reset-password');
+const { submit, isPending, fieldError, throttleMessage } = useForm<keyof PasswordReset>('reset-password', { token: true, email: true, password: true, password_confirmation: false });
 const isReset = ref(false);
 
 // Laravel's 'confirmed' rule reports a mismatch under password, not under

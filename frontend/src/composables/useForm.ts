@@ -1,5 +1,6 @@
 import { readonly, ref } from 'vue';
 import { parseFormSubmitFailure, type ErrorCode } from '@/form/formSubmitFailure';
+import type { FormDisplaysFieldError } from '@/form/formDisplaysFieldError';
 
 // What a form shows for a 429. Built here, so every form says it the same way.
 // Rounded up, and at least 1: 30 seconds left reads as 1 minute, and so does
@@ -19,7 +20,9 @@ const throttleMessageFor = (retryAfterSeconds: number | null): string =>
 // One form's submit state. Each call creates its own refs, so two forms on a
 // page never share or clear each other's errors.
 // TField lists the form's fields, so a typo in fieldError() is a type error.
-export const useForm = <TField extends string>(formName: string) =>
+// It defaults to never, so a form that leaves it out can't call fieldError()
+// at all, instead of falling back to string and accepting any field name.
+export const useForm = <TField extends string = never>(formName: string, _fields: FormDisplaysFieldError<TField>) =>
 {
     const errors = ref<Record<string, string[]>>({});
     const message = ref('');

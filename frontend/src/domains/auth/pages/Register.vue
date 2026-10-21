@@ -7,7 +7,7 @@ import { register, type Registration } from '@/services/auth';
 import { useForm } from '@/composables/useForm';
 
 const form = ref<Registration>({ name: '', email: '', password: '', password_confirmation: '' });
-const { submit, isPending, fieldError, throttleMessage } = useForm<keyof Registration>('register');
+const { submit, isPending, fieldError, throttleMessage } = useForm<keyof Registration>('register', { name: true, email: true, password: true, password_confirmation: false });
 
 // One value per field, so the error text and both aria attributes read
 // from the same source. No password_confirmation: Laravel's 'confirmed'

@@ -12,7 +12,7 @@ const { initialEmail = '' } = defineProps<{ initialEmail?: string }>();
 // The value from `initialEmail` is copied once; afterwards the field belongs to the user
 // so a later change to the prop doesn't overwrite what the user typed
 const form = ref<VerificationResend>({ email: initialEmail });
-const { submit, isPending, fieldError, throttleMessage } = useForm<keyof VerificationResend>('resend-verification');
+const { submit, isPending, fieldError, throttleMessage } = useForm<keyof VerificationResend>('resend-verification', { email: true });
 
 const emailError = computed(() => fieldError('email'));
 const isSent = ref(false);
