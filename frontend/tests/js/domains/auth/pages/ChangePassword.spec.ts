@@ -1,14 +1,12 @@
 import { flushPromises, mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, it, expect, vi } from 'vitest';
-import { createMemoryHistory, createRouter } from 'vue-router';
 
-import { authRoutes } from '@/domains/auth/routes';
-import { dashboardRoutes } from '@/domains/dashboard/routes';
 import ChangePassword from '@/domains/auth/pages/ChangePassword.vue';
 import { useAuthStore } from '@/domains/auth/store';
 import * as auth from '@/services/auth';
 import { axiosErrorWith } from '../../../utility/axiosErrorWith';
+import { createTestRouter } from '../../../utility/createTestRouter';
 
 // Every export of the auth service becomes a vi.fn(), so no request leaves the test.
 vi.mock('@/services/auth');
@@ -22,8 +20,7 @@ const changeForm = 'form[aria-label="Change password"]';
 
 // Mounts ChangePassword on /change-password with the app's real routes, so
 // the dashboard links resolve. The route is protected, so the user is logged
-// in first, through the store the way the login page does it. No guard is
-// registered, so the test only sees what ChangePassword itself does.
+// in first, through the store the way the login page does it.
 const mountChangePassword = async (errorHandler?: (error: unknown) => void) =>
 {
     const pinia = createPinia();
@@ -32,10 +29,7 @@ const mountChangePassword = async (errorHandler?: (error: unknown) => void) =>
     vi.mocked(auth.login).mockResolvedValue({ id: 1, name: 'Jan de Vries', email });
     await useAuthStore().login({ email, password: change.current_password });
 
-    const router = createRouter({
-        history: createMemoryHistory(),
-        routes: [...authRoutes, ...dashboardRoutes].map((route) => route.toRecord()),
-    });
+    const router = createTestRouter();
     await router.push({ name: 'changePassword' });
 
     return mount(ChangePassword, { global: { plugins: [pinia, router], config: { errorHandler } } });

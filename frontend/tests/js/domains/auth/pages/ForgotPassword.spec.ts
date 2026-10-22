@@ -1,12 +1,11 @@
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils';
 import { beforeEach, describe, it, expect, vi } from 'vitest';
-import { createMemoryHistory, createRouter } from 'vue-router';
 
-import { authRoutes } from '@/domains/auth/routes';
 import ForgotPassword from '@/domains/auth/pages/ForgotPassword.vue';
 import * as auth from '@/services/auth';
 import { axiosErrorWith } from '../../../utility/axiosErrorWith';
 import { createDeferred } from '../../../utility/createDeferred';
+import { createTestRouter } from '../../../utility/createTestRouter';
 
 // Every export of the auth service becomes a vi.fn(), so no request leaves the test.
 vi.mock('@/services/auth');
@@ -18,10 +17,7 @@ const confirmation = 'If that email has an account, we\'ve sent a password reset
 // RouterLink resolves the way it does in the app. No Pinia: the page uses no store.
 const mountForgotPassword = async (errorHandler?: (error: unknown) => void) =>
 {
-    const router = createRouter({
-        history: createMemoryHistory(),
-        routes: authRoutes.map((route) => route.toRecord()),
-    });
+    const router = createTestRouter();
     await router.push({ name: 'forgotPassword' });
 
     return mount(ForgotPassword, { global: { plugins: [router], config: { errorHandler } } });

@@ -1,30 +1,24 @@
 import { flushPromises, mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
-import { createMemoryHistory, createRouter } from 'vue-router';
 
-import { authRoutes } from '@/domains/auth/routes';
-import { dashboardRoutes } from '@/domains/dashboard/routes';
 import Dashboard from '@/domains/dashboard/pages/Dashboard.vue';
 import * as auth from '@/services/auth';
 import { axiosErrorWith } from '../../../utility/axiosErrorWith';
 import { createDeferred } from '../../../utility/createDeferred';
+import { createTestRouter } from '../../../utility/createTestRouter';
 
 // Every export of the auth service becomes a vi.fn(), so no request leaves the test.
 vi.mock('@/services/auth');
 
 // Mounts Dashboard on / with a fresh Pinia, so the real auth store starts
-// empty, and the app's real routes, so its RouterLinks resolve. No guard is
-// registered, so the test only sees what Dashboard itself does.
+// empty, and the app's real routes, so its RouterLinks resolve.
 const mountDashboard = async (errorHandler?: (error: unknown) => void) =>
 {
     const pinia = createPinia();
     setActivePinia(pinia);
 
-    const router = createRouter({
-        history: createMemoryHistory(),
-        routes: [...authRoutes, ...dashboardRoutes].map((route) => route.toRecord()),
-    });
+    const router = createTestRouter();
     await router.push({ name: 'dashboard' });
 
     return mount(Dashboard, { global: { plugins: [pinia, router], config: { errorHandler } } });
