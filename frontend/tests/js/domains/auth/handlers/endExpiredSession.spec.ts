@@ -30,7 +30,7 @@ describe('endExpiredSession', () =>
         vi.unstubAllGlobals();
     });
 
-    it('should clear the store and do a full page load of /login when a user is logged in', async () =>
+    it('should clear the store, do a full page load of /login and return true when a user is logged in', async () =>
     {
         // Arrange: logged in through login(), since user is private to the store
         vi.mocked(auth.login).mockResolvedValue(user);
@@ -38,20 +38,24 @@ describe('endExpiredSession', () =>
         await store.login({ email: 'jan@example.nl', password: 'secret-password' });
 
         // Act: what the http layer does on a 401
-        endExpiredSession();
+        const ended = endExpiredSession();
 
-        // Assert
+        // Assert: true tells the http layer this 401 has been handled
+        expect(ended).toBe(true);
         expect(store.isLoggedIn).toBe(false);
         expect(assign).toHaveBeenCalledExactlyOnceWith('/login');
     });
 
-    it('should not load /login when nobody is logged in', () =>
+    it('should not load /login and return false when nobody is logged in', () =>
     {
         // Arrange: logged out, as during restore()'s boot-time 401
         const store = useAuthStore();
 
         // Act
-        endExpiredSession();
+        const ended = endExpiredSession();
+
+        // Assert: false, so the http layer passes the 401 on unchanged
+        expect(ended).toBe(false);
 
         // Assert: restore() handles that 401 itself; a page load here would loop
         // the boot on /login
