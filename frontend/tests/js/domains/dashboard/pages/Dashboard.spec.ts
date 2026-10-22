@@ -6,17 +6,22 @@ import Dashboard from '@/domains/dashboard/pages/Dashboard.vue';
 import * as auth from '@/services/auth';
 import { axiosErrorWith } from '../../../utility/axiosErrorWith';
 import { createDeferred } from '../../../utility/createDeferred';
+import { createTestRouter } from '../../../utility/createTestRouter';
 
 // Every export of the auth service becomes a vi.fn(), so no request leaves the test.
 vi.mock('@/services/auth');
 
-// Mounts Dashboard with a fresh Pinia, so the real auth store starts empty.
-const mountDashboard = (errorHandler?: (error: unknown) => void) =>
+// Mounts Dashboard on / with a fresh Pinia, so the real auth store starts
+// empty, and the app's real routes, so its RouterLinks resolve.
+const mountDashboard = async (errorHandler?: (error: unknown) => void) =>
 {
     const pinia = createPinia();
     setActivePinia(pinia);
 
-    return mount(Dashboard, { global: { plugins: [pinia], config: { errorHandler } } });
+    const router = createTestRouter();
+    await router.push({ name: 'dashboard' });
+
+    return mount(Dashboard, { global: { plugins: [pinia, router], config: { errorHandler } } });
 };
 
 describe('Dashboard page', () =>
@@ -37,11 +42,21 @@ describe('Dashboard page', () =>
         vi.unstubAllGlobals();
     });
 
+    it('should link to /change-password, the only way to reach that page', async () =>
+    {
+        // Act
+        const wrapper = await mountDashboard();
+
+        // Assert: found by its text the way a user finds it
+        const link = wrapper.findAll('a').find((anchor) => anchor.text() === 'Change password');
+        expect(link?.attributes('href')).toBe('/change-password');
+    });
+
     it('should log out and do a full page load of /login when logout gets a 204 (no content)', async () =>
     {
         // Arrange: auth.logout is a stub (resolves, like a 204) and a spy (records its call)
         vi.mocked(auth.logout).mockResolvedValue();
-        const wrapper = mountDashboard();
+        const wrapper = await mountDashboard();
 
         // Act
         await wrapper.find('button').trigger('click');
@@ -61,7 +76,7 @@ describe('Dashboard page', () =>
         const error = axiosErrorWith(500, { message: 'Server Error' });
         vi.mocked(auth.logout).mockRejectedValue(error);
         const errorHandler = vi.fn();
-        const wrapper = mountDashboard(errorHandler);
+        const wrapper = await mountDashboard(errorHandler);
 
         // Act
         await wrapper.find('button').trigger('click');
@@ -84,7 +99,7 @@ describe('Dashboard page', () =>
         // Arrange: auth.logout is a stub whose request the test finishes by hand
         const request = createDeferred();
         vi.mocked(auth.logout).mockReturnValue(request.promise);
-        const wrapper = mountDashboard();
+        const wrapper = await mountDashboard();
         const button = wrapper.find('button');
 
         // Assert: usable before anything is sent

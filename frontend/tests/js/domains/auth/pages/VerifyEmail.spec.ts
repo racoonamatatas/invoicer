@@ -1,12 +1,12 @@
 import { flushPromises, mount } from '@vue/test-utils';
 import { beforeEach, describe, it, expect, vi } from 'vitest';
-import { createMemoryHistory, createRouter, type LocationQueryRaw } from 'vue-router';
+import type { LocationQueryRaw } from 'vue-router';
 
-import { authRoutes } from '@/domains/auth/routes';
 import VerifyEmail from '@/domains/auth/pages/VerifyEmail.vue';
 import * as auth from '@/services/auth';
 import { axiosErrorWith } from '../../../utility/axiosErrorWith';
 import { createDeferred } from '../../../utility/createDeferred';
+import { createTestRouter } from '../../../utility/createTestRouter';
 
 // Every export of the auth service becomes a vi.fn(), so no request leaves the test.
 vi.mock('@/services/auth');
@@ -15,15 +15,11 @@ const token = 'a1b2c3d4e5f6';
 const invalidLink = 'This verification link is invalid or has expired.';
 
 // Mounts VerifyEmail on /verify-email with the app's real routes and the given
-// query, the way the link in the mail opens it. The memory history is a fake:
-// a working in-memory stand-in for the browser's address bar. VerifyEmail
-// uses no store, so no Pinia.
+// query, the way the link in the mail opens it. VerifyEmail uses no store, so
+// no Pinia.
 const mountVerifyEmail = async (query: LocationQueryRaw = { token }, errorHandler?: (error: unknown) => void) =>
 {
-    const router = createRouter({
-        history: createMemoryHistory(),
-        routes: authRoutes.map((route) => route.toRecord()),
-    });
+    const router = createTestRouter();
     await router.push({ name: 'verifyEmail', query });
 
     return mount(VerifyEmail, { global: { plugins: [router], config: { errorHandler } } });

@@ -1,4 +1,7 @@
 <script setup lang="ts">
+// Package imports
+import { RouterLink } from 'vue-router';
+
 // Project imports
 import { useAuthStore } from '@/domains/auth/store';
 import { useForm } from '@/composables/useForm';
@@ -23,6 +26,7 @@ const onLogout = () => submit(async () =>
 <template>
     <div>
         <h1>Dashboard</h1>
+        <p><RouterLink :to="{ name: 'changePassword' }">Change password</RouterLink></p>
         <button type="button" :disabled="isPending" @click="onLogout">Log out</button>
     </div>
 </template>

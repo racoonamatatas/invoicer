@@ -6,4 +6,6 @@ export const authRoutes: AppRoute[] = [
     new AppRoute('/verify-email', 'verifyEmail', () => import('./pages/VerifyEmail.vue')).public(),
     new AppRoute('/forgot-password', 'forgotPassword', () => import('./pages/ForgotPassword.vue')).public(),
     new AppRoute('/reset-password', 'resetPassword', () => import('./pages/ResetPassword.vue')).public(),
+    // No .public(): only a logged-in user can change their password.
+    new AppRoute('/change-password', 'changePassword', () => import('./pages/ChangePassword.vue')),
 ];

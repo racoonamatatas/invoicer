@@ -1,8 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router';
 
-import { authRoutes } from '@/domains/auth/routes';
-import { dashboardRoutes } from '@/domains/dashboard/routes';
 import { authGuard } from '@/router/authGuard';
+import { appRoutes } from '@/router/routes';
 
 // Adds invoicer's own flags to every route's meta, so they are type-checked.
 declare module 'vue-router'
@@ -17,7 +16,7 @@ declare module 'vue-router'
 
 const router = createRouter({
     history: createWebHistory(import.meta.env.BASE_URL),
-    routes: [...authRoutes, ...dashboardRoutes].map((route) => route.toRecord()),
+    routes: appRoutes.map((route) => route.toRecord()),
 });
 
 // Guards run in the order they are registered here.

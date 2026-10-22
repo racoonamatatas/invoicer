@@ -1,14 +1,12 @@
 import { flushPromises, mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, it, expect, vi } from 'vitest';
-import { createMemoryHistory, createRouter } from 'vue-router';
 
-import { authRoutes } from '@/domains/auth/routes';
-import { dashboardRoutes } from '@/domains/dashboard/routes';
 import Login from '@/domains/auth/pages/Login.vue';
 import * as auth from '@/services/auth';
 import { axiosErrorWith } from '../../../utility/axiosErrorWith';
 import { createDeferred } from '../../../utility/createDeferred';
+import { createTestRouter } from '../../../utility/createTestRouter';
 
 // Every export of the auth service becomes a vi.fn(), so no request leaves the test.
 vi.mock('@/services/auth');
@@ -20,18 +18,13 @@ const credentials = { email: 'jan@example.nl', password: 'secret-password' };
 // matches it. Otherwise a typo would make "not shown" pass on its own.
 const resendForm = 'form[aria-label="Get a new verification link"]';
 
-// Mounts Login on /login with the app's real routes. The memory history is a
-// fake: a working in-memory stand-in for the browser's address bar. No guard
-// is registered, so the test only sees what Login itself does.
+// Mounts Login on /login with the app's real routes.
 const mountLogin = async (errorHandler?: (error: unknown) => void) =>
 {
     const pinia = createPinia();
     setActivePinia(pinia);
 
-    const router = createRouter({
-        history: createMemoryHistory(),
-        routes: [...authRoutes, ...dashboardRoutes].map((route) => route.toRecord()),
-    });
+    const router = createTestRouter();
     await router.push({ name: 'login' });
 
     const wrapper = mount(Login, { global: { plugins: [pinia, router], config: { errorHandler } } });

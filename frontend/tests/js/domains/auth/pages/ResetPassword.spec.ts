@@ -1,14 +1,14 @@
 import { flushPromises, mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, it, expect, vi } from 'vitest';
-import { createMemoryHistory, createRouter, type LocationQueryRaw } from 'vue-router';
+import type { LocationQueryRaw } from 'vue-router';
 
-import { authRoutes } from '@/domains/auth/routes';
 import ResetPassword from '@/domains/auth/pages/ResetPassword.vue';
 import { useAuthStore } from '@/domains/auth/store';
 import * as auth from '@/services/auth';
 import { axiosErrorWith } from '../../../utility/axiosErrorWith';
 import { createDeferred } from '../../../utility/createDeferred';
+import { createTestRouter } from '../../../utility/createTestRouter';
 
 // Every export of the auth service becomes a vi.fn(), so no request leaves the test.
 vi.mock('@/services/auth');
@@ -30,10 +30,7 @@ const mountResetPassword = async (query: LocationQueryRaw = { token, email }, er
     const pinia = createPinia();
     setActivePinia(pinia);
 
-    const router = createRouter({
-        history: createMemoryHistory(),
-        routes: authRoutes.map((route) => route.toRecord()),
-    });
+    const router = createTestRouter();
     await router.push({ name: 'resetPassword', query });
 
     return mount(ResetPassword, { global: { plugins: [pinia, router], config: { errorHandler } } });
