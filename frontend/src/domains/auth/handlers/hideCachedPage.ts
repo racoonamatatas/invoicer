@@ -8,7 +8,10 @@
 // a page without saying so (`persisted`) is covered too.
 export const hideCachedPage = (): void =>
 {
-    // Only a DOM change. vue-router's `pagehide` listener, which changes
-    // history, keeps Chromium from caching the page; nothing here should.
-    document.documentElement.hidden = true;
+    // An inline `!important` style, not the `hidden` attribute: `hidden` only
+    // works through the browser's own `[hidden] { display: none }`, which any
+    // stylesheet setting `display` on <html> would override.
+    // Only the DOM is touched. Changing history here, as vue-router's own
+    // `pagehide` listener does, is what keeps Chromium from caching a page.
+    document.documentElement.style.setProperty('display', 'none', 'important');
 };
