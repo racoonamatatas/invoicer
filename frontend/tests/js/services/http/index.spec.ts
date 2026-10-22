@@ -2,7 +2,7 @@ import { http as route, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, it, expect, vi } from 'vitest';
 
-import { getRequest, setUnauthenticatedHandler } from '@/services/http';
+import { getRequest, SessionEndedError, setUnauthenticatedHandler } from '@/services/http';
 
 // msw answers the real axios instance's requests, so the interceptor runs
 // exactly as in the app, and src/ exports nothing just for this test.
@@ -16,7 +16,8 @@ const respondWith = (status: number) =>
 
 describe('http', () =>
 {
-    const handler = vi.fn<() => void>();
+    // Returns whether it ended a session; each test sets the answer it needs.
+    const handler = vi.fn<() => boolean>();
 
     beforeAll(() =>
     {
@@ -40,15 +41,33 @@ describe('http', () =>
         server.close();
     });
 
-    it('should call the unauthenticated handler and still reject when a request fails with a 401 (unauthenticated)', async () =>
+    it('should reject with a SessionEndedError carrying the 401 (unauthenticated) when the handler ended the session', async () =>
     {
-        // Arrange
+        // Arrange: a logged-in user's session is gone, so the handler ends it
+        handler.mockReturnValue(true);
         respondWith(401);
 
-        // Act + Assert: still rejects, so the caller stops at its await
-        await expect(getRequest('/probe')).rejects.toMatchObject({ response: { status: 401 } });
+        // Act
+        const error: unknown = await getRequest('/probe').catch((rejection: unknown) => rejection);
 
-        // Assert
+        // Assert: marked as handled, with the original 401 kept for debugging
+        expect(error).toBeInstanceOf(SessionEndedError);
+        expect(error).toMatchObject({ cause: { response: { status: 401 } } });
+        expect(handler).toHaveBeenCalledOnce();
+    });
+
+    it('should reject with the 401 (unauthenticated) unchanged when the handler ended no session', async () =>
+    {
+        // Arrange: nobody logged in, as for restore()'s 401 at boot
+        handler.mockReturnValue(false);
+        respondWith(401);
+
+        // Act
+        const error: unknown = await getRequest('/probe').catch((rejection: unknown) => rejection);
+
+        // Assert: a plain 401, so restore() and useForm treat it as unhandled
+        expect(error).not.toBeInstanceOf(SessionEndedError);
+        expect(error).toMatchObject({ response: { status: 401 } });
         expect(handler).toHaveBeenCalledOnce();
     });
 
