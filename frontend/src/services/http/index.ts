@@ -9,11 +9,12 @@ const http = axios.create({
 // (unauthenticated). Private: only setUnauthenticatedHandler() writes it.
 // This file only knows *when* to call it; main.ts supplies *what* it does
 // (clear the store, go to /login), so http never imports the store or router.
-let unauthenticatedHandler: (() => void) | null = null;
+// It returns whether it ended a session: only then is the 401 handled.
+let unauthenticatedHandler: (() => boolean) | null = null;
 
 // A setter, not a subscription: one slot, so a second call replaces the first
 // handler instead of adding another.
-export const setUnauthenticatedHandler = (handler: () => void): void =>
+export const setUnauthenticatedHandler = (handler: () => boolean): void =>
 {
     unauthenticatedHandler = handler;
 };
@@ -42,13 +43,17 @@ export const isUnauthenticated = (error: unknown): boolean =>
 // undefined for onFulfilled: a 2xx response passes through untouched.
 http.interceptors.response.use(undefined, (error: unknown) =>
 {
-    if (isUnauthenticated(error))
+    // `?? false`: with no handler set, nothing ended the session.
+    if (isUnauthenticated(error) && (unauthenticatedHandler?.() ?? false))
     {
-        unauthenticatedHandler?.();
+        // Handled: replaced, so the caller can tell it apart from a 401
+        // nobody explained (see SessionEndedError).
+        throw new SessionEndedError(error);
     }
 
-    // Re-thrown every time, a 401 included: the caller must still stop at its
-    // await. Swallowing it is up to the caller (useForm does, for forms).
+    // Rejected either way, so the caller still stops at its await. A 401
+    // the handler didn't end a session for (e.g. restore()'s at boot) passes
+    // on unchanged. Swallowing is up to the caller (useForm does, for forms).
     throw error;
 });
 
