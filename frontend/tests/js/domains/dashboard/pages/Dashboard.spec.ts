@@ -42,6 +42,16 @@ describe('Dashboard page', () =>
         vi.unstubAllGlobals();
     });
 
+    it('should link to /change-password, the only way to reach that page', async () =>
+    {
+        // Act
+        const wrapper = await mountDashboard();
+
+        // Assert: found by its text the way a user finds it
+        const link = wrapper.findAll('a').find((anchor) => anchor.text() === 'Change password');
+        expect(link?.attributes('href')).toBe('/change-password');
+    });
+
     it('should log out and do a full page load of /login when logout gets a 204 (no content)', async () =>
     {
         // Arrange: auth.logout is a stub (resolves, like a 204) and a spy (records its call)
