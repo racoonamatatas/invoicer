@@ -271,15 +271,21 @@ describe('Registering', function (): void {
         Mail::assertQueued(AccountAlreadyExists::class, fn (AccountAlreadyExists $mail): bool => $mail->hasTo('jan@example.com'));
     });
 
-    it('should return 204 (no content), queue a fresh verification mail and store a new token when the email is taken by an unverified user', function (): void {
+    it('should return 204 (no content), queue the account-already-exists mail and keep the stored verification token when the email is taken by an unverified user', function (): void {
         // Arrange
         Mail::fake();
         $now = $this->freezeTime();
         $email = 'jan@example.com';
         $password = 'correct-horse-battery2';
-        $token = 'fixed-verification-token';
-        Str::createRandomStringsUsing(fn (): string => $token);
-        User::factory()->unverified()->create(['email' => $email]);
+        $storedTokenHash = hash('sha256', 'first-registrant-token');
+        $storedExpiry = $now->copy()->addHours(3);
+        // A fixed random string, so a newly issued token would differ from the stored one and fail the row check.
+        Str::createRandomStringsUsing(fn (): string => 'fresh-verification-token');
+        User::factory()->unverified()->create([
+            'email' => $email,
+            'verification_token' => $storedTokenHash,
+            'verification_token_expires_at' => $storedExpiry,
+        ]);
 
         // Act
         $response = $this->postJson('/api/auth/register', [
@@ -294,11 +300,12 @@ describe('Registering', function (): void {
         $this->assertDatabaseCount('users', 1);
         $this->assertDatabaseHas('users', [
             'email' => $email,
-            'verification_token' => hash('sha256', $token),
-            'verification_token_expires_at' => $now->addHours(24),
+            'verification_token' => $storedTokenHash,
+            'verification_token_expires_at' => $storedExpiry,
         ]);
         Mail::assertQueuedCount(1);
-        Mail::assertQueued(VerifyEmail::class, fn (VerifyEmail $mail): bool => $mail->hasTo($email));
+        Mail::assertQueued(AccountAlreadyExists::class, fn (AccountAlreadyExists $mail): bool => $mail->hasTo($email));
+        Mail::assertNotQueued(VerifyEmail::class);
     });
 
     it('should return 500 (internal server error) and create no user when queueing the verification mail throws', function (): void {
