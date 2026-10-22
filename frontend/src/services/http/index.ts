@@ -1,4 +1,4 @@
-import axios, { isAxiosError } from 'axios';
+import axios, { isAxiosError, type AxiosError } from 'axios';
 
 const http = axios.create({
     baseURL: '/api',
@@ -33,9 +33,11 @@ export class SessionEndedError extends Error
 }
 
 // True when a request failed with a 401 (unauthenticated): there is no
-// session. The one place that check is written, so the interceptor, the form
-// parser and restore() can't drift apart.
-export const isUnauthenticated = (error: unknown): boolean =>
+// session. The raw axios check, written once for the interceptor and the auth
+// store's restore(). A SessionEndedError answers false: it is not an axios
+// error, and forms recognise it with instanceof instead.
+// `error is AxiosError`: after a true answer, callers can read error.response.
+export const isUnauthenticated = (error: unknown): error is AxiosError =>
 {
     return isAxiosError(error) && error.response?.status === 401;
 };
