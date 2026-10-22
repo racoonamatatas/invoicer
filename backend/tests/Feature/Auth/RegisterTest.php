@@ -3,6 +3,7 @@
 declare(strict_types = 1);
 
 use App\Mail\AccountAlreadyExists;
+use App\Mail\FinishSigningUp;
 use App\Mail\VerifyEmail;
 use App\Models\User;
 use Illuminate\Contracts\Mail\Mailer;
@@ -271,7 +272,7 @@ describe('Registering', function (): void {
         Mail::assertQueued(AccountAlreadyExists::class, fn (AccountAlreadyExists $mail): bool => $mail->hasTo('jan@example.com'));
     });
 
-    it('should return 204 (no content), queue the account-already-exists mail and keep the stored verification token when the email is taken by an unverified user', function (): void {
+    it('should return 204 (no content), queue a finish-signing-up mail with only a reset link and keep the stored verification token when the email is taken by an unverified user', function (): void {
         // Arrange
         Mail::fake();
         $now = $this->freezeTime();
@@ -281,7 +282,10 @@ describe('Registering', function (): void {
         $storedExpiry = $now->copy()->addHours(3);
         // A fixed random string, so a newly issued token would differ from the stored one and fail the row check.
         Str::createRandomStringsUsing(fn (): string => 'fresh-verification-token');
+        // The first registrant may be a stranger, so the name they typed must not reach the inbox owner.
+        $firstRegistrantName = 'Name Typed By Someone Else';
         User::factory()->unverified()->create([
+            'name' => $firstRegistrantName,
             'email' => $email,
             'verification_token' => $storedTokenHash,
             'verification_token_expires_at' => $storedExpiry,
@@ -304,7 +308,16 @@ describe('Registering', function (): void {
             'verification_token_expires_at' => $storedExpiry,
         ]);
         Mail::assertQueuedCount(1);
-        Mail::assertQueued(AccountAlreadyExists::class, fn (AccountAlreadyExists $mail): bool => $mail->hasTo($email));
+        Mail::assertQueued(FinishSigningUp::class, function (FinishSigningUp $mail) use ($email, $firstRegistrantName): bool {
+            $html = $mail->render();
+
+            // No login link: logging in to an unverified account always fails, so the reset is the only way in.
+            expect($html)->toContain(config('app.url').'/forgot-password')
+                ->and($html)->not->toContain(config('app.url').'/login')
+                ->and($html)->not->toContain($firstRegistrantName);
+
+            return $mail->hasTo($email);
+        });
         Mail::assertNotQueued(VerifyEmail::class);
     });
 
