@@ -14,7 +14,7 @@ Commands and commit conventions: the root [`CLAUDE.md`](../CLAUDE.md).
 ## Patterns to follow
 
 - **A new form** uses `useForm<keyof Payload>('form-name', { field: true, ... })` and reads errors through `fieldError(field)`. That gives typo-safe field names and error ids prefixed with the form name, so two forms on one page don't clash. The object marks every field `true` if the form displays its error, `false` if not; its status region ends with `generalMessage`, for a 422 none of those fields can show. Copy `ResendVerificationForm.vue`.
-- **A failed submit** is handled by `useForm`: a 422 fills the errors, a 429 fills the throttle message, a 401 is dropped because the http layer already ended the session, anything else is re-thrown to the page. A page should only add the step that comes after success, inside the `submit()` callback.
+- **A failed submit** is handled by `useForm`: a 422 fills the errors, a 429 fills the throttle message, a `SessionEndedError` (a 401 after which the http layer ended the session) is swallowed, anything else, a plain 401 included, is re-thrown to the page. A page should only add the step that comes after success, inside the `submit()` callback.
 - **Network data is `unknown` until checked.** Check it with a type guard (`value is X`), and keep that guard next to the type it proves. A value the frontend branches on (e.g. `ErrorCode`) is a union derived from a runtime `as const` array, so the type and the check can't disagree.
 - **Accessibility:** a `role="status"` live region is always rendered and only its content changes. Error text is linked with `aria-invalid` and `aria-describedby` from one `fieldError` value.
 
