@@ -18,6 +18,19 @@ export const setUnauthenticatedHandler = (handler: () => void): void =>
     unauthenticatedHandler = handler;
 };
 
+// What a request rejects with when its 401 ended the session: the
+// unauthenticated handler logged the user out and /login is loading. A class,
+// so a caller can tell it apart from a plain 401 with instanceof: this one has
+// been handled, a plain 401 hasn't. The original 401 is kept as `cause`.
+export class SessionEndedError extends Error
+{
+    constructor(cause: unknown)
+    {
+        super('The session ended', { cause });
+        this.name = 'SessionEndedError';
+    }
+}
+
 // True when a request failed with a 401 (unauthenticated): there is no
 // session. The one place that check is written, so the interceptor, the form
 // parser and restore() can't drift apart.
