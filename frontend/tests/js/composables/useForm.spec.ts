@@ -95,6 +95,21 @@ describe('useForm', () =>
         expect(form.isPending.value).toBe(false);
     });
 
+    it('should resolve without re-throwing, show nothing, and reset isPending when the request fails with a 401 (unauthenticated)', async () =>
+    {
+        // Arrange: the http layer has already handed this 401 to endExpiredSession
+        const form = useForm('login', {});
+        const send = () => Promise.reject(axiosErrorWith(401, { message: 'Unauthenticated.' }));
+
+        // Act + Assert: resolves, so nothing reaches Vue's error handling
+        await expect(form.submit(send)).resolves.toBeUndefined();
+
+        // Assert: dropped, not handled as a 422 or a 429; /login is loading
+        expect(form.generalMessage.value).toBe('');
+        expect(form.throttleMessage.value).toBe('');
+        expect(form.isPending.value).toBe(false);
+    });
+
     it('should ignore a second submit while the first request is in flight', async () =>
     {
         // Arrange: a request the test finishes by hand, so it can look while it is in flight
