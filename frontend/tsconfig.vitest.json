@@ -9,7 +9,9 @@
   "compilerOptions": {
     // Vitest runs in a different environment than the application code.
     // Adjust lib and types accordingly.
-    "lib": [],
+    // ES2022, the same as the app: app code compiled under this project (e.g.
+    // `new Error(message, { cause })`) must type-check the same way here.
+    "lib": ["ES2022"],
     "types": ["node", "jsdom", "vite/client"],
 
     // `vue-tsc --build` produces a .tsbuildinfo file for incremental type-checking.
