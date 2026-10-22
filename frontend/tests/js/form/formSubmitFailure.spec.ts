@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 
 import { AxiosError } from 'axios';
 import { parseFormSubmitFailure } from '@/form/formSubmitFailure';
+import { SessionEndedError } from '@/services/http';
 import { axiosErrorWith } from '../utility/axiosErrorWith';
 
 describe('parseFormSubmitFailure', () =>
@@ -135,16 +136,28 @@ describe('parseFormSubmitFailure', () =>
         expect(result).toStrictEqual({ kind: 'throttled', retryAfterSeconds });
     });
 
-    it('should return an UnauthenticatedFailure for a 401 (unauthenticated)', () =>
+    it('should return a SessionEndedFailure for a SessionEndedError', () =>
     {
-        // Arrange: the body Sanctum sends when the session is gone
-        const error = axiosErrorWith(401, { message: 'Unauthenticated.' });
+        // Arrange: what the http layer rejects with once its handler ended the session
+        const error = new SessionEndedError(axiosErrorWith(401, { message: 'Unauthenticated.' }));
 
         // Act
         const result = parseFormSubmitFailure(error);
 
         // Assert
-        expect(result).toStrictEqual({ kind: 'unauthenticated' });
+        expect(result).toStrictEqual({ kind: 'sessionEnded' });
+    });
+
+    it('should return an OtherFailure for a 401 (unauthenticated) no handler ended a session for', () =>
+    {
+        // Arrange: a plain 401, e.g. a public endpoint wrongly answering 401
+        const error = axiosErrorWith(401, { message: 'Unauthenticated.' });
+
+        // Act
+        const result = parseFormSubmitFailure(error);
+
+        // Assert: unexplained, so not swallowed like a session that ended
+        expect(result).toStrictEqual({ kind: 'other' });
     });
 
     it.for([
