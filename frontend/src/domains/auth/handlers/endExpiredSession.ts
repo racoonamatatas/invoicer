@@ -1,0 +1,27 @@
+// Project imports
+import { useAuthStore } from '@/domains/auth/store';
+
+// The app's response to a 401 (unauthenticated): the backend ended the
+// session (it expired, or a password change elsewhere logged this browser
+// out), so the frontend logs out too. main.ts registers it with
+// setUnauthenticatedHandler().
+export const endExpiredSession = (): void =>
+{
+    // Looked up on each call, not when this module loads: main.ts imports it
+    // before app.use(createPinia()) runs, and there is no active Pinia yet.
+    const store = useAuthStore();
+
+    // A 401 while logged out isn't an expiry: restore() gets one at boot when
+    // there is no session, and handles it itself.
+    if (!store.isLoggedIn)
+    {
+        return;
+    }
+
+    store.clear();
+
+    // A full page load, not router.push, for the same reason as logout in
+    // Dashboard.vue: every store and in-flight request dies with the
+    // document, so nothing reaches the next session.
+    window.location.assign('/login');
+};
