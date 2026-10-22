@@ -4,7 +4,7 @@ import { useAuthStore } from '@/domains/auth/store';
 // Set once this handler has ended the session. Module-level, so it lives
 // exactly as long as the document: the page load to /login resets it. Except
 // a back/forward cache restore, which brings the old document back with the
-// flag still set; that restore is INV-0027's to handle.
+// flag still set; that gap is known and planned to be fixed.
 let sessionEnded = false;
 
 // The app's response to a 401 (unauthenticated): the backend ended the

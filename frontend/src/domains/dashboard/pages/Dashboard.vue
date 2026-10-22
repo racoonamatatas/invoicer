@@ -15,7 +15,7 @@ const { submit, isPending } = useForm('logout', {});
 // The reload sits inside the callback, so a failed logout keeps the user
 // here, still logged in. A full page load, not router.push: every store and
 // in-flight request dies with the document, so nothing reaches the next
-// session (the back/forward cache is INV-0027).
+// session (the back/forward cache is a known gap, planned to be fixed).
 const onLogout = () => submit(async () =>
 {
     await store.logout();
