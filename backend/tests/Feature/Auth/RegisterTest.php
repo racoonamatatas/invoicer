@@ -3,6 +3,7 @@
 declare(strict_types = 1);
 
 use App\Mail\AccountAlreadyExists;
+use App\Mail\FinishSigningUp;
 use App\Mail\VerifyEmail;
 use App\Models\User;
 use Illuminate\Contracts\Mail\Mailer;
@@ -271,15 +272,24 @@ describe('Registering', function (): void {
         Mail::assertQueued(AccountAlreadyExists::class, fn (AccountAlreadyExists $mail): bool => $mail->hasTo('jan@example.com'));
     });
 
-    it('should return 204 (no content), queue a fresh verification mail and store a new token when the email is taken by an unverified user', function (): void {
+    it('should return 204 (no content), queue a finish-signing-up mail with only a reset link and keep the stored verification token when the email is taken by an unverified user', function (): void {
         // Arrange
         Mail::fake();
         $now = $this->freezeTime();
         $email = 'jan@example.com';
         $password = 'correct-horse-battery2';
-        $token = 'fixed-verification-token';
-        Str::createRandomStringsUsing(fn (): string => $token);
-        User::factory()->unverified()->create(['email' => $email]);
+        $storedTokenHash = hash('sha256', 'first-registrant-token');
+        $storedExpiry = $now->copy()->addHours(3);
+        // A fixed random string, so a newly issued token would differ from the stored one and fail the row check.
+        Str::createRandomStringsUsing(fn (): string => 'fresh-verification-token');
+        // The first registrant may be a stranger, so the name they typed must not reach the inbox owner.
+        $firstRegistrantName = 'Name Typed By Someone Else';
+        User::factory()->unverified()->create([
+            'name' => $firstRegistrantName,
+            'email' => $email,
+            'verification_token' => $storedTokenHash,
+            'verification_token_expires_at' => $storedExpiry,
+        ]);
 
         // Act
         $response = $this->postJson('/api/auth/register', [
@@ -294,11 +304,21 @@ describe('Registering', function (): void {
         $this->assertDatabaseCount('users', 1);
         $this->assertDatabaseHas('users', [
             'email' => $email,
-            'verification_token' => hash('sha256', $token),
-            'verification_token_expires_at' => $now->addHours(24),
+            'verification_token' => $storedTokenHash,
+            'verification_token_expires_at' => $storedExpiry,
         ]);
         Mail::assertQueuedCount(1);
-        Mail::assertQueued(VerifyEmail::class, fn (VerifyEmail $mail): bool => $mail->hasTo($email));
+        Mail::assertQueued(FinishSigningUp::class, function (FinishSigningUp $mail) use ($email, $firstRegistrantName): bool {
+            $html = $mail->render();
+
+            // No login link: logging in to an unverified account always fails, so the reset is the only way in.
+            expect($html)->toContain(config('app.url').'/forgot-password')
+                ->and($html)->not->toContain(config('app.url').'/login')
+                ->and($html)->not->toContain($firstRegistrantName);
+
+            return $mail->hasTo($email);
+        });
+        Mail::assertNotQueued(VerifyEmail::class);
     });
 
     it('should return 500 (internal server error) and create no user when queueing the verification mail throws', function (): void {

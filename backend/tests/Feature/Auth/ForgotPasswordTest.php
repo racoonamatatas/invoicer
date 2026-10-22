@@ -35,6 +35,29 @@ describe('Requesting a password reset link', function (): void {
         });
     });
 
+    // The finish-signing-up mail sends an unverified owner here, so this route must not skip unverified users.
+    it('should return 204 (no content) and queue a mail with a working reset link when the user is unverified', function (): void {
+        // Arrange
+        Mail::fake();
+        $email = 'jan@example.com';
+        $user = User::factory()->unverified()->create(['email' => $email]);
+
+        // Act
+        $response = $this->postJson('/api/auth/forgot-password', ['email' => $email]);
+
+        // Assert
+        $response->assertNoContent();
+        Mail::assertQueued(ResetPassword::class, function (ResetPassword $mail) use ($email, $user): bool {
+            $linkPattern = '#'.preg_quote(config('app.url'), '#').'/reset-password\?token=([0-9a-f]+)&amp;email=jan%40example\.com"#';
+            preg_match($linkPattern, $mail->render(), $matches);
+
+            expect($matches)->toHaveKey(1)
+                ->and($this->app->make(PasswordBroker::class)->tokenExists($user, $matches[1]))->toBeTrue();
+
+            return $mail->hasTo($email);
+        });
+    });
+
     it('should return 204 (no content), queue no mail and store no token when the email is unknown', function (): void {
         // Arrange
         Mail::fake();

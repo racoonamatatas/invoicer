@@ -6,6 +6,7 @@ namespace App\Actions\Auth;
 
 use App\DataTransferObjects\Input\Auth\RegisterUserData;
 use App\Mail\AccountAlreadyExists;
+use App\Mail\FinishSigningUp;
 use App\Models\User;
 use Illuminate\Container\Attributes\Config;
 use Illuminate\Contracts\Mail\Mailer;
@@ -48,16 +49,19 @@ final readonly class RegisterUserAction
             ->where('email', $email)
             ->sole();
 
-        // Most likely the owner lost the first mail and is trying again, so give them a working link.
+        $forgotPasswordUrl = $this->appUrl.'/forgot-password';
+
+        // No verify link: verifying would activate whatever password the first registrant chose, which may not
+        // be the inbox owner's. A reset sets a password only the owner knows. A related path is a known gap,
+        // planned to be fixed.
         if ($existingUser->email_verified_at === null)
         {
-            $this->issueVerificationTokenAction->execute($existingUser);
+            $this->mailer->to($existingUser->email)->send(new FinishSigningUp($forgotPasswordUrl));
 
             return;
         }
 
         $loginUrl = $this->appUrl.'/login';
-        $forgotPasswordUrl = $this->appUrl.'/forgot-password';
         $this->mailer->to($existingUser->email)->send(new AccountAlreadyExists($existingUser, $loginUrl, $forgotPasswordUrl));
     }
 }

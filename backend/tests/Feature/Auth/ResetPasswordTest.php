@@ -176,6 +176,42 @@ describe('Resetting a password', function (): void {
         ]);
     });
 
+    // The pre-hijack case: someone else registered with this email and chose the password. Registering again
+    // sends the inbox owner to a reset, and the reset must leave the first registrant's password useless.
+    it('should return 422 (unprocessable) when logging in with the previous password after an unverified account is reset', function (): void {
+        // Arrange
+        $email = 'jan@example.com';
+        $firstRegistrantPassword = 'attacker-password-123';
+        $ownerPassword = 'owner-password-123';
+        $user = User::factory()->unverified()->create([
+            'email' => $email,
+            'password' => $firstRegistrantPassword,
+        ]);
+        $token = $this->app->make(PasswordBroker::class)->createToken($user);
+
+        // Act
+        $resetResponse = $this->postJson('/api/auth/reset-password', [
+            'token' => $token,
+            'email' => $email,
+            'password' => $ownerPassword,
+            'password_confirmation' => $ownerPassword,
+        ]);
+        $oldPasswordResponse = $this->postJson('/api/auth/login', [
+            'email' => $email,
+            'password' => $firstRegistrantPassword,
+        ]);
+        $newPasswordResponse = $this->postJson('/api/auth/login', [
+            'email' => $email,
+            'password' => $ownerPassword,
+        ]);
+
+        // Assert
+        $resetResponse->assertNoContent();
+        $oldPasswordResponse->assertUnprocessable();
+        // Proves the 422 above came from the wrong password, not from the account still being unverified.
+        $newPasswordResponse->assertOk();
+    });
+
     // Guards `if ($user->email_verified_at === null)` in ResetPasswordAction. The "user was unverified" test above can't:
     // its user gets verified with or without that if. Replacing the if with `if (true)` fails only this test.
     it('should return 204 (no content) and keep the original email_verified_at when the user was already verified', function (): void {
