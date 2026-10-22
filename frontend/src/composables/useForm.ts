@@ -32,7 +32,8 @@ export const useForm = <TField extends string = never>(formName: string, display
     const isPending = ref(false);
 
     // Runs the page's request. Validation failures land in this form's errors,
-    // a 429 in throttleMessage; anything else is re-thrown for the page to handle.
+    // a 429 in throttleMessage, a 401 is dropped; anything else is re-thrown
+    // for the page to handle.
     const submit = async (send: () => Promise<unknown>): Promise<void> =>
     {
         // Double-submit guard: a second click while a request is in flight does nothing.
@@ -59,6 +60,14 @@ export const useForm = <TField extends string = never>(formName: string, display
             if (failure.kind === 'other')
             {
                 throw error; // the original, so the page sees what really happened
+            }
+
+            // Dropped, not re-thrown: the http layer already ended the session
+            // and /login is loading, so re-throwing would only reach Vue's
+            // error handling on a page that's about to go.
+            if (failure.kind === 'unauthenticated')
+            {
+                return;
             }
 
             // Shown by the form, so not re-thrown.
