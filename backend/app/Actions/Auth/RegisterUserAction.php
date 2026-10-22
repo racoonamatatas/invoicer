@@ -48,14 +48,8 @@ final readonly class RegisterUserAction
             ->where('email', $email)
             ->sole();
 
-        // Most likely the owner lost the first mail and is trying again, so give them a working link.
-        if ($existingUser->email_verified_at === null)
-        {
-            $this->issueVerificationTokenAction->execute($existingUser);
-
-            return;
-        }
-
+        // Even when unverified, no verify link: verifying would activate whatever password the first
+        // registrant chose, which may not be the inbox owner's. A reset sets a password only the owner knows.
         $loginUrl = $this->appUrl.'/login';
         $forgotPasswordUrl = $this->appUrl.'/forgot-password';
         $this->mailer->to($existingUser->email)->send(new AccountAlreadyExists($existingUser, $loginUrl, $forgotPasswordUrl));
