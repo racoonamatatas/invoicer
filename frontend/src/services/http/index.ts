@@ -18,10 +18,18 @@ export const setUnauthenticatedHandler = (handler: () => void): void =>
     unauthenticatedHandler = handler;
 };
 
+// True when a request failed with a 401 (unauthenticated): there is no
+// session. The one place that check is written, so the interceptor, the form
+// parser and restore() can't drift apart.
+export const isUnauthenticated = (error: unknown): boolean =>
+{
+    return isAxiosError(error) && error.response?.status === 401;
+};
+
 // undefined for onFulfilled: a 2xx response passes through untouched.
 http.interceptors.response.use(undefined, (error: unknown) =>
 {
-    if (isAxiosError(error) && error.response?.status === 401)
+    if (isUnauthenticated(error))
     {
         unauthenticatedHandler?.();
     }

@@ -1,5 +1,7 @@
 import { isAxiosError } from 'axios';
 
+import { isUnauthenticated } from '@/services/http';
+
 // The codes the backend may send next to a 422's errors, so a form can tell
 // two failures apart without matching on message text. Must match the values
 // of the backend's ErrorCode enum. A runtime array, not only a type, because
@@ -107,7 +109,7 @@ const findErrorCode = (data: object): ErrorCode | null =>
 // `error` is unknown because anything can be thrown, not only axios errors.
 export const parseFormSubmitFailure = (error: unknown): FormSubmitFailure =>
 {
-    if (isAxiosError(error) && error.response?.status === 401)
+    if (isUnauthenticated(error))
     {
         return { kind: 'unauthenticated' };
     }

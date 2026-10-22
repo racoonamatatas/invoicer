@@ -1,10 +1,10 @@
 // Package imports
-import { isAxiosError } from 'axios';
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 
 // Project imports
 import * as auth from '@/services/auth';
+import { isUnauthenticated } from '@/services/http';
 
 // A store to hold a shared logged in state of a user.
 export const useAuthStore = defineStore('auth', () =>
@@ -52,7 +52,7 @@ export const useAuthStore = defineStore('auth', () =>
             // Only a 401 (unauthenticated) proves there is no session.
             // Any other error says nothing about the session, so it is
             // rethrown instead of logging out the user.
-            if (isAxiosError(error) && error.response?.status === 401)
+            if (isUnauthenticated(error))
             {
                 user.value = null;
                 return;
