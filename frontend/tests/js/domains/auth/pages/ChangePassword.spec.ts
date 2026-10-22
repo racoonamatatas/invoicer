@@ -6,6 +6,7 @@ import ChangePassword from '@/domains/auth/pages/ChangePassword.vue';
 import { useAuthStore } from '@/domains/auth/store';
 import * as auth from '@/services/auth';
 import { axiosErrorWith } from '../../../utility/axiosErrorWith';
+import { createDeferred } from '../../../utility/createDeferred';
 import { createTestRouter } from '../../../utility/createTestRouter';
 
 // Every export of the auth service becomes a vi.fn(), so no request leaves the test.
@@ -197,5 +198,68 @@ describe('ChangePassword page', () =>
 
         // Assert (interaction): the page handled the 429 itself
         expect(errorHandler).not.toHaveBeenCalled();
+    });
+
+    it('should link back to the dashboard next to the form, so the user can leave without changing anything', async () =>
+    {
+        // Act
+        const wrapper = await mountChangePassword();
+
+        // Assert: the form is showing, and so is the way out, found by its text the way a user finds it
+        expect(wrapper.find(changeForm).exists()).toBe(true);
+        const link = wrapper.findAll('a').find((anchor) => anchor.text() === 'Cancel');
+        expect(link?.attributes('href')).toBe('/');
+    });
+
+    it('should disable the submit button while changePassword is in flight', async () =>
+    {
+        // Arrange: auth.changePassword is a stub whose request the test finishes
+        // by hand. A second submit would matter here: it would send a current
+        // password the first request is about to make wrong
+        const request = createDeferred();
+        vi.mocked(auth.changePassword).mockReturnValue(request.promise);
+        const wrapper = await mountChangePassword();
+        const button = wrapper.find('button[type="submit"]');
+
+        // Assert: usable before anything is sent
+        expect(button.attributes('disabled')).toBeUndefined();
+
+        // Act
+        await submitChange(wrapper);
+
+        // Assert: disabled while the request is in flight
+        expect(button.attributes('disabled')).toBeDefined();
+
+        // Act: the request finishes
+        request.resolve();
+        await flushPromises();
+
+        // Assert: the form made way for the changed message
+        expect(wrapper.find(changeForm).exists()).toBe(false);
+        expect(wrapper.find('[role="status"]').text()).toContain('Your password is changed.');
+    });
+
+    it('should hand the original error to the app error handler and show no message when changePassword fails with a 500 (server error)', async () =>
+    {
+        // Arrange: auth.changePassword is a stub that fails the way a crashed
+        // backend does. errorHandler is a spy standing in for
+        // app.config.errorHandler, where Vue sends a rejected promise returned
+        // by an event handler
+        const error = axiosErrorWith(500, { message: 'Server Error' });
+        vi.mocked(auth.changePassword).mockRejectedValue(error);
+        const errorHandler = vi.fn<(error: unknown) => void>();
+        const wrapper = await mountChangePassword(errorHandler);
+
+        // Act
+        await submitChange(wrapper);
+        await flushPromises();
+
+        // Assert (interaction): the page didn't swallow the error or wrap it
+        expect(errorHandler).toHaveBeenCalledOnce();
+        expect(errorHandler.mock.calls[0]?.[0]).toBe(error);
+
+        // Assert (outcome): nothing changed, so no message, and the form is usable again
+        expect(wrapper.find('[role="status"]').text()).toBe('');
+        expect(wrapper.find('button[type="submit"]').attributes('disabled')).toBeUndefined();
     });
 });
