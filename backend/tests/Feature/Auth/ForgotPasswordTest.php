@@ -48,7 +48,7 @@ describe('Requesting a password reset link', function (): void {
         // Assert
         $response->assertNoContent();
         Mail::assertQueued(ResetPassword::class, function (ResetPassword $mail) use ($email, $user): bool {
-            $linkPattern = '#/reset-password\?token=([0-9a-f]+)&amp;email=jan%40example\.com"#';
+            $linkPattern = '#'.preg_quote(config('app.url'), '#').'/reset-password\?token=([0-9a-f]+)&amp;email=jan%40example\.com"#';
             preg_match($linkPattern, $mail->render(), $matches);
 
             expect($matches)->toHaveKey(1)
