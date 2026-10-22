@@ -135,6 +135,18 @@ describe('parseFormSubmitFailure', () =>
         expect(result).toStrictEqual({ kind: 'throttled', retryAfterSeconds });
     });
 
+    it('should return an UnauthenticatedFailure for a 401 (unauthenticated)', () =>
+    {
+        // Arrange: the body Sanctum sends when the session is gone
+        const error = axiosErrorWith(401, { message: 'Unauthenticated.' });
+
+        // Act
+        const result = parseFormSubmitFailure(error);
+
+        // Assert
+        expect(result).toStrictEqual({ kind: 'unauthenticated' });
+    });
+
     it.for([
         // A bug in the page's own submit function.
         { name: 'plain error', thrown: new Error('boom') },
