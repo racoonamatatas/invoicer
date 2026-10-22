@@ -1,5 +1,7 @@
 import { isAxiosError } from 'axios';
 
+import { SessionEndedError } from '@/services/http';
+
 // The codes the backend may send next to a 422's errors, so a form can tell
 // two failures apart without matching on message text. Must match the values
 // of the backend's ErrorCode enum. A runtime array, not only a type, because
@@ -27,6 +29,15 @@ export interface ThrottledFailure
     retryAfterSeconds: number | null;
 }
 
+// A 401 that ended the session: the backend's session was gone (it expired,
+// or a password change elsewhere logged this browser out), and the http
+// layer's handler has logged the frontend out and is loading /login, so a
+// form has nothing to show. A 401 nobody handled is an OtherFailure instead.
+export interface SessionEndedFailure
+{
+    kind: 'sessionEnded';
+}
+
 // Everything else (server errors, network failures, malformed 422s). The form
 // can't show it per field, so it is left to the caller to handle.
 export interface OtherFailure
@@ -38,7 +49,7 @@ export interface OtherFailure
 // say) would split failures differently, hence the form-specific name.
 // Plain data that is returned, not an Error subclass that is thrown.
 // Check `kind` before reading `errors`: TypeScript narrows on it.
-export type FormSubmitFailure = ValidationFailure | ThrottledFailure | OtherFailure;
+export type FormSubmitFailure = ValidationFailure | ThrottledFailure | SessionEndedFailure | OtherFailure;
 
 // The body Laravel's validator sends with a 422. Kept private: only this file
 // knows Laravel's format; everything else uses FormSubmitFailure.
@@ -99,6 +110,13 @@ const findErrorCode = (data: object): ErrorCode | null =>
 // `error` is unknown because anything can be thrown, not only axios errors.
 export const parseFormSubmitFailure = (error: unknown): FormSubmitFailure =>
 {
+    // Only the http layer creates this, and only after its handler ended the
+    // session. A plain 401 falls through to 'other' below.
+    if (error instanceof SessionEndedError)
+    {
+        return { kind: 'sessionEnded' };
+    }
+
     // Axios lowercases response header names, hence 'retry-after'.
     if (isAxiosError(error) && error.response?.status === 429)
     {

@@ -37,7 +37,7 @@ vendor/bin/pint --test                        # style check, changes nothing
 ./node_modules/.bin/oxlint .
 ```
 
-Dev servers: `composer run dev` in `backend/` (http://localhost:8000) and `npm run dev` in `frontend/` (http://localhost:3000).
+Dev servers: `composer run dev` in `backend/` and `npm run dev` in `frontend/`. Open the app on http://localhost:8000: Laravel serves the page and `/api`, and its Blade shell loads the scripts from Vite on :3000, which serves assets only (no `/api` proxy).
 
 ## Conventions
 

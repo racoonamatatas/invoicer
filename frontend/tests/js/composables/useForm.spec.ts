@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 
 import { useForm } from '@/composables/useForm';
+import { SessionEndedError } from '@/services/http';
 import { axiosErrorWith } from '../utility/axiosErrorWith';
 import { createDeferred } from '../utility/createDeferred';
 
@@ -92,6 +93,35 @@ describe('useForm', () =>
         await expect(form.submit(send)).rejects.toBe(error);
 
         // Assert: the button is usable again after a failure the page handles
+        expect(form.isPending.value).toBe(false);
+    });
+
+    it('should resolve without re-throwing, show nothing, and reset isPending when the request fails with a SessionEndedError', async () =>
+    {
+        // Arrange: the http layer's handler ended the session and /login is loading
+        const form = useForm('login', {});
+        const send = () => Promise.reject(new SessionEndedError(axiosErrorWith(401, { message: 'Unauthenticated.' })));
+
+        // Act + Assert: resolves, so nothing reaches Vue's error handling
+        await expect(form.submit(send)).resolves.toBeUndefined();
+
+        // Assert: swallowed, not handled as a 422 or a 429
+        expect(form.generalMessage.value).toBe('');
+        expect(form.throttleMessage.value).toBe('');
+        expect(form.isPending.value).toBe(false);
+    });
+
+    it('should re-throw a 401 (unauthenticated) no handler ended a session for, and reset isPending', async () =>
+    {
+        // Arrange: a plain 401, e.g. a public endpoint wrongly answering 401
+        const form = useForm('login', {});
+        const error = axiosErrorWith(401, { message: 'Unauthenticated.' });
+        const send = () => Promise.reject(error);
+
+        // Act + Assert: the same error reaches the page, so the failure is visible
+        await expect(form.submit(send)).rejects.toBe(error);
+
+        // Assert
         expect(form.isPending.value).toBe(false);
     });
 
