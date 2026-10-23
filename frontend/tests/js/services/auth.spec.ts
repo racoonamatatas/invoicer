@@ -34,7 +34,7 @@ describe('auth service', () =>
     it('should post the registration to /auth/register and return nothing from the 204 (no content) response', async () =>
     {
         // Arrange: axios gives an empty string as the data of a 204
-        const registration = { name: 'Jan de Vries', email: 'jan@example.nl', password: 'secret-password', password_confirmation: 'secret-password' };
+        const registration = { email: 'jan@example.nl' };
         vi.mocked(postRequest).mockResolvedValue({ data: '' } as AxiosResponse);
 
         // Act
@@ -45,16 +45,17 @@ describe('auth service', () =>
         expect(result).toBeUndefined();
     });
 
-    it('should post the token to /auth/verify-email and return nothing from the 204 (no content) response', async () =>
+    it('should post the token, name and passwords to /auth/verify-email and return nothing from the 204 (no content) response', async () =>
     {
         // Arrange: postRequest is a stub (empty 204 data) and a spy (records its call)
+        const verification = { token: 'a1b2c3-token-from-the-mail', name: 'Jan de Vries', password: 'secret-password', password_confirmation: 'secret-password' };
         vi.mocked(postRequest).mockResolvedValue({ data: '' } as AxiosResponse);
 
         // Act
-        const result = await verifyEmail('a1b2c3-token-from-the-mail');
+        const result = await verifyEmail(verification);
 
-        // Assert (interaction): one request to the right route, with the token under the key the backend reads
-        expect(postRequest).toHaveBeenCalledExactlyOnceWith('/auth/verify-email', { token: 'a1b2c3-token-from-the-mail' });
+        // Assert (interaction): one request to the right route, with the fields under the keys the backend reads
+        expect(postRequest).toHaveBeenCalledExactlyOnceWith('/auth/verify-email', verification);
 
         // Assert (outcome): nothing leaks out to the page
         expect(result).toBeUndefined();
