@@ -209,7 +209,7 @@ describe('Changing the password', function (): void {
 
         // Assert
         $response->assertUnprocessable()
-            ->assertJsonValidationErrors(['password' => 'The password field and current password must be different.']);
+            ->assertOnlyJsonValidationErrors(['password' => 'The password field and current password must be different.']);
         expect(Hash::check('old-horse-battery1', $user->fresh()->password))->toBeTrue();
     });
 
