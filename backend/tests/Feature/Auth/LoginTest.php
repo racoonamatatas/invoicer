@@ -2,10 +2,9 @@
 
 declare(strict_types = 1);
 
-use App\Exceptions\Auth\EmailNotVerifiedException;
+use App\Models\PendingRegistration;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Exceptions;
 
 describe('Logging in', function (): void {
     it('should log in a user with a correct email and password', function (): void {
@@ -113,70 +112,22 @@ describe('Logging in', function (): void {
         expect($elapsedMicroseconds)->toBeGreaterThanOrEqual($timeboxMicroseconds);
     });
 
-    it('should return 422 (unprocessable) with the verify-email message and not log in when the email is unverified', function (): void {
+    // Since INV-0042 a signup that isn't finished is a pending registration, not a user. It has no password, so a login
+    // for it is just an unknown email. A single test guards it anyway, so the email stays unknown should that change.
+    it('should return 422 (unprocessable) with the invalid-credentials message and not log in when the email only has a pending registration', function (): void {
         // Arrange
-        $user = User::factory()->unverified()->create();
+        $pendingRegistration = PendingRegistration::factory()->create();
 
         // Act
         $response = $this->postJson('/api/auth/login', [
-            'email' => $user->email,
+            'email' => $pendingRegistration->email,
             'password' => 'password',
         ]);
 
         // Assert
         $response->assertUnprocessable();
-        $response->assertJsonValidationErrors(['email' => 'Verify your email before logging in.']);
+        $response->assertJsonValidationErrors(['email' => 'These credentials do not match our records.']);
         $this->assertGuest('web');
-    });
-
-    it('should return 422 (unprocessable) with code email_not_verified when the email is unverified', function (): void {
-        // Arrange
-        $user = User::factory()->unverified()->create();
-
-        // Act
-        // The correct password: a wrong one fails on credentials before verification is checked.
-        $response = $this->postJson('/api/auth/login', [
-            'email' => $user->email,
-            'password' => 'password',
-        ]);
-
-        // Assert
-        // A literal, not the enum: the frontend depends on this exact string.
-        $response->assertUnprocessable();
-        $response->assertJsonPath('code', 'email_not_verified');
-    });
-
-    it('should return 422 (unprocessable) without a code when the password is wrong, even for an unverified email', function (): void {
-        // Arrange
-        $user = User::factory()->unverified()->create();
-
-        // Act
-        $response = $this->postJson('/api/auth/login', [
-            'email' => $user->email,
-            'password' => 'incorrect',
-        ]);
-
-        // Assert
-        // The code reveals that an account exists and is unverified, so it may only follow a matching password.
-        $response->assertUnprocessable();
-        $response->assertJsonMissingPath('code');
-    });
-
-    it('should return 422 (unprocessable) without reporting an exception when the email is unverified', function (): void {
-        // Arrange
-        Exceptions::fake();
-        $user = User::factory()->unverified()->create();
-
-        // Act
-        $response = $this->postJson('/api/auth/login', [
-            'email' => $user->email,
-            'password' => 'password',
-        ]);
-
-        // Assert
-        // An expected outcome: reporting it would log a stack trace for every unverified login.
-        $response->assertUnprocessable();
-        Exceptions::assertNotReported(EmailNotVerifiedException::class);
     });
 
     it('should return 429 (too many requests) on the 6th login from one IP within a minute, even for different emails', function (): void {

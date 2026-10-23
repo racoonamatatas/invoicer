@@ -27,7 +27,7 @@ This repo is **public**: no secrets, no private URLs, no details about other cod
 ```bash
 # Backend (from backend/)
 php artisan test --compact                    # whole suite
-php artisan test --compact tests/Feature/Auth/LoginTest.php --filter="unverified"
+php artisan test --compact tests/Feature/Auth/LoginTest.php --filter="pending registration"
 vendor/bin/pint --test                        # style check, changes nothing
 
 # Frontend (from frontend/)
@@ -51,7 +51,7 @@ Dev servers: `composer run dev` in `backend/` and `npm run dev` in `frontend/`. 
 - PRs go into `main` and are merged with a merge commit.
 
 **Tests**
-- The name states what is asserted, including any status code and its meaning: `should return 422 (unprocessable) with code email_not_verified when the email is unverified`.
+- The name states what is asserted, including any status code and its meaning: `should return 429 (too many requests) on the 6th login from one IP within a minute, even for different emails`.
 - `// Arrange`, `// Act`, `// Assert` comments, with a short why where the step isn't obvious.
 - Every new test is proven to fail: break the code it covers, watch it go red, restore.
 
