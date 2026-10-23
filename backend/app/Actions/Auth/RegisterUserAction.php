@@ -23,7 +23,9 @@ final readonly class RegisterUserAction
 
     public function execute(string $email): void
     {
-        // One transaction, so no pending registration is left behind whose link never got mailed.
+        // One transaction, so a mail that fails to queue rolls the pending registration back. The mail is queued
+        // after commit, so a queue that is down at that moment still leaves a row behind: the owner can then ask
+        // for a new link through forgot-password.
         $this->db->transaction(function () use ($email): void {
             // first(): a new email is the normal outcome.
             $existingUser = $this->userModel->newQuery()
