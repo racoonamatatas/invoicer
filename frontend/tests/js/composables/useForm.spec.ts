@@ -294,6 +294,7 @@ describe('useForm', () =>
         expect(form.generalMessage.value).toBe('');
     });
 
+    // oxlint-disable-next-line vitest/expect-expect -- the assertion is the @ts-expect-error inside, checked by vue-tsc, not by vitest
     it('should fail type-check when fieldError gets a field the form does not have', () =>
     {
         // Arrange
@@ -305,6 +306,7 @@ describe('useForm', () =>
         form.fieldError('emial');
     });
 
+    // oxlint-disable-next-line vitest/expect-expect -- the assertion is the @ts-expect-error inside, checked by vue-tsc, not by vitest
     it('should fail type-check when the fields leave out one of the form\'s fields', () =>
     {
         // Assert: checked by npm run type-check, not by vitest. Every field
@@ -313,6 +315,7 @@ describe('useForm', () =>
         useForm<'email' | 'password'>('login', { email: true });
     });
 
+    // oxlint-disable-next-line vitest/expect-expect -- the assertion is the @ts-expect-error inside, checked by vue-tsc, not by vitest
     it('should fail type-check when useForm gets fields but no generic', () =>
     {
         // Assert: checked by npm run type-check, not by vitest. Without the
