@@ -1,5 +1,5 @@
 import { computed, readonly, ref } from 'vue';
-import { parseFormSubmitFailure, type ErrorCode } from '@/form/formSubmitFailure';
+import { parseFormSubmitFailure } from '@/form/formSubmitFailure';
 import type { FormDisplaysFieldError } from '@/form/formDisplaysFieldError';
 
 // What a form shows for a 429. Built here, so every form says it the same way.
@@ -26,8 +26,6 @@ export const useForm = <TField extends string = never>(formName: string, display
 {
     const errors = ref<Record<string, string[]>>({});
     const message = ref('');
-    // Set only by a 422 that carries a known code; null for every other outcome.
-    const code = ref<ErrorCode | null>(null);
     const throttleMessage = ref('');
     const isPending = ref(false);
 
@@ -46,7 +44,6 @@ export const useForm = <TField extends string = never>(formName: string, display
         isPending.value = true;
         errors.value = {};
         message.value = '';
-        code.value = null;
         throttleMessage.value = '';
 
         try
@@ -80,7 +77,6 @@ export const useForm = <TField extends string = never>(formName: string, display
 
             errors.value = failure.errors;
             message.value = failure.message;
-            code.value = failure.code;
         }
         finally
         {
@@ -126,7 +122,6 @@ export const useForm = <TField extends string = never>(formName: string, display
     return {
         errors: readonly(errors),
         generalMessage, // a computed, so already read-only
-        code: readonly(code),
         throttleMessage: readonly(throttleMessage),
         isPending: readonly(isPending),
         submit,

@@ -3,7 +3,7 @@ Table users
   id integer [pk, increment]
   name varchar [not null]
   email varchar [not null, unique]
-  email_verified_at timestamp
+  email_verified_at timestamp [not null, note: 'a user only exists once the set-password link was used']
   password varchar [not null]
   remember_token varchar
   created_at timestamp

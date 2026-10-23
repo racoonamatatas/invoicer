@@ -14,7 +14,6 @@ describe('Rate limiting a request with a non-string email', function (): void {
     })->with([
         '/api/auth/login',
         '/api/auth/register',
-        '/api/auth/resend-verification',
         '/api/auth/forgot-password',
     ]);
 });

@@ -1,7 +1,7 @@
 import type { AxiosResponse } from 'axios';
 import { beforeEach, describe, it, expect, vi } from 'vitest';
 
-import { changePassword, fetchUser, forgotPassword, login, logout, register, resendVerification, resetPassword, verifyEmail } from '@/services/auth';
+import { changePassword, fetchUser, forgotPassword, login, logout, register, resetPassword, verifyEmail } from '@/services/auth';
 import { deleteRequest, getRequest, postRequest, putRequest } from '@/services/http';
 
 // Every export of the http module becomes a vi.fn(), so no request leaves the test.
@@ -56,21 +56,6 @@ describe('auth service', () =>
 
         // Assert (interaction): one request to the right route, with the fields under the keys the backend reads
         expect(postRequest).toHaveBeenCalledExactlyOnceWith('/auth/verify-email', verification);
-
-        // Assert (outcome): nothing leaks out to the page
-        expect(result).toBeUndefined();
-    });
-
-    it('should post the email to /auth/resend-verification and return nothing from the 204 (no content) response', async () =>
-    {
-        // Arrange: postRequest is a stub (empty 204 data) and a spy (records its call)
-        vi.mocked(postRequest).mockResolvedValue({ data: '' } as AxiosResponse);
-
-        // Act
-        const result = await resendVerification('jan@example.nl');
-
-        // Assert (interaction): one request to the right route, with the email under the key the backend reads
-        expect(postRequest).toHaveBeenCalledExactlyOnceWith('/auth/resend-verification', { email: 'jan@example.nl' });
 
         // Assert (outcome): nothing leaks out to the page
         expect(result).toBeUndefined();

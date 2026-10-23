@@ -10,8 +10,7 @@ Commands and commit conventions: the root [`CLAUDE.md`](../CLAUDE.md). The Boost
 - **FormRequests** (`app/Http/Requests/`) validate, and `toDto()` turns the input into a typed DTO (`app/DataTransferObjects/Input/<Area>/`). Shared rules, such as password rules, live in `app/Validation/`.
 - **Actions** (`app/Actions/<Area>/`) are `final readonly` classes with one `execute()` method and their dependencies injected through the constructor. They hold the business logic.
 - **Controllers** stay thin: they hand the DTO to an Action and wrap the result.
-- **Domain exceptions** (`app/Exceptions/<Area>/`) are turned into HTTP responses in `bootstrap/app.php`. An expected outcome, like an unverified login, is added to `dontReport` there, so it doesn't log a stack trace.
-- **`App\Enums\ErrorCode`** values are a contract with the frontend's `errorCodes` list. Add new cases; never rename a value.
+- **Domain exceptions** (`app/Exceptions/<Area>/`) are turned into HTTP responses in `bootstrap/app.php`. An expected outcome, like a failed login, is mapped to a `ValidationException` there, which Laravel never reports, so it doesn't log a stack trace.
 
 ## Style
 
@@ -21,7 +20,7 @@ Commands and commit conventions: the root [`CLAUDE.md`](../CLAUDE.md). The Boost
 ## Tests
 
 - Pest, with `describe('…')` and `it('should …')`. Feature tests per endpoint live in `tests/Feature/<Area>/`.
-- A test of what goes over the wire asserts the literal string (`'email_not_verified'`), not the enum, so that renaming the enum value fails the test.
+- A test of what goes over the wire asserts the literal string (`'These credentials do not match our records.'`), not the lang key or constant, so that a renamed value fails the test.
 - When a test proves something the framework does for us, its comment starts with `Guards third-party code:` and names the framework class, e.g. `Laravel's SessionGuard::validate() pads failed logins, not LoginUserAction.`
 
 <laravel-boost-guidelines>
