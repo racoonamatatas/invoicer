@@ -9,24 +9,17 @@ import { createDeferred } from '../../../utility/createDeferred';
 // Every export of the auth service becomes a vi.fn(), so no request leaves the test.
 vi.mock('@/services/auth');
 
-const registration = {
-    name: 'Jan de Vries',
-    email: 'jan@example.nl',
-    password: 'paarse-fiets-op-de-gracht',
-    password_confirmation: 'paarse-fiets-op-de-gracht',
-};
+const email = 'jan@example.nl';
+const invalidEmail = 'The email field must be a valid email address.';
 
 // Register uses neither the router nor a store, so it mounts on its own.
 const mountRegister = (errorHandler?: (error: unknown) => void) =>
     mount(Register, { global: { config: { errorHandler } } });
 
-// Types the registration the way a user does, then submits the form.
-const submitRegistration = async (wrapper: VueWrapper) =>
+// Types the email the way a user does, then submits the form.
+const submitEmail = async (wrapper: VueWrapper) =>
 {
-    await wrapper.find('#register-name').setValue(registration.name);
-    await wrapper.find('#register-email').setValue(registration.email);
-    await wrapper.find('#register-password').setValue(registration.password);
-    await wrapper.find('#register-password-confirmation').setValue(registration.password_confirmation);
+    await wrapper.find('#register-email').setValue(email);
     await wrapper.find('form').trigger('submit');
 };
 
@@ -37,18 +30,28 @@ describe('Register page', () =>
         vi.resetAllMocks();
     });
 
-    it('should register with the typed values and replace the form with the check-your-email message when register gets a 204 (no content)', async () =>
+    it('should ask for an email only, so no password exists before the inbox owner sets one through the link', () =>
+    {
+        // Act
+        const wrapper = mountRegister();
+
+        // Assert: the email input is the only input
+        const inputs = wrapper.findAll('input');
+        expect(inputs.map((input) => input.attributes('id'))).toStrictEqual(['register-email']);
+    });
+
+    it('should register with only the typed email and replace the form with the check-your-email message when register gets a 204 (no content)', async () =>
     {
         // Arrange: auth.register is a stub (resolves, like a 204) and a spy (records its call)
         vi.mocked(auth.register).mockResolvedValue();
         const wrapper = mountRegister();
 
         // Act
-        await submitRegistration(wrapper);
+        await submitEmail(wrapper);
         await flushPromises();
 
-        // Assert (interaction): the typed values reached the request
-        expect(auth.register).toHaveBeenCalledExactlyOnceWith(registration);
+        // Assert (interaction): the typed email reached the request, and nothing else did
+        expect(auth.register).toHaveBeenCalledExactlyOnceWith({ email });
 
         // Assert (outcome): the message names the typed email, and the form is gone
         expect(wrapper.find('[role="status"]').text()).toBe(
@@ -68,50 +71,25 @@ describe('Register page', () =>
         expect(status.text()).toBe('');
     });
 
-    // One row per field that can get an error: that field is marked and linked,
-    // the other two stay clean, so each field's wiring is checked on its own.
-    it.for([
-        { name: 'name', field: 'name', otherFields: ['email', 'password'], message: 'The name field is required.' },
-        { name: 'email', field: 'email', otherFields: ['name', 'password'], message: 'The email field must be a valid email address.' },
-        { name: 'password', field: 'password', otherFields: ['name', 'email'], message: 'The password field confirmation does not match.' },
-    ])('should show the error under its input and link it with aria-invalid and aria-describedby when register fails with a 422 (unprocessable): $name', async ({ field, otherFields, message }) =>
+    it('should show the error under the email input, link it with aria-invalid and aria-describedby, and keep the form when register fails with a 422 (unprocessable) under email', async () =>
     {
         // Arrange: auth.register is a stub that fails the way Laravel validation does
-        vi.mocked(auth.register).mockRejectedValue(axiosErrorWith(422, { message, errors: { [field]: [message] } }));
+        vi.mocked(auth.register).mockRejectedValue(axiosErrorWith(422, { message: invalidEmail, errors: { email: [invalidEmail] } }));
         const wrapper = mountRegister();
+        const input = wrapper.find('#register-email');
+
+        // Assert: before any error, the input is marked valid and points nowhere
+        expect(input.attributes('aria-invalid')).toBe('false');
+        expect(input.attributes('aria-describedby')).toBeUndefined();
 
         // Act
-        await submitRegistration(wrapper);
+        await submitEmail(wrapper);
         await flushPromises();
 
         // Assert: the error is shown, and its input points at it
-        const input = wrapper.find(`#register-${field}`);
-        expect(wrapper.find(`#register-${field}-error`).text()).toBe(message);
+        expect(wrapper.find('#register-email-error').text()).toBe(invalidEmail);
         expect(input.attributes('aria-invalid')).toBe('true');
-        expect(input.attributes('aria-describedby')).toBe(`register-${field}-error`);
-
-        // Assert: the fields without an error have no error and point nowhere
-        for (const otherField of otherFields)
-        {
-            const otherInput = wrapper.find(`#register-${otherField}`);
-            expect(wrapper.find(`#register-${otherField}-error`).exists()).toBe(false);
-            expect(otherInput.attributes('aria-invalid')).toBe('false');
-            expect(otherInput.attributes('aria-describedby')).toBeUndefined();
-        }
-    });
-
-    it('should keep the form and show no message when register fails with a 422 (unprocessable)', async () =>
-    {
-        // Arrange: auth.register is a stub that fails validation
-        vi.mocked(auth.register).mockRejectedValue(axiosErrorWith(422, {
-            message: 'The password field confirmation does not match.',
-            errors: { password: ['The password field confirmation does not match.'] },
-        }));
-        const wrapper = mountRegister();
-
-        // Act
-        await submitRegistration(wrapper);
-        await flushPromises();
+        expect(input.attributes('aria-describedby')).toBe('register-email-error');
 
         // Assert: the user can still fix the field, and is not told an email was sent
         expect(wrapper.find('form').exists()).toBe(true);
@@ -127,7 +105,7 @@ describe('Register page', () =>
         const wrapper = mountRegister();
 
         // Act
-        await submitRegistration(wrapper);
+        await submitEmail(wrapper);
         await flushPromises();
 
         // Assert: without it the user would see no feedback at all
@@ -141,7 +119,7 @@ describe('Register page', () =>
         const request = createDeferred();
         vi.mocked(auth.register).mockReturnValue(request.promise.then(() =>
         {
-            throw axiosErrorWith(422, { message: 'The name field is required.', errors: { name: ['The name field is required.'] } });
+            throw axiosErrorWith(422, { message: invalidEmail, errors: { email: [invalidEmail] } });
         }));
         const wrapper = mountRegister();
         const button = wrapper.find('button[type="submit"]');
@@ -150,7 +128,7 @@ describe('Register page', () =>
         expect(button.attributes('disabled')).toBeUndefined();
 
         // Act
-        await submitRegistration(wrapper);
+        await submitEmail(wrapper);
 
         // Assert: disabled while the request is in flight
         expect(button.attributes('disabled')).toBeDefined();
@@ -173,7 +151,7 @@ describe('Register page', () =>
         const wrapper = mountRegister(errorHandler);
 
         // Act
-        await submitRegistration(wrapper);
+        await submitEmail(wrapper);
         await flushPromises();
 
         // Assert (outcome): the wait is shown where a screen reader announces it,
@@ -192,11 +170,11 @@ describe('Register page', () =>
         // where Vue sends a rejected promise returned by an event handler
         const error = axiosErrorWith(500, { message: 'Server Error' });
         vi.mocked(auth.register).mockRejectedValue(error);
-        const errorHandler = vi.fn();
+        const errorHandler = vi.fn<(error: unknown) => void>();
         const wrapper = mountRegister(errorHandler);
 
         // Act
-        await submitRegistration(wrapper);
+        await submitEmail(wrapper);
         await flushPromises();
 
         // Assert (interaction): the page didn't swallow the error or wrap it
