@@ -64,9 +64,12 @@ const onSubmit = () => submit(async () =>
              appears after submitting. -->
         <div role="status">
             <p v-if="isPasswordSet">Your password is set. <RouterLink :to="{ name: 'login' }">Log in</RouterLink></p>
+            <!-- Two exits: the same 422 comes back for an expired link and for
+                 one that was already used, and only the user knows which. -->
             <p v-else-if="tokenError" :id="tokenError.id">
                 {{ tokenError.message }}
                 <RouterLink :to="{ name: 'register' }">Get a new link</RouterLink>
+                or, if you already finished, <RouterLink :to="{ name: 'login' }">log in</RouterLink>.
             </p>
             <!-- The token wasn't checked, so it may still be good: the form
                  stays for a retry once the wait is over. -->
@@ -79,7 +82,12 @@ const onSubmit = () => submit(async () =>
             <RouterLink :to="{ name: 'register' }">get a new link</RouterLink>.
         </p>
         <!-- Hidden after success, and after a bad link: a used or expired token
-             can't start working. -->
+             can't start working.
+             required/minlength/maxlength repeat PasswordRules::forNewPassword()
+             (15 to 72 characters), so an empty field or a short password is
+             caught by the browser instead of spending one of the few verify
+             requests a minute the endpoint allows. The backend stays the judge:
+             a mismatch or a leaked password still comes back as a 422. -->
         <form v-else-if="!isPasswordSet && !tokenError" aria-label="Finish signing up" @submit.prevent="onSubmit">
             <div>
                 <label for="verify-email-name">Name</label>
@@ -88,6 +96,7 @@ const onSubmit = () => submit(async () =>
                     v-model="form.name"
                     type="text"
                     autocomplete="name"
+                    required
                     :aria-invalid="nameError !== null"
                     :aria-describedby="nameError?.id"
                 />
@@ -100,6 +109,9 @@ const onSubmit = () => submit(async () =>
                     v-model="form.password"
                     type="password"
                     autocomplete="new-password"
+                    required
+                    minlength="15"
+                    maxlength="72"
                     :aria-invalid="passwordError !== null"
                     :aria-describedby="passwordError?.id"
                 />
@@ -112,6 +124,7 @@ const onSubmit = () => submit(async () =>
                     v-model="form.password_confirmation"
                     type="password"
                     autocomplete="new-password"
+                    required
                     :aria-invalid="passwordError !== null"
                     :aria-describedby="passwordError?.id"
                 />
