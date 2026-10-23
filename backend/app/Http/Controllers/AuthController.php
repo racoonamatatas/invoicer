@@ -8,7 +8,6 @@ use App\Actions\Auth\ChangePasswordAction;
 use App\Actions\Auth\LoginUserAction;
 use App\Actions\Auth\LogoutUserAction;
 use App\Actions\Auth\RegisterUserAction;
-use App\Actions\Auth\ResendVerificationAction;
 use App\Actions\Auth\ResetPasswordAction;
 use App\Actions\Auth\SendPasswordResetLinkAction;
 use App\Actions\Auth\VerifyEmailAction;
@@ -16,7 +15,6 @@ use App\Http\Requests\ChangePasswordRequest;
 use App\Http\Requests\ForgotPasswordRequest;
 use App\Http\Requests\LoginRequest;
 use App\Http\Requests\RegisterRequest;
-use App\Http\Requests\ResendVerificationRequest;
 use App\Http\Requests\ResetPasswordRequest;
 use App\Http\Requests\VerifyEmailRequest;
 use App\Http\Resources\UserResourceData;
@@ -62,13 +60,6 @@ final class AuthController extends Controller
         {
             throw ValidationException::withMessages(['token' => __('This verification link is invalid or has expired.')]);
         }
-
-        return new NoContentResponse;
-    }
-
-    public function resendVerification(ResendVerificationRequest $request, ResendVerificationAction $action): NoContentResponse
-    {
-        $action->execute($request->email());
 
         return new NoContentResponse;
     }

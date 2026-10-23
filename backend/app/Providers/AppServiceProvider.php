@@ -59,9 +59,6 @@ class AppServiceProvider extends ServiceProvider
         $rateLimiter->for('register', static fn (Request $request): Limit => Limit::perMinute(5)->by('ip:'.$request->ip()));
 
         // Per-IP stops one client spraying many emails.
-        $rateLimiter->for('resend-verification', static fn (Request $request): Limit => Limit::perMinute(5)->by('ip:'.$request->ip()));
-
-        // Per-IP stops one client spraying many emails.
         $rateLimiter->for('forgot-password', static fn (Request $request): Limit => Limit::perMinute(5)->by('ip:'.$request->ip()));
 
         // IP only: reset tokens are unguessable, so this caps bcrypt work per client rather than guessing.
