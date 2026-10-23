@@ -51,7 +51,7 @@ final class AuthController extends Controller
 
     public function register(RegisterRequest $request, RegisterUserAction $action): NoContentResponse
     {
-        $action->execute($request->toDto());
+        $action->execute($request->email());
 
         return new NoContentResponse;
     }

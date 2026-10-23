@@ -4,9 +4,7 @@ declare(strict_types = 1);
 
 namespace App\Actions\Auth;
 
-use App\DataTransferObjects\Input\Auth\RegisterUserData;
 use App\Mail\AccountAlreadyExists;
-use App\Mail\FinishSigningUp;
 use App\Models\User;
 use Illuminate\Container\Attributes\Config;
 use Illuminate\Contracts\Mail\Mailer;
@@ -16,52 +14,38 @@ final readonly class RegisterUserAction
 {
     public function __construct(
         private ConnectionInterface $db,
-        private CreateUserAction $createUserAction,
-        private IssueVerificationTokenAction $issueVerificationTokenAction,
+        private IssueSetPasswordTokenAction $issueSetPasswordTokenAction,
         private User $userModel,
         private Mailer $mailer,
         #[Config('app.url')]
         private string $appUrl,
     ) {}
 
-    public function execute(RegisterUserData $data): void
+    public function execute(string $email): void
     {
-        // One transaction, so a user is never left behind without a verification token.
-        $this->db->transaction(function () use ($data): void {
-            $user = $this->createUserAction->execute($data);
+        // One transaction, so no pending registration is left behind whose link never got mailed.
+        $this->db->transaction(function () use ($email): void {
+            // first(): a new email is the normal outcome.
+            $existingUser = $this->userModel->newQuery()
+                ->where('email', $email)
+                ->first();
 
-            if ($user === null)
+            // Email already registered: the response stays the same, only the inbox owner hears about it.
+            if ($existingUser !== null)
             {
-                // Email already registered: the response stays the same, only the inbox owner hears about it.
-                $this->notifyExistingUser($data->email);
+                $this->notifyExistingUser($existingUser);
 
                 return;
             }
 
-            $this->issueVerificationTokenAction->execute($user);
+            $this->issueSetPasswordTokenAction->execute($email);
         });
     }
 
-    private function notifyExistingUser(string $email): void
+    private function notifyExistingUser(User $existingUser): void
     {
-        // sole(): the unique violation just proved exactly one user has this email.
-        $existingUser = $this->userModel->newQuery()
-            ->where('email', $email)
-            ->sole();
-
-        $forgotPasswordUrl = $this->appUrl.'/forgot-password';
-
-        // No verify link: verifying would activate whatever password the first registrant chose, which may not
-        // be the inbox owner's. A reset sets a password only the owner knows. A related path is a known gap,
-        // planned to be fixed.
-        if ($existingUser->email_verified_at === null)
-        {
-            $this->mailer->to($existingUser->email)->send(new FinishSigningUp($forgotPasswordUrl));
-
-            return;
-        }
-
         $loginUrl = $this->appUrl.'/login';
+        $forgotPasswordUrl = $this->appUrl.'/forgot-password';
         $this->mailer->to($existingUser->email)->send(new AccountAlreadyExists($existingUser, $loginUrl, $forgotPasswordUrl));
     }
 }
