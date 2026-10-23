@@ -7,8 +7,10 @@ use App\Mail\ResetPassword;
 use App\Models\PendingRegistration;
 use App\Models\User;
 use Illuminate\Auth\Passwords\PasswordBroker;
+use Illuminate\Contracts\Mail\Mailer;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
+use Mockery\MockInterface;
 
 describe('Requesting a password reset link', function (): void {
 
@@ -100,6 +102,23 @@ describe('Requesting a password reset link', function (): void {
         $response->assertNoContent();
         Mail::assertNothingOutgoing();
         $this->assertDatabaseHas('pending_registrations', ['email' => $email, 'token' => $expiredTokenHash]);
+    });
+
+    it('should return 500 (internal server error) and keep the stored token when the email has a pending registration and queueing the mail throws', function (): void {
+        // Arrange
+        $email = 'jan@example.nl';
+        $storedTokenHash = hash('sha256', 'first-token');
+        PendingRegistration::factory()->create(['email' => $email, 'token' => $storedTokenHash]);
+        $this->mock(Mailer::class, function (MockInterface $mailer): void {
+            $mailer->shouldReceive('to')->andThrow(new RuntimeException('Mail queue unavailable'));
+        });
+
+        // Act
+        $response = $this->postJson('/api/auth/forgot-password', ['email' => $email]);
+
+        // Assert: the rotation rolled back, so the link already in the inbox still works
+        $response->assertInternalServerError();
+        $this->assertDatabaseHas('pending_registrations', ['email' => $email, 'token' => $storedTokenHash]);
     });
 
     // A stale pending registration must not block the reset of the account that was made since.
