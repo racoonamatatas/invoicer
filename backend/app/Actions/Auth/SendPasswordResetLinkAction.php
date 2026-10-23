@@ -7,6 +7,7 @@ namespace App\Actions\Auth;
 use App\Mail\ResetPassword;
 use App\Models\PendingRegistration;
 use App\Models\User;
+use Carbon\CarbonImmutable;
 use Illuminate\Container\Attributes\Config;
 use Illuminate\Contracts\Auth\PasswordBroker;
 use Illuminate\Contracts\Mail\Mailer;
@@ -42,8 +43,10 @@ final readonly class SendPasswordResetLinkAction
 
     private function hasPendingRegistration(string $email): bool
     {
+        // Expired rows wait for model:prune, so without this filter the answer would depend on the time of day.
         return $this->pendingRegistrationModel->newQuery()
             ->where('email', $email)
+            ->where('expires_at', '>', CarbonImmutable::now())
             ->exists();
     }
 }
