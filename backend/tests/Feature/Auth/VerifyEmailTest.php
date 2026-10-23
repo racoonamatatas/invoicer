@@ -150,9 +150,51 @@ describe('Setting a password through the set-password link', function (): void {
     })->with([
         'missing name' => [['name' => ''], 'name'],
         'password one character below the minimum' => [['password' => 'horse-battery2', 'password_confirmation' => 'horse-battery2'], 'password'],
-        'password too long' => [['password' => str_repeat('a', 73), 'password_confirmation' => str_repeat('a', 73)], 'password'],
+        // 37 characters, so Laravel's character-counting max:72 would let it through; bcrypt would hash only the first 72 bytes.
+        'password of 73 bytes in fewer than 72 characters' => [['password' => str_repeat('é', 36).'a', 'password_confirmation' => str_repeat('é', 36).'a'], 'password'],
         'confirmation mismatch' => [['password_confirmation' => 'something-else'], 'password'],
     ]);
+
+    it('should return 422 (unprocessable) with the bytes message when the password is 73 bytes', function (): void {
+        // Arrange
+        $token = 'fixed-set-password-token';
+        $password = str_repeat('é', 36).'a';
+        PendingRegistration::factory()->create(['token' => hash('sha256', $token)]);
+
+        // Act
+        $response = $this->postJson('/api/auth/verify-email', [
+            'token' => $token,
+            'name' => 'Jan Jansen',
+            'password' => $password,
+            'password_confirmation' => $password,
+        ]);
+
+        // Assert
+        // The literal: the message is what tells the user the unit, since a 37-character password is "too long" only in bytes.
+        $response->assertUnprocessable();
+        $response->assertJsonValidationErrors(['password' => 'The password field must not be greater than 72 bytes.']);
+    });
+
+    it('should return 204 (no content) and create the user when the password is exactly 72 bytes', function (): void {
+        // Arrange
+        $token = 'fixed-set-password-token';
+        $email = 'jan@example.com';
+        $password = str_repeat('é', 36); // 36 characters, 72 bytes: the most bcrypt reads in full.
+        PendingRegistration::factory()->create(['email' => $email, 'token' => hash('sha256', $token)]);
+
+        // Act
+        $response = $this->postJson('/api/auth/verify-email', [
+            'token' => $token,
+            'name' => 'Jan Jansen',
+            'password' => $password,
+            'password_confirmation' => $password,
+        ]);
+
+        // Assert
+        $response->assertNoContent();
+        $user = User::query()->where('email', $email)->sole();
+        expect(Hash::check($password, $user->password))->toBeTrue();
+    });
 
     // Guards third-party code: Laravel's NotPwnedVerifier rejects leaked passwords, not VerifyEmailRequest.
     // Catches uncompromised() being dropped from the password policy, or Laravel misreading the API's answer.
