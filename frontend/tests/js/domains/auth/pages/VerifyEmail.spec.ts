@@ -167,17 +167,18 @@ describe('VerifyEmail page', () =>
 
     // The attributes mirror PasswordRules::forNewPassword() on the backend, so
     // a short or empty password is refused by the browser before a request is spent.
-    it('should constrain the password input to 15 to 72 characters and require every field, so a typo costs no request', async () =>
+    it('should require every field and at least 15 password characters, and set no maxlength, so a typo costs no request', async () =>
     {
         // Act
         const wrapper = await mountVerifyEmail();
 
-        // Assert: the browser refuses an empty name, and a password outside the backend's bounds
+        // Assert: the browser refuses an empty name, and a password below the backend's minimum
         expect(wrapper.find('#verify-email-name').attributes('required')).toBeDefined();
         const password = wrapper.find('#verify-email-password');
         expect(password.attributes('required')).toBeDefined();
         expect(password.attributes('minlength')).toBe('15');
-        expect(password.attributes('maxlength')).toBe('72');
+        // No maxlength: it counts characters, and the backend's cap is 72 bytes, so it could only mislead
+        expect(password.attributes('maxlength')).toBeUndefined();
         expect(wrapper.find('#verify-email-password-confirmation').attributes('required')).toBeDefined();
     });
 
