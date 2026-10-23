@@ -6,9 +6,13 @@ namespace App\Providers;
 
 use Illuminate\Cache\RateLimiter;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Contracts\Foundation\Application;
+use Illuminate\Contracts\Validation\UncompromisedVerifier;
+use Illuminate\Http\Client\Factory as HttpFactory;
 use Illuminate\Http\Request;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
+use Illuminate\Validation\NotPwnedVerifier;
 use Illuminate\Validation\Rules\Password;
 
 class AppServiceProvider extends ServiceProvider
@@ -18,7 +22,24 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->configureLeakCheckTimeout();
+    }
+
+    /**
+     * The haveibeenpwned lookup behind Password::uncompromised() waits 30 seconds by default, which would hold a
+     * set-password, reset or change request that long when the API is slow. It already fails open on an error,
+     * so a short timeout only makes that happen sooner.
+     *
+     * extend(), not singleton(): Laravel's ValidationServiceProvider is deferred, so its own binding is registered
+     * later, when the validator is first resolved, and would replace a binding made here. An extender is applied
+     * on resolution, after that binding.
+     */
+    private function configureLeakCheckTimeout(): void
+    {
+        $this->app->extend(
+            UncompromisedVerifier::class,
+            static fn (UncompromisedVerifier $verifier, Application $app): NotPwnedVerifier => new NotPwnedVerifier($app->make(HttpFactory::class), 3),
+        );
     }
 
     /**
