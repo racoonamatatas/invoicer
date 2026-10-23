@@ -2,10 +2,13 @@
 
 declare(strict_types = 1);
 
+use App\Mail\FinishSigningUp;
 use App\Mail\ResetPassword;
+use App\Models\PendingRegistration;
 use App\Models\User;
 use Illuminate\Auth\Passwords\PasswordBroker;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 
 describe('Requesting a password reset link', function (): void {
 
@@ -56,6 +59,48 @@ describe('Requesting a password reset link', function (): void {
 
             return $mail->hasTo($email);
         });
+    });
+
+    it('should return 204 (no content), queue a finish-signing-up mail with a fresh set-password link and no reset mail when the email has a pending registration and no user', function (): void {
+        // Arrange
+        Mail::fake();
+        $email = 'jan@example.com';
+        PendingRegistration::factory()->create(['email' => $email, 'token' => hash('sha256', 'first-token')]);
+        Str::createRandomStringsUsing(fn (): string => 'fresh-token');
+        $setPasswordUrl = config('app.url').'/verify-email?token=fresh-token';
+
+        // Act
+        $response = $this->postJson('/api/auth/forgot-password', ['email' => $email]);
+
+        // Assert
+        $response->assertNoContent();
+        $this->assertDatabaseCount('pending_registrations', 1);
+        $this->assertDatabaseHas('pending_registrations', ['email' => $email, 'token' => hash('sha256', 'fresh-token')]);
+        $this->assertDatabaseCount('password_reset_tokens', 0);
+        Mail::assertQueuedCount(1);
+        Mail::assertQueued(FinishSigningUp::class, function (FinishSigningUp $mail) use ($email, $setPasswordUrl): bool {
+            expect($mail->render())->toContain($setPasswordUrl);
+
+            return $mail->hasTo($email);
+        });
+    });
+
+    // A stale pending registration must not block the reset of the account that was made since.
+    it('should return 204 (no content) and queue a reset mail, not a finish-signing-up mail, when the email has both a user and a pending registration', function (): void {
+        // Arrange
+        Mail::fake();
+        $email = 'jan@example.com';
+        User::factory()->create(['email' => $email]);
+        PendingRegistration::factory()->create(['email' => $email]);
+
+        // Act
+        $response = $this->postJson('/api/auth/forgot-password', ['email' => $email]);
+
+        // Assert
+        $response->assertNoContent();
+        Mail::assertQueuedCount(1);
+        Mail::assertQueued(ResetPassword::class, fn (ResetPassword $mail): bool => $mail->hasTo($email));
+        Mail::assertNotQueued(FinishSigningUp::class);
     });
 
     it('should return 204 (no content), queue no mail and store no token when the email is unknown', function (): void {
