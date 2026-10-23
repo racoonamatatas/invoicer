@@ -5,8 +5,10 @@ import { SessionEndedError } from '@/services/http';
 // The codes the backend may send next to a 422's errors, so a form can tell
 // two failures apart without matching on message text. Must match the values
 // of the backend's ErrorCode enum. A runtime array, not only a type, because
-// the parser checks incoming codes against it.
-const errorCodes = ['email_not_verified'] as const;
+// the parser checks incoming codes against it. Empty since INV-0044 (the
+// last code, email_not_verified, went with unverified users), so ErrorCode
+// is `never` and a parsed code is always null until the backend adds one.
+const errorCodes = [] as const;
 
 // Derived from the array, so the type and the runtime check can't disagree.
 export type ErrorCode = (typeof errorCodes)[number];

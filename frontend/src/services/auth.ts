@@ -37,13 +37,6 @@ export interface EmailVerification
     password_confirmation: string;
 }
 
-// What the resend-verification form sends. The key matches
-// ResendVerificationRequest's rules, so it is also the key of a 422's errors.
-export interface VerificationResend
-{
-    email: string;
-}
-
 // What the forgot-password form sends. The key matches
 // ForgotPasswordRequest's rules, so it is also the key of a 422's errors.
 export interface PasswordForgot
@@ -72,8 +65,8 @@ export interface PasswordChange
     password_confirmation: string;
 }
 
-// Logs in and returns the user. A 422 (bad credentials, unverified email) is
-// thrown, not caught, so useForm's submit() can show it next to the field.
+// Logs in and returns the user. A 422 (bad credentials) is thrown, not
+// caught, so useForm's submit() can show it next to the field.
 export const login = async (credentials: LoginCredentials): Promise<User> =>
 {
     const response = await postRequest<LoginCredentials, User>('/auth/login', credentials);
@@ -96,14 +89,6 @@ export const register = async (registration: Registration): Promise<void> =>
 export const verifyEmail = async (verification: EmailVerification): Promise<void> =>
 {
     await postRequest<EmailVerification, void>('/auth/verify-email', verification);
-};
-
-// Mails a new verification link, but only when the email belongs to an
-// unverified account. Always 204 (no content), so the page can't tell which
-// (no account enumeration) and there is nothing to return.
-export const resendVerification = async (email: string): Promise<void> =>
-{
-    await postRequest<VerificationResend, void>('/auth/resend-verification', { email });
 };
 
 // Mails a password reset link, but only when the email belongs to an account.

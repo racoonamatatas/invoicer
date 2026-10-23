@@ -5,14 +5,13 @@ import { RouterLink, useRouter } from 'vue-router';
 
 // Project imports
 import type { LoginCredentials } from '@/services/auth';
-import ResendVerificationForm from '@/domains/auth/components/ResendVerificationForm.vue';
 import { useAuthStore } from '@/domains/auth/store';
 import { useForm } from '@/composables/useForm';
 
 const form = ref<LoginCredentials>({ email: '', password: '' });
 const store = useAuthStore();
 const router = useRouter();
-const { submit, isPending, fieldError, throttleMessage, code, generalMessage } = useForm<keyof LoginCredentials>('login', { email: true, password: true });
+const { submit, isPending, fieldError, throttleMessage, generalMessage } = useForm<keyof LoginCredentials>('login', { email: true, password: true });
 
 // One value per field, so the error text and both aria attributes read
 // from the same source.
@@ -36,9 +35,6 @@ const onSubmit = () => submit(async () =>
              live region it already knows about. -->
         <div role="status">
             <p v-if="throttleMessage">{{ throttleMessage }}</p>
-            <!-- The resend form below appears outside this region, so without
-                 this line a screen reader user isn't told it exists. -->
-            <p v-else-if="code === 'email_not_verified'">Your email isn't verified yet. You can get a new link below.</p>
             <p v-else-if="generalMessage">{{ generalMessage }}</p>
         </div>
         <form aria-label="Log in" @submit.prevent="onSubmit">
@@ -69,11 +65,5 @@ const onSubmit = () => submit(async () =>
             <button type="submit" :disabled="isPending">Log in</button>
         </form>
         <p><RouterLink :to="{ name: 'forgotPassword' }">Forgot your password?</RouterLink></p>
-        <!-- submit() resets `code` at every attempt, so the form remounts with a
-             fresh prefill on each unverified 422 (unprocessable) -->
-        <template v-if="code === 'email_not_verified'">
-            <h2>Get a new link</h2>
-            <ResendVerificationForm :initial-email="form.email" />
-        </template>
     </div>
 </template>
