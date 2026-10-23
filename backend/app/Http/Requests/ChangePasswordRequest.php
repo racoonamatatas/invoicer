@@ -20,7 +20,8 @@ final class ChangePasswordRequest extends FormRequest
     {
         return [
             'current_password' => ['required', 'string', 'current_password'],
-            'password' => PasswordRules::forNewPassword(),
+            // different: after a suspected compromise, keeping the same password changes nothing.
+            'password' => [...PasswordRules::forNewPassword(), 'different:current_password'],
         ];
     }
 
