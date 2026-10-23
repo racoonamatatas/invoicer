@@ -83,10 +83,13 @@ const onSubmit = () => submit(async () =>
         </p>
         <!-- Hidden after success, and after a bad link: a used or expired token
              can't start working.
-             required/minlength/maxlength repeat PasswordRules::forNewPassword()
-             (15 to 72 characters), so an empty field or a short password is
+             required/minlength repeat PasswordRules::forNewPassword() (at
+             least 15 characters), so an empty field or a short password is
              caught by the browser instead of spending one of the few verify
-             requests a minute the endpoint allows. The backend stays the judge:
+             requests a minute the endpoint allows. No maxlength: the backend's
+             cap is 72 bytes, and maxlength counts characters, so it would let
+             a long accented password through and stop nothing. The backend
+             stays the judge:
              a mismatch or a leaked password still comes back as a 422. -->
         <form v-else-if="!isPasswordSet && !tokenError" aria-label="Finish signing up" @submit.prevent="onSubmit">
             <div>
@@ -111,7 +114,6 @@ const onSubmit = () => submit(async () =>
                     autocomplete="new-password"
                     required
                     minlength="15"
-                    maxlength="72"
                     :aria-invalid="passwordError !== null"
                     :aria-describedby="passwordError?.id"
                 />
