@@ -14,16 +14,6 @@ const sendFailingWith422 = async () =>
     });
 };
 
-// A send that fails the way the backend's login does for an unverified email.
-const sendFailingWithUnverified422 = async () =>
-{
-    throw axiosErrorWith(422, {
-        message: 'Verify your email before logging in.',
-        errors: { email: ['Verify your email before logging in.'] },
-        code: 'email_not_verified',
-    });
-};
-
 // A send that succeeds, as a request does once the user has fixed the field.
 const sendSucceeding = () => Promise.resolve();
 
@@ -54,32 +44,6 @@ describe('useForm', () =>
         // Assert
         expect(form.errors.value).toStrictEqual({});
         expect(form.generalMessage.value).toBe('');
-    });
-
-    it('should set code when the request fails with a 422 (unprocessable) that carries email_not_verified', async () =>
-    {
-        // Arrange
-        const form = useForm('login', {});
-
-        // Act: the real parser runs, so this also proves the parser and useForm connect
-        await form.submit(sendFailingWithUnverified422);
-
-        // Assert
-        expect(form.code.value).toBe('email_not_verified');
-    });
-
-    it('should clear code when the next submit succeeds', async () =>
-    {
-        // Arrange: a first submit that leaves a code behind
-        const form = useForm('login', {});
-        await form.submit(sendFailingWithUnverified422);
-
-        // Act: a success, not a plain 422: the 422 branch would overwrite code
-        // with null itself, so only a success proves the reset at the start
-        await form.submit(sendSucceeding);
-
-        // Assert
-        expect(form.code.value).toBeNull();
     });
 
     it('should re-throw the original error and reset isPending when the request fails with a 500 (server error)', async () =>
@@ -151,18 +115,18 @@ describe('useForm', () =>
 
     it('should keep a form\'s errors when another form on the page submits', async () =>
     {
-        // Arrange: the login page's two forms; login failed validation
+        // Arrange: two forms on one page, say login and a newsletter signup; login failed validation
         const login =  useForm('login', {});
-        const resend =  useForm('resend', {});
+        const newsletter =  useForm('newsletter', {});
         await login.submit(sendFailingWith422);
 
-        // Act: the user clicks resend, the request the old global bag cleared errors on
-        await resend.submit(sendSucceeding);
+        // Act: the user submits the other form, the request the old global bag cleared errors on
+        await newsletter.submit(sendSucceeding);
 
-        // Assert: login still shows its error, and resend never had one
+        // Assert: login still shows its error, and the other form never had one
         expect(login.errors.value).toStrictEqual({ email: ['The email field is required.'] });
         expect(login.generalMessage.value).toBe('The email field is required.');
-        expect(resend.errors.value).toStrictEqual({});
+        expect(newsletter.errors.value).toStrictEqual({});
     });
 
     it('should return a field\'s error and an id prefixed with the form name after a 422 (unprocessable)', async () =>
@@ -226,7 +190,7 @@ describe('useForm', () =>
     ])('should set throttleMessage and not re-throw when the request fails with a 429 (too many requests): $name', async ({ retryAfter, throttleMessage }) =>
     {
         // Arrange: a send that fails the way Laravel's throttle middleware does
-        const form = useForm('resend-verification', {});
+        const form = useForm('forgot-password', {});
         const headers: Record<string, string> = retryAfter === null ? {} : { 'retry-after': retryAfter };
         const send = () => Promise.reject(axiosErrorWith(429, { message: 'Too Many Attempts.' }, headers));
 
@@ -241,7 +205,7 @@ describe('useForm', () =>
     {
         // Arrange: a first submit that was throttled, and a second request
         // the test holds open, to look before it settles
-        const form = useForm('resend-verification', {});
+        const form = useForm('forgot-password', {});
         await form.submit(() => Promise.reject(axiosErrorWith(429, { message: 'Too Many Attempts.' }, { 'retry-after': '60' })));
         const request = createDeferred();
 
