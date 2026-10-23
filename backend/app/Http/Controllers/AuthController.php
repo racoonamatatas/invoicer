@@ -58,7 +58,7 @@ final class AuthController extends Controller
 
     public function verifyEmail(VerifyEmailRequest $request, VerifyEmailAction $action): NoContentResponse
     {
-        if (! $action->execute($request->token()))
+        if (! $action->execute($request->toDto()))
         {
             throw ValidationException::withMessages(['token' => __('This verification link is invalid or has expired.')]);
         }

@@ -4,32 +4,43 @@ declare(strict_types = 1);
 
 namespace App\Actions\Auth;
 
-use App\Models\User;
+use App\DataTransferObjects\Input\Auth\VerifyEmailData;
+use App\Models\PendingRegistration;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\ConnectionInterface;
 
 final readonly class VerifyEmailAction
 {
     public function __construct(
-        private User $userModel,
+        private ConnectionInterface $db,
+        private PendingRegistration $pendingRegistrationModel,
+        private CreateUserAction $createUserAction,
     ) {}
 
-    public function execute(string $token): bool
+    /**
+     * Creates the user the pending registration was for. Returns false when the link is unusable.
+     */
+    public function execute(VerifyEmailData $data): bool
     {
-        $user = $this->userModel->newQuery()
-            ->where('verification_token', hash('sha256', $token))                   // matches the hashed token
-            ->where('verification_token_expires_at', '>', CarbonImmutable::now())   // with stored tokens that haven't expired.
-            ->first();                                                              // first(): no match is a possible outcome.
+        // One transaction, so the user and the deletion of the pending registration land together or not at all.
+        return $this->db->transaction(function () use ($data): bool {
+            $pendingRegistration = $this->pendingRegistrationModel->newQuery()
+                ->where('token', hash('sha256', $data->token))             // matches the hashed token
+                ->where('expires_at', '>', CarbonImmutable::now())          // with stored tokens that haven't expired.
+                ->first();                                                  // first(): no match is a possible outcome.
 
-        if ($user === null)
-        {
-            return false;
-        }
+            if ($pendingRegistration === null)
+            {
+                return false;
+            }
 
-        $user->email_verified_at = CarbonImmutable::now();
-        $user->verification_token = null;
-        $user->verification_token_expires_at = null;
-        $user->save();
+            $user = $this->createUserAction->execute($data->name, $pendingRegistration->email, $data->password);
 
-        return true;
+            // Used up either way: a link is for one signup, and once the email has a user there is nothing left to finish.
+            $pendingRegistration->delete();
+
+            // null: the email got a user after the registration was stored (a race). The link is dead, the user untouched.
+            return $user !== null;
+        });
     }
 }

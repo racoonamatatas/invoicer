@@ -4,6 +4,8 @@ declare(strict_types = 1);
 
 namespace App\Http\Requests;
 
+use App\DataTransferObjects\Input\Auth\VerifyEmailData;
+use App\Validation\PasswordRules;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 
@@ -18,11 +20,19 @@ final class VerifyEmailRequest extends FormRequest
     {
         return [
             'token' => ['required', 'string', 'max:255'],
+            'name' => ['required', 'string', 'max:255'],
+            'password' => PasswordRules::forNewPassword(),
         ];
     }
 
-    public function token(): string
+    public function toDto(): VerifyEmailData
     {
-        return $this->safe()->string('token')->toString();
+        $safe = $this->safe();
+
+        return new VerifyEmailData(
+            token: $safe->string('token')->toString(),
+            name: $safe->string('name')->toString(),
+            password: $safe->string('password')->toString()
+        );
     }
 }
