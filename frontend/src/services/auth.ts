@@ -16,21 +16,25 @@ export interface LoginCredentials
     password: string;
 }
 
-// What the register form sends. Keys match RegisterRequest's rules.
-// password_confirmation is the field Laravel's 'confirmed' rule reads.
+// What the register form sends. The key matches RegisterRequest's rules, so
+// it is also the key of a 422's errors. Only an email: the name and password
+// are set through the link in the mail, so no password exists before the
+// inbox owner chose it.
 export interface Registration
 {
-    name: string;
     email: string;
-    password: string;
-    password_confirmation: string;
 }
 
-// What the verify-email page sends. The key matches VerifyEmailRequest's
-// rules, and an invalid or expired token comes back as a 422 under it.
+// What the set-password page (/verify-email) sends. Keys match
+// VerifyEmailRequest's rules. password_confirmation is the field Laravel's
+// 'confirmed' rule reads, and an invalid or expired token comes back as a 422
+// under token.
 export interface EmailVerification
 {
     token: string;
+    name: string;
+    password: string;
+    password_confirmation: string;
 }
 
 // What the resend-verification form sends. The key matches
@@ -77,19 +81,21 @@ export const login = async (credentials: LoginCredentials): Promise<User> =>
     return response.data;
 };
 
-// Creates the account and mails a verification link; if the email is taken it
-// mails the owner instead. Both answer 204 (no content), so the page can't tell
-// them apart (no account enumeration) and there is nothing to return.
+// Mails a set-password link; if the email is taken it mails the owner instead.
+// Both answer 204 (no content), so the page can't tell them apart (no account
+// enumeration) and there is nothing to return.
 export const register = async (registration: Registration): Promise<void> =>
 {
     await postRequest<Registration, void>('/auth/register', registration);
 };
 
-// Verifies the email the token was mailed to: 204 (no content). The token
-// works once, so a second post gets the 422, thrown for useForm to show.
-export const verifyEmail = async (token: string): Promise<void> =>
+// Creates the account the token was mailed for, with the name and password,
+// and marks the email verified: 204 (no content), no login. The token works
+// once, so a second post gets a 422 (invalid token, weak or unconfirmed
+// password), thrown for useForm to show.
+export const verifyEmail = async (verification: EmailVerification): Promise<void> =>
 {
-    await postRequest<EmailVerification, void>('/auth/verify-email', { token });
+    await postRequest<EmailVerification, void>('/auth/verify-email', verification);
 };
 
 // Mails a new verification link, but only when the email belongs to an
