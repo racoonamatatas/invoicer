@@ -5,7 +5,6 @@ declare(strict_types = 1);
 namespace App\Actions\Auth;
 
 use App\DataTransferObjects\Input\Auth\LoginUserData;
-use App\Exceptions\Auth\EmailNotVerifiedException;
 use App\Exceptions\Auth\InvalidCredentialsException;
 use App\Models\User;
 use Illuminate\Container\Attributes\Auth;
@@ -23,11 +22,11 @@ final readonly class LoginUserAction
 
     /**
      * @throws InvalidCredentialsException
-     * @throws EmailNotVerifiedException
      */
     public function execute(LoginUserData $data): User
     {
-        // validate() instead of attempt(): attempt() logs in before we can check verification.
+        // validate() then login() instead of attempt(): attempt() only answers with a bool,
+        // and the controller needs the User. validate() also pads a failed login (see LoginTest).
         if (! $this->guard->validate([
             'email' => $data->email,
             'password' => $data->password,
@@ -40,11 +39,6 @@ final readonly class LoginUserAction
         $user = $this->userModel->newQuery()
             ->where('email', $data->email)
             ->sole();
-
-        if ($user->email_verified_at === null)
-        {
-            throw new EmailNotVerifiedException;
-        }
 
         $this->guard->login($user);
         $this->session->regenerate();
