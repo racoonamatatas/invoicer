@@ -150,8 +150,11 @@ describe('Setting a password through the set-password link', function (): void {
     })->with([
         'missing name' => [['name' => ''], 'name'],
         'password one character below the minimum' => [['password' => 'horse-battery2', 'password_confirmation' => 'horse-battery2'], 'password'],
+        'password too long' => [['password' => str_repeat('a', 73), 'password_confirmation' => str_repeat('a', 73)], 'password'],
         // 37 characters, so Laravel's character-counting max:72 would let it through; bcrypt would hash only the first 72 bytes.
         'password of 73 bytes in fewer than 72 characters' => [['password' => str_repeat('é', 36).'a', 'password_confirmation' => str_repeat('é', 36).'a'], 'password'],
+        // Reaches MaxBytes and WithoutNulBytes too (no bail): their non-string guards keep strlen() and str_contains() from a TypeError.
+        'array password' => [['password' => ['correct-horse-battery2']], 'password'],
         'confirmation mismatch' => [['password_confirmation' => 'something-else'], 'password'],
     ]);
 
@@ -173,6 +176,27 @@ describe('Setting a password through the set-password link', function (): void {
         // The literal: the message is what tells the user the unit, since a 37-character password is "too long" only in bytes.
         $response->assertUnprocessable();
         $response->assertJsonValidationErrors(['password' => 'The password field must not be greater than 72 bytes.']);
+    });
+
+    it('should return 422 (unprocessable) with the null-character message and create no user when the password holds a NUL byte', function (): void {
+        // Arrange
+        $token = 'fixed-set-password-token';
+        // Legal JSON ("\u0000" on the wire) that passes every other rule; PHP's bcrypt throws on it, which would be a 500.
+        $password = "correct-horse\0battery2";
+        PendingRegistration::factory()->create(['token' => hash('sha256', $token)]);
+
+        // Act
+        $response = $this->postJson('/api/auth/verify-email', [
+            'token' => $token,
+            'name' => 'Jan Jansen',
+            'password' => $password,
+            'password_confirmation' => $password,
+        ]);
+
+        // Assert
+        $response->assertUnprocessable();
+        $response->assertJsonValidationErrors(['password' => 'The password field must not contain a null character.']);
+        $this->assertDatabaseCount('users', 0);
     });
 
     it('should return 204 (no content) and create the user when the password is exactly 72 bytes', function (): void {
