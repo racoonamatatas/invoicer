@@ -32,13 +32,16 @@ class AppServiceProvider extends ServiceProvider
      *
      * extend(), not singleton(): Laravel's ValidationServiceProvider is deferred, so its own binding is registered
      * later, when the validator is first resolved, and would replace a binding made here. An extender is applied
-     * on resolution, after that binding.
+     * on resolution, after that binding. Only Laravel's verifier is rebuilt: a deliberately swapped one (a fake
+     * bound by a test, say) passes through untouched.
      */
     private function configureLeakCheckTimeout(): void
     {
         $this->app->extend(
             UncompromisedVerifier::class,
-            static fn (UncompromisedVerifier $verifier, Application $app): NotPwnedVerifier => new NotPwnedVerifier($app->make(HttpFactory::class), 3),
+            static fn (UncompromisedVerifier $verifier, Application $app): UncompromisedVerifier => $verifier instanceof NotPwnedVerifier
+                ? new NotPwnedVerifier($app->make(HttpFactory::class), 3)
+                : $verifier,
         );
     }
 
