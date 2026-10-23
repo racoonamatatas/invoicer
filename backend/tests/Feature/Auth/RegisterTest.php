@@ -28,7 +28,7 @@ describe('Registering', function (): void {
         $this->assertDatabaseHas('pending_registrations', [
             'email' => $email,
             'token' => hash('sha256', $token),
-            'expires_at' => $now->addHours(24),
+            'expires_at' => $now->addHours(config()->integer('auth.verification_ttl_hours')),
         ]);
         $this->assertDatabaseCount('users', 0);
     });
@@ -78,7 +78,7 @@ describe('Registering', function (): void {
         $this->assertDatabaseHas('pending_registrations', [
             'email' => $email,
             'token' => hash('sha256', 'second-token'),
-            'expires_at' => $now->addHours(25),
+            'expires_at' => $now->addHour()->addHours(config()->integer('auth.verification_ttl_hours')),
         ]);
         $this->assertDatabaseMissing('pending_registrations', ['token' => hash('sha256', 'first-token')]);
     });

@@ -23,7 +23,7 @@ class PendingRegistrationFactory extends Factory
         return [
             'email' => fake()->unique()->safeEmail(),
             'token' => hash('sha256', Str::random(36)),
-            'expires_at' => now()->addHours(24),
+            'expires_at' => now()->addHours(config()->integer('auth.verification_ttl_hours')),
         ];
     }
 
