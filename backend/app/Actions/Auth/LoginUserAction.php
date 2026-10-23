@@ -25,8 +25,8 @@ final readonly class LoginUserAction
      */
     public function execute(LoginUserData $data): User
     {
-        // validate() then login() instead of attempt(): attempt() only answers with a bool,
-        // and the controller needs the User. validate() also pads a failed login (see LoginTest).
+        // validate() then login() instead of attempt(): attempt() answers with a bool, and the guard's user()
+        // after it is a nullable Authenticatable that would still need narrowing to User. sole() below is typed.
         if (! $this->guard->validate([
             'email' => $data->email,
             'password' => $data->password,
