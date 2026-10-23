@@ -94,7 +94,7 @@ describe('useForm', () =>
         // Arrange: a request the test finishes by hand, so it can look while it is in flight
         const form = useForm('login', {});
         const request = createDeferred();
-        const send = vi.fn(() => request.promise);
+        const send = vi.fn<() => Promise<void>>(() => request.promise);
 
         // Act: a double click, both submits in the same tick
         const first = form.submit(send);
@@ -294,6 +294,7 @@ describe('useForm', () =>
         expect(form.generalMessage.value).toBe('');
     });
 
+    // oxlint-disable-next-line vitest/expect-expect -- the assertion is the @ts-expect-error inside, checked by vue-tsc, not by vitest
     it('should fail type-check when fieldError gets a field the form does not have', () =>
     {
         // Arrange
@@ -305,6 +306,7 @@ describe('useForm', () =>
         form.fieldError('emial');
     });
 
+    // oxlint-disable-next-line vitest/expect-expect -- the assertion is the @ts-expect-error inside, checked by vue-tsc, not by vitest
     it('should fail type-check when the fields leave out one of the form\'s fields', () =>
     {
         // Assert: checked by npm run type-check, not by vitest. Every field
@@ -313,6 +315,7 @@ describe('useForm', () =>
         useForm<'email' | 'password'>('login', { email: true });
     });
 
+    // oxlint-disable-next-line vitest/expect-expect -- the assertion is the @ts-expect-error inside, checked by vue-tsc, not by vitest
     it('should fail type-check when useForm gets fields but no generic', () =>
     {
         // Assert: checked by npm run type-check, not by vitest. Without the

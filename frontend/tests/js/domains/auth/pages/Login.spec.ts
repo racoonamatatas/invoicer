@@ -193,7 +193,7 @@ describe('Login page', () =>
         // where Vue sends a rejected promise returned by an event handler
         const error = axiosErrorWith(500, { message: 'Server Error' });
         vi.mocked(auth.login).mockRejectedValue(error);
-        const errorHandler = vi.fn();
+        const errorHandler = vi.fn<(error: unknown) => void>();
         const { wrapper, router } = await mountLogin(errorHandler);
 
         // Act

@@ -29,7 +29,7 @@ describe('Dashboard page', () =>
     // assign is a spy (and a stub: it does nothing). jsdom can't do a real page
     // load, and won't let vi.spyOn redefine location.assign, so the whole
     // location is swapped for a copy with a spy in its place.
-    const assign = vi.fn();
+    const assign = vi.fn<(url: string | URL) => void>();
 
     beforeEach(() =>
     {
@@ -75,7 +75,7 @@ describe('Dashboard page', () =>
         // sends a rejected promise returned by an event handler
         const error = axiosErrorWith(500, { message: 'Server Error' });
         vi.mocked(auth.logout).mockRejectedValue(error);
-        const errorHandler = vi.fn();
+        const errorHandler = vi.fn<(error: unknown) => void>();
         const wrapper = await mountDashboard(errorHandler);
 
         // Act
