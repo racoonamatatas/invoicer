@@ -31,7 +31,7 @@ class AppServiceProvider extends ServiceProvider
     }
 
     /**
-     * The rules every new password must pass (register, reset, change), via PasswordRules::forNewPassword().
+     * The rules every new password must pass (set through the link, reset, change), via PasswordRules::forNewPassword().
      */
     private function configurePasswordPolicy(): void
     {
