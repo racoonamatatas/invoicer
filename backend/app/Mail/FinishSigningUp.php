@@ -10,14 +10,15 @@ use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 
-// Sent when someone registers over an unverified account. No User: its name was typed by the first registrant,
-// who may be a stranger, so nothing they chose ends up in a mail to the inbox owner.
+// The set-password link for a pending registration. No name: nobody has given one yet, and whoever typed the
+// email may be a stranger, so nothing they chose ends up in a mail to the inbox owner.
 final class FinishSigningUp extends Mailable implements ShouldQueueAfterCommit
 {
     use Queueable;
 
     public function __construct(
-        private string $forgotPasswordUrl,
+        private string $setPasswordUrl,
+        private int $expiresInHours,
     ) {}
 
     public function envelope(): Envelope
@@ -32,7 +33,8 @@ final class FinishSigningUp extends Mailable implements ShouldQueueAfterCommit
         return new Content(
             view: 'emails.finish-signing-up',
             with: [
-                'forgotPasswordUrl' => $this->forgotPasswordUrl,
+                'setPasswordUrl' => $this->setPasswordUrl,
+                'expiresInHours' => $this->expiresInHours,
             ],
         );
     }

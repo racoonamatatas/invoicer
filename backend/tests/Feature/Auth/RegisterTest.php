@@ -4,145 +4,160 @@ declare(strict_types = 1);
 
 use App\Mail\AccountAlreadyExists;
 use App\Mail\FinishSigningUp;
-use App\Mail\VerifyEmail;
 use App\Models\User;
 use Illuminate\Contracts\Mail\Mailer;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Mockery\MockInterface;
 
 describe('Registering', function (): void {
 
-    it('should register a user with a new email', function (): void {
+    it('should return 204 (no content) and store a pending registration with the sha256 hash of the token and a 24 hour expiry, and no user', function (): void {
         // Arrange
-        $name = 'Jan Jansen';
+        $now = $this->freezeTime();
         $email = 'jan@example.com';
-        $password = 'correct-horse-battery2';
+        $token = 'fixed-set-password-token';
+        Str::createRandomStringsUsing(fn (): string => $token);
 
         // Act
-        $response = $this->postJson('/api/auth/register', [
-            'name' => $name,
-            'email' => $email,
-            'password' => $password,
-            'password_confirmation' => $password,
-        ]);
+        $response = $this->postJson('/api/auth/register', ['email' => $email]);
 
         // Assert
         $response->assertNoContent();
         $this->assertGuest('web');
-        $this->assertDatabaseHas('users', [
-            'name' => $name,
+        $this->assertDatabaseHas('pending_registrations', [
             'email' => $email,
-            'email_verified_at' => null,
+            'token' => hash('sha256', $token),
+            'expires_at' => $now->addHours(config()->integer('auth.verification_ttl_hours')),
         ]);
+        $this->assertDatabaseCount('users', 0);
+    });
 
-        $user = User::query()->where('email', $email)->sole();
-        expect(Hash::check($password, $user->password))->toBeTrue();
+    it('should queue a finish-signing-up mail with the set-password link and the configured expiry, and no name', function (): void {
+        // Arrange
+        Mail::fake();
+        config(['auth.verification_ttl_hours' => 48]);
+        $email = 'jan@example.com';
+        $token = 'fixed-set-password-token';
+        Str::createRandomStringsUsing(fn (): string => $token);
+        $setPasswordUrl = config('app.url').'/verify-email?token='.$token;
+
+        // Act
+        $this->postJson('/api/auth/register', ['email' => $email]);
+
+        // Assert
+        Mail::assertQueuedCount(1);
+        Mail::assertQueued(FinishSigningUp::class, function (FinishSigningUp $mail) use ($email, $setPasswordUrl): bool {
+            $html = $mail->render();
+
+            // The link is the only way in: a login or reset link would send the owner to a form that can't work yet.
+            expect($html)->toContain($setPasswordUrl)
+                ->and($html)->toContain('48 hours')
+                ->and($html)->not->toContain(config('app.url').'/login')
+                ->and($html)->not->toContain(config('app.url').'/forgot-password');
+
+            return $mail->hasTo($email);
+        });
+    });
+
+    it('should replace the stored token and expiry when the same email registers again, so the first link stops working', function (): void {
+        // Arrange
+        $now = $this->freezeTime();
+        $email = 'jan@example.com';
+        Str::createRandomStringsUsing(fn (): string => 'first-token');
+        $this->postJson('/api/auth/register', ['email' => $email])->assertNoContent();
+        $this->travel(1)->hour();
+        Str::createRandomStringsUsing(fn (): string => 'second-token');
+
+        // Act
+        $response = $this->postJson('/api/auth/register', ['email' => $email]);
+
+        // Assert
+        $response->assertNoContent();
+        $this->assertDatabaseCount('pending_registrations', 1);
+        $this->assertDatabaseHas('pending_registrations', [
+            'email' => $email,
+            'token' => hash('sha256', 'second-token'),
+            'expires_at' => $now->addHour()->addHours(config()->integer('auth.verification_ttl_hours')),
+        ]);
+        $this->assertDatabaseMissing('pending_registrations', ['token' => hash('sha256', 'first-token')]);
+    });
+
+    it('should store the email lowercased when it is typed with capitals', function (): void {
+        // Act
+        $response = $this->postJson('/api/auth/register', ['email' => 'Jan@Example.com']);
+
+        // Assert
+        $response->assertNoContent();
+        $this->assertDatabaseHas('pending_registrations', ['email' => 'jan@example.com']);
     });
 
     // Returns no content so that taken emails can't be enumerated.
-    it('should return 204 (no content) and leave the existing user unchanged when the email is taken', function (): void {
+    it('should return 204 (no content), queue an account-already-exists mail to the owner and store no pending registration when the email is taken', function (): void {
         // Arrange
-        $name = 'Jan Jansen';
+        Mail::fake();
         $email = 'jan@example.com';
-        $password = 'correct-horse-battery2';
         $existing = User::factory()->create(['email' => $email]);
 
         // Act
-        $response = $this->postJson('/api/auth/register', [
-            'name' => $name,
-            'email' => $email,
-            'password' => $password,
-            'password_confirmation' => $password,
-        ]);
+        $response = $this->postJson('/api/auth/register', ['email' => $email]);
 
         // Assert
         $response->assertNoContent();
         $this->assertGuest('web');
         $this->assertDatabaseCount('users', 1);
+        $this->assertDatabaseCount('pending_registrations', 0);
         expect($existing->fresh()->password)->toBe($existing->password);
+        Mail::assertQueuedCount(1);
+        Mail::assertQueued(AccountAlreadyExists::class, function (AccountAlreadyExists $mail) use ($email): bool {
+            $html = $mail->render();
+
+            expect($html)->toContain(config('app.url').'/login')
+                ->and($html)->toContain(config('app.url').'/forgot-password');
+
+            return $mail->hasTo($email);
+        });
     });
 
-    it('should return 422 (unprocessable) and create no user when a field is invalid', function (array $overrides, string $field): void {
+    it('should return 204 (no content), store no pending registration and queue an account-already-exists mail to the stored email when the email is taken with different casing', function (): void {
         // Arrange
-        $valid = [
-            'name' => 'Jan Jansen',
-            'email' => 'jan@example.com',
-            'password' => 'correct-horse-battery2',
-            'password_confirmation' => 'correct-horse-battery2',
-        ];
+        Mail::fake();
+        User::factory()->create(['email' => 'jan@example.com']);
 
         // Act
-        $response = $this->postJson('/api/auth/register', [...$valid, ...$overrides]);
-
-        // Assert
-        $response->assertUnprocessable();
-        $response->assertJsonValidationErrors([$field]);
-        $this->assertDatabaseCount('users', 0);
-    })->with([
-        'missing name' => [['name' => ''], 'name'],
-        'invalid email' => [['email' => 'not-an-email'], 'email'],
-        'password one character below the minimum' => [['password' => 'horse-battery2', 'password_confirmation' => 'horse-battery2'], 'password'],
-        'password too long' => [['password' => str_repeat('a', 73), 'password_confirmation' => str_repeat('a', 73)], 'password'],
-        'confirmation mismatch' => [['password_confirmation' => 'something-else'], 'password'],
-    ]);
-
-    it('should return 204 (no content) and register the user for a password of exactly the minimum length', function (): void {
-        // Arrange
-        $password = 'horse-battery22'; // 15 characters: the minimum set in AppServiceProvider.
-
-        // Act
-        $response = $this->postJson('/api/auth/register', [
-            'name' => 'Jan Jansen',
-            'email' => 'jan@example.com',
-            'password' => $password,
-            'password_confirmation' => $password,
-        ]);
+        $response = $this->postJson('/api/auth/register', ['email' => 'Jan@Example.com']);
 
         // Assert
         $response->assertNoContent();
-        $this->assertDatabaseHas('users', ['email' => 'jan@example.com']);
+        $this->assertDatabaseCount('users', 1);
+        $this->assertDatabaseCount('pending_registrations', 0);
+        Mail::assertQueued(AccountAlreadyExists::class, fn (AccountAlreadyExists $mail): bool => $mail->hasTo('jan@example.com'));
     });
 
-    // Guards third-party code: Laravel's NotPwnedVerifier rejects leaked passwords, not RegisterRequest.
-    // Catches uncompromised() being dropped from the password policy, or Laravel misreading the API's answer.
-    it('should return 422 (unprocessable) with a password error and create no user when the password appears in a data leak', function (): void {
-        // Arrange
-        $password = 'correct-horse-battery2';
-        // Read by the fake haveibeenpwned API in tests/TestCase.php (pwnedRange()), which then reports this password as leaked.
-        $this->leakedPasswords = [$password];
-
+    it('should return 422 (unprocessable) and store no pending registration when the email is invalid', function (array $payload): void {
         // Act
-        $response = $this->postJson('/api/auth/register', [
-            'name' => 'Jan Jansen',
-            'email' => 'jan@example.com',
-            'password' => $password,
-            'password_confirmation' => $password,
-        ]);
+        $response = $this->postJson('/api/auth/register', $payload);
 
         // Assert
         $response->assertUnprocessable();
-        $response->assertOnlyJsonValidationErrors(['password']);
-        $this->assertDatabaseCount('users', 0);
-    });
+        $response->assertJsonValidationErrors(['email']);
+        $this->assertDatabaseCount('pending_registrations', 0);
+    })->with([
+        'missing email' => [[]],
+        'not an email' => [['email' => 'not-an-email']],
+        'email too long' => [['email' => str_repeat('a', 250).'@example.com']],
+    ]);
 
     it('should return 429 (too many requests) on the 6th request from one IP within a minute, even for different emails', function (): void {
         // Arrange
-        $payload = [
-            'name' => 'Jan Jansen',
-            'password' => 'correct-horse-battery2',
-            'password_confirmation' => 'correct-horse-battery2',
-        ];
-
         for ($attempt = 1; $attempt <= 5; $attempt++)
         {
-            $this->postJson('/api/auth/register', [...$payload, 'email' => 'user'.$attempt.'@example.com'])
+            $this->postJson('/api/auth/register', ['email' => 'user'.$attempt.'@example.com'])
                 ->assertNoContent();
         }
 
         // Act
-        $response = $this->postJson('/api/auth/register', [...$payload, 'email' => 'user6@example.com']);
+        $response = $this->postJson('/api/auth/register', ['email' => 'user6@example.com']);
 
         // Assert
         $response->assertTooManyRequests();
@@ -150,12 +165,7 @@ describe('Registering', function (): void {
 
     it('should return 429 (too many requests) on the 6th request for one email within an hour, even from different IPs', function (): void {
         // Arrange
-        $payload = [
-            'name' => 'Jan Jansen',
-            'email' => 'jan@example.com',
-            'password' => 'correct-horse-battery2',
-            'password_confirmation' => 'correct-horse-battery2',
-        ];
+        $payload = ['email' => 'jan@example.com'];
 
         // Start at 1: the counter is the IP's last octet, and .0 is a network address, not a host.
         for ($attempt = 1; $attempt <= 5; $attempt++)
@@ -173,171 +183,17 @@ describe('Registering', function (): void {
         $response->assertTooManyRequests();
     });
 
-    it('should queue a verification mail with the token link and the configured expiry to the new user', function (): void {
+    it('should return 500 (internal server error) and store no pending registration when queueing the mail throws', function (): void {
         // Arrange
-        Mail::fake();
-        config(['auth.verification_ttl_hours' => 48]);
-        $email = 'jan@example.com';
-        $password = 'correct-horse-battery2';
-        $token = 'fixed-verification-token';
-        Str::createRandomStringsUsing(fn (): string => $token);
-        $verifyUrl = config('app.url').'/verify-email?token='.$token;
-
-        // Act
-        $this->postJson('/api/auth/register', [
-            'name' => 'Jan Jansen',
-            'email' => $email,
-            'password' => $password,
-            'password_confirmation' => $password,
-        ]);
-
-        // Assert
-        Mail::assertQueued(VerifyEmail::class, function (VerifyEmail $mail) use ($email, $verifyUrl): bool {
-            $mail->assertSeeInHtml($verifyUrl);
-            $mail->assertSeeInHtml('48 hours');
-
-            return $mail->hasTo($email);
-        });
-    });
-
-    it('should store the sha256 hash of the token with an expiry 24 hours from now', function (): void {
-        // Arrange
-        $now = $this->freezeTime();
-        $email = 'jan@example.com';
-        $password = 'correct-horse-battery2';
-        $token = 'fixed-verification-token';
-        Str::createRandomStringsUsing(fn (): string => $token);
-
-        // Act
-        $this->postJson('/api/auth/register', [
-            'name' => 'Jan Jansen',
-            'email' => $email,
-            'password' => $password,
-            'password_confirmation' => $password,
-        ]);
-
-        // Assert
-        $this->assertDatabaseHas('users', [
-            'email' => $email,
-            'verification_token' => hash('sha256', $token),
-            'verification_token_expires_at' => $now->addHours(24),
-        ]);
-    });
-
-    it('should return 204 (no content) and queue an account-already-exists mail to the owner when the email is taken by a verified user', function (): void {
-        // Arrange
-        Mail::fake();
-        $email = 'jan@example.com';
-        $password = 'correct-horse-battery2';
-        User::factory()->create(['email' => $email]);
-
-        // Act
-        $response = $this->postJson('/api/auth/register', [
-            'name' => 'Jan Jansen',
-            'email' => $email,
-            'password' => $password,
-            'password_confirmation' => $password,
-        ]);
-
-        // Assert
-        $response->assertNoContent();
-        Mail::assertQueuedCount(1);
-        Mail::assertQueued(AccountAlreadyExists::class, function (AccountAlreadyExists $mail) use ($email): bool {
-            $html = $mail->render();
-
-            expect($html)->toContain(config('app.url').'/login')
-                ->and($html)->toContain(config('app.url').'/forgot-password');
-
-            return $mail->hasTo($email);
-        });
-    });
-
-    it('should return 204 (no content), create no second user and queue an account-already-exists mail to the stored email when the email is taken with different casing', function (): void {
-        // Arrange
-        Mail::fake();
-        $password = 'correct-horse-battery2';
-        User::factory()->create(['email' => 'jan@example.com']);
-
-        // Act
-        $response = $this->postJson('/api/auth/register', [
-            'name' => 'Jan Jansen',
-            'email' => 'Jan@Example.com',
-            'password' => $password,
-            'password_confirmation' => $password,
-        ]);
-
-        // Assert
-        $response->assertNoContent();
-        $this->assertDatabaseCount('users', 1);
-        Mail::assertQueued(AccountAlreadyExists::class, fn (AccountAlreadyExists $mail): bool => $mail->hasTo('jan@example.com'));
-    });
-
-    it('should return 204 (no content), queue a finish-signing-up mail with only a reset link and keep the stored verification token when the email is taken by an unverified user', function (): void {
-        // Arrange
-        Mail::fake();
-        $now = $this->freezeTime();
-        $email = 'jan@example.com';
-        $password = 'correct-horse-battery2';
-        $storedTokenHash = hash('sha256', 'first-registrant-token');
-        $storedExpiry = $now->copy()->addHours(3);
-        // A fixed random string, so a newly issued token would differ from the stored one and fail the row check.
-        Str::createRandomStringsUsing(fn (): string => 'fresh-verification-token');
-        // The first registrant may be a stranger, so the name they typed must not reach the inbox owner.
-        $firstRegistrantName = 'Name Typed By Someone Else';
-        User::factory()->unverified()->create([
-            'name' => $firstRegistrantName,
-            'email' => $email,
-            'verification_token' => $storedTokenHash,
-            'verification_token_expires_at' => $storedExpiry,
-        ]);
-
-        // Act
-        $response = $this->postJson('/api/auth/register', [
-            'name' => 'Jan Jansen',
-            'email' => $email,
-            'password' => $password,
-            'password_confirmation' => $password,
-        ]);
-
-        // Assert
-        $response->assertNoContent();
-        $this->assertDatabaseCount('users', 1);
-        $this->assertDatabaseHas('users', [
-            'email' => $email,
-            'verification_token' => $storedTokenHash,
-            'verification_token_expires_at' => $storedExpiry,
-        ]);
-        Mail::assertQueuedCount(1);
-        Mail::assertQueued(FinishSigningUp::class, function (FinishSigningUp $mail) use ($email, $firstRegistrantName): bool {
-            $html = $mail->render();
-
-            // No login link: logging in to an unverified account always fails, so the reset is the only way in.
-            expect($html)->toContain(config('app.url').'/forgot-password')
-                ->and($html)->not->toContain(config('app.url').'/login')
-                ->and($html)->not->toContain($firstRegistrantName);
-
-            return $mail->hasTo($email);
-        });
-        Mail::assertNotQueued(VerifyEmail::class);
-    });
-
-    it('should return 500 (internal server error) and create no user when queueing the verification mail throws', function (): void {
-        // Arrange
-        $password = 'correct-horse-battery2';
         $this->mock(Mailer::class, function (MockInterface $mailer): void {
             $mailer->shouldReceive('to')->andThrow(new RuntimeException('Mail queue unavailable'));
         });
 
         // Act
-        $response = $this->postJson('/api/auth/register', [
-            'name' => 'Jan Jansen',
-            'email' => 'jan@example.com',
-            'password' => $password,
-            'password_confirmation' => $password,
-        ]);
+        $response = $this->postJson('/api/auth/register', ['email' => 'jan@example.com']);
 
         // Assert
         $response->assertInternalServerError();
-        $this->assertDatabaseCount('users', 0);
+        $this->assertDatabaseCount('pending_registrations', 0);
     });
 });

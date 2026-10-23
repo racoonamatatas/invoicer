@@ -4,11 +4,12 @@ declare(strict_types = 1);
 
 namespace App\DataTransferObjects\Input\Auth;
 
-final readonly class RegisterUserData
+final readonly class VerifyEmailData
 {
     public function __construct(
+        #[\SensitiveParameter]
+        public string $token,
         public string $name,
-        public string $email,
         #[\SensitiveParameter]
         public string $password,
     ) {}

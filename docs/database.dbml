@@ -10,6 +10,16 @@ Table users
   updated_at timestamp
 }
 
+Table pending_registrations
+{
+  id integer [pk, increment]
+  email varchar [not null, unique]
+  token char(64) [not null, unique, note: 'sha256 of the token in the set-password link']
+  expires_at timestamp [not null, note: 'pruned daily once passed']
+  created_at timestamp
+  updated_at timestamp
+}
+
 Table businesses
 {
   id integer [pk, increment]

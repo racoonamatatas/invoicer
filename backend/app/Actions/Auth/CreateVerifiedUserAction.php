@@ -4,13 +4,17 @@ declare(strict_types = 1);
 
 namespace App\Actions\Auth;
 
-use App\DataTransferObjects\Input\Auth\RegisterUserData;
 use App\Models\User;
+use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Hashing\Hasher;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\UniqueConstraintViolationException;
 
-final readonly class CreateUserAction
+/**
+ * Verified in the name: every user this creates has proven its inbox, because the only caller is the
+ * set-password link. A seeder or admin path that needs an unverified user must not reach for this.
+ */
+final readonly class CreateVerifiedUserAction
 {
     public function __construct(
         private ConnectionInterface $db,
@@ -21,12 +25,13 @@ final readonly class CreateUserAction
     /**
      * Returns null when the email is already registered.
      */
-    public function execute(RegisterUserData $data): ?User
+    public function execute(string $name, string $email, #[\SensitiveParameter] string $password): ?User
     {
         $user = $this->userModel->newInstance();
-        $user->name = $data->name;
-        $user->email = $data->email;
-        $user->password = $this->hasher->make($data->password);
+        $user->name = $name;
+        $user->email = $email;
+        $user->password = $this->hasher->make($password);
+        $user->email_verified_at = CarbonImmutable::now();
 
         try
         {
