@@ -27,6 +27,7 @@ final readonly class VerifyEmailAction
             $pendingRegistration = $this->pendingRegistrationModel->newQuery()
                 ->where('token', hash('sha256', $data->token))             // matches the hashed token
                 ->where('expires_at', '>', CarbonImmutable::now())          // with stored tokens that haven't expired.
+                ->lockForUpdate()                                           // so a double click on the link waits for the first request.
                 ->first();                                                  // first(): no match is a possible outcome.
 
             if ($pendingRegistration === null)
