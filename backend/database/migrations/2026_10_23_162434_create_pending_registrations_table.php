@@ -16,7 +16,7 @@ return new class extends Migration
             $table->id();
             $table->string('email')->unique();
             $table->string('token', 64)->unique(); // sha256 hex of the token in the mail
-            $table->timestamp('expires_at');
+            $table->timestamp('expires_at')->index(); // model:prune selects on it
             $table->timestamps();
         });
     }

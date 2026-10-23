@@ -32,7 +32,9 @@ final readonly class IssueSetPasswordTokenAction
         // upsert(): one statement that inserts or, when the email already has a pending registration, replaces
         // its token. Atomic, so two registrations for the same email can't both insert. The older link stops
         // working, so a stranger who registered the email first can't finish the signup once the owner has.
-        // Only the hash is stored, so a leaked database can't set anyone's password.
+        // The reverse holds too: anyone can kill the owner's live link by registering the email again, which is a
+        // known gap, bounded by the mail-per-email limit. Only the hash is stored, so a leaked database can't
+        // set anyone's password.
         $this->pendingRegistrationModel->newQuery()->upsert(
             [[
                 'email' => $email,
@@ -40,7 +42,7 @@ final readonly class IssueSetPasswordTokenAction
                 'expires_at' => CarbonImmutable::now()->addHours($this->ttlHours),
             ]],
             uniqueBy: ['email'],
-            update: ['token', 'expires_at', 'updated_at'],
+            update: ['token', 'expires_at'], // updated_at is added by Eloquent for a timestamped model.
         );
 
         // The mail carries the raw token; the verify endpoint hashes it to find the pending registration.
