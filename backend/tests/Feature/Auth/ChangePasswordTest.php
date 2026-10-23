@@ -195,6 +195,24 @@ describe('Changing the password', function (): void {
         $response->assertTooManyRequests();
     });
 
+    it('should return 422 (unprocessable) with the must-be-different message and keep the old password when the new password equals the current one', function (): void {
+        // Arrange
+        $user = User::factory()->create(['password' => 'old-horse-battery1']);
+        $this->actingAs($user, 'web');
+
+        // Act
+        $response = $this->putJson('/api/auth/password', [
+            'current_password' => 'old-horse-battery1',
+            'password' => 'old-horse-battery1',
+            'password_confirmation' => 'old-horse-battery1',
+        ]);
+
+        // Assert
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['password' => 'The password field and current password must be different.']);
+        expect(Hash::check('old-horse-battery1', $user->fresh()->password))->toBeTrue();
+    });
+
     // One test per route that the shared rules are wired: the unit (bytes, not characters) is proven on verify-email.
     it('should return 422 (unprocessable) with a password error and keep the old password when the new password is 73 bytes', function (): void {
         // Arrange
