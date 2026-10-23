@@ -5,9 +5,9 @@
  * that field's error, false if it doesn't.
  *
  * ```ts
- * useForm<keyof Registration>('register', {
+ * useForm<keyof EmailVerification>('verify-email', {
+ *     token: true,
  *     name: true,
- *     email: true,
  *     password: true,
  *     password_confirmation: false, // Laravel puts its error on password
  * });
