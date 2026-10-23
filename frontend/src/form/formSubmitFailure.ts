@@ -2,24 +2,12 @@ import { isAxiosError } from 'axios';
 
 import { SessionEndedError } from '@/services/http';
 
-// The codes the backend may send next to a 422's errors, so a form can tell
-// two failures apart without matching on message text. Must match the values
-// of the backend's ErrorCode enum. A runtime array, not only a type, because
-// the parser checks incoming codes against it. Empty since INV-0044 (the
-// last code, email_not_verified, went with unverified users), so ErrorCode
-// is `never` and a parsed code is always null until the backend adds one.
-const errorCodes = [] as const;
-
-// Derived from the array, so the type and the runtime check can't disagree.
-export type ErrorCode = (typeof errorCodes)[number];
-
 // A Laravel 422 whose errors can be shown next to the form's fields.
 export interface ValidationFailure
 {
     kind: 'validation';
     message: string;
     errors: Record<string, string[]>;
-    code: ErrorCode | null; // failures must explicitly state (NOT optionally state) a code or null if they don't have one.
 }
 
 // A 429 from Laravel's throttle middleware: too many attempts. Every form
@@ -92,22 +80,6 @@ const readRetryAfter = (value: unknown): number | null =>
     return null;
 };
 
-// Checks if the passed `value` is a known `ErrorCode`.
-// Widened to readonly string[]: includes() on the `as const` tuple only
-// accepts its own literals, and `value` is any string at this point.
-const isErrorCode = (value: unknown): value is ErrorCode =>
-{
-    return typeof value === 'string' && (errorCodes as readonly string[]).includes(value);
-};
-
-// null for a missing key and for an unknown code alike: a code from a newer
-// backend is ignored, and the field errors still show.
-// `object`, not `unknown`: the caller has already proven the body is one.
-const findErrorCode = (data: object): ErrorCode | null =>
-{
-    return 'code' in data && isErrorCode(data.code) ? data.code : null;
-};
-
 // Translates whatever a failed form submit threw into a FormSubmitFailure.
 // `error` is unknown because anything can be thrown, not only axios errors.
 export const parseFormSubmitFailure = (error: unknown): FormSubmitFailure =>
@@ -137,5 +109,5 @@ export const parseFormSubmitFailure = (error: unknown): FormSubmitFailure =>
         return { kind: 'other' };
     }
 
-    return { kind: 'validation', message: body.message, errors: body.errors, code: findErrorCode(body) };
+    return { kind: 'validation', message: body.message, errors: body.errors };
 };
