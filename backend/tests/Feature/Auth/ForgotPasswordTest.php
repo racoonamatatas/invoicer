@@ -85,6 +85,23 @@ describe('Requesting a password reset link', function (): void {
         });
     });
 
+    // Expired rows wait for the daily prune: without the filter, the hours before it would hand out links and the hours after would not.
+    it('should return 204 (no content), queue no mail and keep the expired token when the pending registration has expired', function (): void {
+        // Arrange
+        Mail::fake();
+        $email = 'jan@example.com';
+        $expiredTokenHash = hash('sha256', 'expired-token');
+        PendingRegistration::factory()->expired()->create(['email' => $email, 'token' => $expiredTokenHash]);
+
+        // Act
+        $response = $this->postJson('/api/auth/forgot-password', ['email' => $email]);
+
+        // Assert
+        $response->assertNoContent();
+        Mail::assertNothingOutgoing();
+        $this->assertDatabaseHas('pending_registrations', ['email' => $email, 'token' => $expiredTokenHash]);
+    });
+
     // A stale pending registration must not block the reset of the account that was made since.
     it('should return 204 (no content) and queue a reset mail, not a finish-signing-up mail, when the email has both a user and a pending registration', function (): void {
         // Arrange
