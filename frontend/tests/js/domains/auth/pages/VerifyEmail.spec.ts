@@ -119,8 +119,11 @@ describe('VerifyEmail page', () =>
         expect(error.text()).toContain(invalidLink);
         expect(wrapper.find('[role="status"]').element.contains(error.element)).toBe(true);
 
-        // Assert: the way out is a new link, which registering again sends
-        expect(error.find('a').attributes('href')).toBe('/register');
+        // Assert: two ways out, since the same 422 covers an expired link and
+        // an already-used one: a new link, which registering again sends, or login
+        const links = error.findAll('a');
+        expect(links.find((anchor) => anchor.text() === 'Get a new link')?.attributes('href')).toBe('/register');
+        expect(links.find((anchor) => anchor.text() === 'log in')?.attributes('href')).toBe('/login');
 
         // Assert: a dead link can't start working, so the form is gone
         expect(wrapper.find(setPasswordForm).exists()).toBe(false);
@@ -160,6 +163,22 @@ describe('VerifyEmail page', () =>
         // Assert: the link is still good, so the form stays for another try and nothing is announced
         expect(wrapper.find(setPasswordForm).exists()).toBe(true);
         expect(wrapper.find('[role="status"]').text()).toBe('');
+    });
+
+    // The attributes mirror PasswordRules::forNewPassword() on the backend, so
+    // a short or empty password is refused by the browser before a request is spent.
+    it('should constrain the password input to 15 to 72 characters and require every field, so a typo costs no request', async () =>
+    {
+        // Act
+        const wrapper = await mountVerifyEmail();
+
+        // Assert: the browser refuses an empty name, and a password outside the backend's bounds
+        expect(wrapper.find('#verify-email-name').attributes('required')).toBeDefined();
+        const password = wrapper.find('#verify-email-password');
+        expect(password.attributes('required')).toBeDefined();
+        expect(password.attributes('minlength')).toBe('15');
+        expect(password.attributes('maxlength')).toBe('72');
+        expect(wrapper.find('#verify-email-password-confirmation').attributes('required')).toBeDefined();
     });
 
     it('should mark the confirmation input invalid and point it at the password error when verifyEmail fails with a 422 (unprocessable) under password', async () =>
