@@ -94,7 +94,7 @@ describe('useForm', () =>
         // Arrange: a request the test finishes by hand, so it can look while it is in flight
         const form = useForm('login', {});
         const request = createDeferred();
-        const send = vi.fn(() => request.promise);
+        const send = vi.fn<() => Promise<void>>(() => request.promise);
 
         // Act: a double click, both submits in the same tick
         const first = form.submit(send);
