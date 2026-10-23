@@ -223,6 +223,28 @@ describe('Resetting a password', function (): void {
         expect(Hash::check('old-password-123', $user->fresh()->password))->toBeTrue();
     });
 
+    // One test per route that the shared rules are wired: the unit (bytes, not characters) is proven on verify-email.
+    it('should return 422 (unprocessable) with a password error and leave the password unchanged when the password is 73 bytes', function (): void {
+        // Arrange
+        $email = 'jan@example.com';
+        $user = User::factory()->create(['email' => $email, 'password' => 'old-horse-battery1']);
+        $token = $this->app->make(PasswordBroker::class)->createToken($user);
+        $password = str_repeat('é', 36).'a';
+
+        // Act
+        $response = $this->postJson('/api/auth/reset-password', [
+            'token' => $token,
+            'email' => $email,
+            'password' => $password,
+            'password_confirmation' => $password,
+        ]);
+
+        // Assert
+        $response->assertUnprocessable()
+            ->assertOnlyJsonValidationErrors(['password']);
+        expect(Hash::check('old-horse-battery1', $user->fresh()->password))->toBeTrue();
+    });
+
     it('should return 429 (too many requests) on the 6th request from one IP within a minute, even for different emails', function (): void {
         // Arrange
         for ($attempt = 1; $attempt <= 5; $attempt++)
