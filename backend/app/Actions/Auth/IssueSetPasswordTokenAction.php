@@ -9,6 +9,7 @@ use App\Models\PendingRegistration;
 use Carbon\CarbonImmutable;
 use Illuminate\Container\Attributes\Config;
 use Illuminate\Contracts\Mail\Mailer;
+use Illuminate\Database\ConnectionInterface;
 use Illuminate\Support\Str;
 
 /**
@@ -17,6 +18,7 @@ use Illuminate\Support\Str;
 final readonly class IssueSetPasswordTokenAction
 {
     public function __construct(
+        private ConnectionInterface $db,
         private PendingRegistration $pendingRegistrationModel,
         private Mailer $mailer,
         #[Config('app.url')]
@@ -26,6 +28,18 @@ final readonly class IssueSetPasswordTokenAction
     ) {}
 
     public function execute(string $email): void
+    {
+        // The transaction lives here, so register and forgot-password get the same guarantee. What it buys: a
+        // send() that throws on the spot (no mailer, a view that won't render) rolls the new token back, so the
+        // owner's earlier link keeps working. What it doesn't: the mail is queued after commit, so a queue that
+        // is down at that moment leaves the row with a token nobody was mailed. The owner then asks for a new
+        // link through forgot-password.
+        $this->db->transaction(function () use ($email): void {
+            $this->rotateTokenAndMail($email);
+        });
+    }
+
+    private function rotateTokenAndMail(string $email): void
     {
         $token = Str::random(36);
 
