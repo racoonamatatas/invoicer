@@ -7,7 +7,7 @@ import { axiosErrorWith } from '../utility/axiosErrorWith';
 
 describe('parseFormSubmitFailure', () =>
 {
-    it('should return a ValidationFailure with the message and errors of a 422 (unprocessable) LaravelValidationBody, and a null code when the body has none', () =>
+    it('should return a ValidationFailure with the message and errors of a 422 (unprocessable) LaravelValidationBody', () =>
     {
         // Arrange
         const error = axiosErrorWith(422, {
@@ -23,35 +23,6 @@ describe('parseFormSubmitFailure', () =>
             kind: 'validation',
             message: 'The email field is required.',
             errors: { email: ['The email field is required.'] },
-            code: null,
-        });
-    });
-
-    it.for([
-        // What a newer backend could send: caught by the known-codes check.
-        { name: 'an unknown string', code: 'something_new' },
-        // Caught by the string check.
-        { name: 'a number', code: 42 },
-        // Present but empty, unlike a missing key.
-        { name: 'null', code: null },
-    ])('should return a ValidationFailure with a null code when a 422 (unprocessable) body\'s code is not a known one: $name', ({ code }) =>
-    {
-        // Arrange
-        const error = axiosErrorWith(422, {
-            message: 'The email field is required.',
-            errors: { email: ['The email field is required.'] },
-            code,
-        });
-
-        // Act
-        const result = parseFormSubmitFailure(error);
-
-        // Assert: still a ValidationFailure, not an OtherFailure, so the field errors still show
-        expect(result).toStrictEqual({
-            kind: 'validation',
-            message: 'The email field is required.',
-            errors: { email: ['The email field is required.'] },
-            code: null,
         });
     });
 
