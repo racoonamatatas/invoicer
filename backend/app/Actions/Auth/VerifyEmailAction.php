@@ -14,7 +14,7 @@ final readonly class VerifyEmailAction
     public function __construct(
         private ConnectionInterface $db,
         private PendingRegistration $pendingRegistrationModel,
-        private CreateUserAction $createUserAction,
+        private CreateVerifiedUserAction $createVerifiedUserAction,
     ) {}
 
     /**
@@ -35,7 +35,7 @@ final readonly class VerifyEmailAction
                 return false;
             }
 
-            $user = $this->createUserAction->execute($data->name, $pendingRegistration->email, $data->password);
+            $user = $this->createVerifiedUserAction->execute($data->name, $pendingRegistration->email, $data->password);
 
             // Used up either way: a link is for one signup, and once the email has a user there is nothing left to finish.
             $pendingRegistration->delete();

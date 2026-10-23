@@ -10,7 +10,11 @@ use Illuminate\Contracts\Hashing\Hasher;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\UniqueConstraintViolationException;
 
-final readonly class CreateUserAction
+/**
+ * Verified in the name: every user this creates has proven its inbox, because the only caller is the
+ * set-password link. A seeder or admin path that needs an unverified user must not reach for this.
+ */
+final readonly class CreateVerifiedUserAction
 {
     public function __construct(
         private ConnectionInterface $db,
@@ -27,7 +31,6 @@ final readonly class CreateUserAction
         $user->name = $name;
         $user->email = $email;
         $user->password = $this->hasher->make($password);
-        // A user is only ever created through the link mailed to the email, which proves the inbox is theirs.
         $user->email_verified_at = CarbonImmutable::now();
 
         try
