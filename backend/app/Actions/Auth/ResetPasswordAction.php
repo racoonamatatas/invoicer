@@ -7,7 +7,6 @@ namespace App\Actions\Auth;
 use App\DataTransferObjects\Input\Auth\ResetPasswordData;
 use App\Mail\PasswordChanged;
 use App\Models\User;
-use Carbon\CarbonImmutable;
 use Illuminate\Container\Attributes\Config;
 use Illuminate\Contracts\Auth\PasswordBroker;
 use Illuminate\Contracts\Mail\Mailer;
@@ -32,15 +31,6 @@ final readonly class ResetPasswordAction
                 ['token' => $data->token, 'password' => $data->password, 'email' => $data->email],
                 function (User $user, string $password): void {
                     $user->password = $password; // No Hash::make(): the 'hashed' cast on User does it.
-
-                    // The reset link reached the inbox, which proves ownership as well as a verify link would.
-                    if ($user->email_verified_at === null)
-                    {
-                        $user->email_verified_at = CarbonImmutable::now();
-                        $user->verification_token = null;
-                        $user->verification_token_expires_at = null;
-                    }
-
                     $user->save();
 
                     // Log out every device, including anyone who knew the old password.
