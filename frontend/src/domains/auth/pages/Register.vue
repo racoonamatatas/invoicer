@@ -6,20 +6,14 @@ import { computed, ref } from 'vue';
 import { register, type Registration } from '@/services/auth';
 import { useForm } from '@/composables/useForm';
 
-const form = ref<Registration>({ name: '', email: '', password: '', password_confirmation: '' });
-// password_confirmation: false, because Laravel's confirmed rule reports a
-// mismatch under password. Trade-off: if a 422 ever carried an error under
-// password_confirmation next to an error on a displayed field, that error
-// would show nowhere, since generalMessage only covers a 422 with no
-// displayed error at all. Today the backend never sends one.
-const { submit, isPending, fieldError, throttleMessage, generalMessage } = useForm<keyof Registration>('register', { name: true, email: true, password: true, password_confirmation: false });
+// Only an email: the name and password are asked for on the page the mailed
+// link opens, so nobody can store a password for an inbox they don't own.
+const form = ref<Registration>({ email: '' });
+const { submit, isPending, fieldError, throttleMessage, generalMessage } = useForm<keyof Registration>('register', { email: true });
 
-// One value per field, so the error text and both aria attributes read
-// from the same source. No password_confirmation: Laravel's 'confirmed'
-// rule reports a mismatch under password.
-const nameError = computed(() => fieldError('name'));
+// One value for the field, so the error text and both aria attributes read
+// from the same source.
 const emailError = computed(() => fieldError('email'));
-const passwordError = computed(() => fieldError('password'));
 
 const isRegistered = ref(false);
 
@@ -47,18 +41,6 @@ const onSubmit = () => submit(async () =>
         </div>
         <form v-if="!isRegistered" aria-label="Create an account" @submit.prevent="onSubmit">
             <div>
-                <label for="register-name">Name</label>
-                <input
-                    id="register-name"
-                    v-model="form.name"
-                    type="text"
-                    autocomplete="name"
-                    :aria-invalid="nameError !== null"
-                    :aria-describedby="nameError?.id"
-                />
-                <p v-if="nameError" :id="nameError.id">{{ nameError.message }}</p>
-            </div>
-            <div>
                 <label for="register-email">Email</label>
                 <input
                     id="register-email"
@@ -69,27 +51,6 @@ const onSubmit = () => submit(async () =>
                     :aria-describedby="emailError?.id"
                 />
                 <p v-if="emailError" :id="emailError.id">{{ emailError.message }}</p>
-            </div>
-            <div>
-                <label for="register-password">Password</label>
-                <input
-                    id="register-password"
-                    v-model="form.password"
-                    type="password"
-                    autocomplete="new-password"
-                    :aria-invalid="passwordError !== null"
-                    :aria-describedby="passwordError?.id"
-                />
-                <p v-if="passwordError" :id="passwordError.id">{{ passwordError.message }}</p>
-            </div>
-            <div>
-                <label for="register-password-confirmation">Password confirmation</label>
-                <input
-                    id="register-password-confirmation"
-                    v-model="form.password_confirmation"
-                    type="password"
-                    autocomplete="new-password"
-                />
             </div>
             <button type="submit" :disabled="isPending">Create account</button>
         </form>
