@@ -39,8 +39,7 @@ Table businesses
   updated_at timestamp
 
   indexes {
-    user_id
-    (user_id, kvk_number) [unique, note: 'one registration once per user; another user may still claim the same number']
+    (user_id, kvk_number) [unique, note: 'one registration once per user; another user may still claim the same number. Also serves lookups by user_id']
   }
 
   Note: 'invoice_number_pattern and invoice_number_reset come back with the Send epic, once the numbering design (INV-0049) is settled'
