@@ -20,6 +20,10 @@ pest()->extend(TestCase::class)
     ->use(RefreshDatabase::class)
     ->in('Feature');
 
+// Validation rules are run through the Validator facade, which needs the app booted, but touch no database.
+pest()->extend(TestCase::class)
+    ->in('Unit/Validation');
+
 /*
 |--------------------------------------------------------------------------
 | Expectations
