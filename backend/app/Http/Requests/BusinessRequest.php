@@ -94,6 +94,7 @@ abstract class BusinessRequest extends FormRequest
     protected function prepareForValidation(): void
     {
         $normalisers = [
+            'kvk_number' => Normaliser::kvkNumber(...),
             'vat_number' => Normaliser::btwId(...),
             'country_code' => Normaliser::uppercase(...),
             // Always the Dutch shape: a business address is Dutch, and any other country is rejected anyway.
