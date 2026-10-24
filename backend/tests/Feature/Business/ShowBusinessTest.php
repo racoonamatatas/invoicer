@@ -71,15 +71,15 @@ describe('Showing a business', function (): void {
         $this->getJson('/api/businesses/abc')->assertNotFound();
     });
 
-    it('should still run the policy for a route in the {business} group whose action does not type-hint Business', function (): void {
+    it('should return 200 (ok) for the owner and 403 (forbidden) for another user on a {business} route whose action does not type-hint Business', function (): void {
         // Guards third-party code: Laravel's ImplicitRouteBinding reads the model type from the action's signature,
-        // so without the explicit Route::model() in routes/api.php this route would hand the policy a string and
-        // deny the owner. The route is registered here because no real route has that shape yet.
+        // so without the explicit Route::model() in AppServiceProvider this route would hand the policy a string
+        // and deny the owner. The route is registered here because no real route has that shape yet.
 
         // Arrange: the same group shape as routes/api.php, plus the api middleware group that file gets for free
         // (it holds SubstituteBindings, which does the binding). A group, not ->get() on the chain: the
         // registrar only turns ->can() into middleware when it opens a group.
-        Route::middleware(['api', 'auth:sanctum'])->prefix('api/businesses/{business}')->can('access', 'business')->group(function (): void {
+        Route::middleware(['api', 'auth:sanctum'])->prefix('api/businesses/{business}')->whereNumber('business')->can('access', 'business')->group(function (): void {
             Route::get('probe', static fn (): string => 'ok');
         });
         $owner = User::factory()->create();
