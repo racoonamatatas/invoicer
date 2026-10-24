@@ -42,6 +42,8 @@ describe('The Postcode rule', function (): void {
         'one letter' => '1234 A',
         'three letters' => '1234 ABC',
         'surrounding whitespace' => '1234 AB ',
+        // A regex ending in $ matches before a final newline; the rule must end the match at the real end.
+        'trailing newline' => "1234 AB\n",
     ]);
 
     it('should reject the letter pairs that are never issued', function (string $postcode): void {
@@ -56,14 +58,18 @@ describe('The Postcode rule', function (): void {
         'SS' => '1234 SS',
     ]);
 
-    it('should leave an empty string to the required rule', function (): void {
-        // Act. Guards third-party code: Laravel's Validator skips a non-implicit rule for an empty value, which
-        // matters here: whether a postcode is required depends on the country, and that is AddressRules' call.
-        $validator = validatePostcode('');
+    it('should leave a blank value to the required rule', function (string $blank): void {
+        // Act. Guards third-party code: Laravel's Validator skips a non-implicit rule when the trimmed value is
+        // empty, so whether a postcode may be blank is the required rule's decision, not this rule's.
+        $validator = validatePostcode($blank);
 
         // Assert
         expect($validator->passes())->toBeTrue();
-    });
+    })->with([
+        'empty' => '',
+        'a space' => ' ',
+        'a newline' => "\n",
+    ]);
 
     it('should leave a non-string to the string rule', function (): void {
         // Act

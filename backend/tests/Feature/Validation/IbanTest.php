@@ -40,7 +40,7 @@ describe('The Iban rule', function (): void {
         'two neighbouring digits swapped' => 'NL91ABNA0471164300',
     ]);
 
-    it('should reject a value that is not in canonical form, because the request normalises before any rule runs', function (string $iban): void {
+    it('should reject a value that is not in canonical form', function (string $iban): void {
         // Act
         $validator = validateIban($iban);
 
@@ -49,6 +49,10 @@ describe('The Iban rule', function (): void {
     })->with([
         'spaces as on a bank card' => 'NL91 ABNA 0417 1643 00',
         'lowercase' => 'nl91abna0417164300',
+        // A regex ending in $ matches before a final newline; the rule must end the match at the real end.
+        // This IBAN is chosen so that the newline-corrupted checksum still comes out at 1: with the regex
+        // alone at fault, the value passes, so only the regex fix makes this case go green.
+        'trailing newline' => "NL90ABNA0417164318\n",
         'letters in the check digits' => 'NLAAABNA0417164300',
         'too short for any country (14)' => 'NL91ABNA041716',
         'too long for any country (35)' => 'DE89370400440532013000ABCDEFGHIJKLM',
@@ -66,15 +70,19 @@ describe('The Iban rule', function (): void {
         '19 characters' => 'NL06ABNA04171643001',
     ]);
 
-    it('should leave an empty string to the required rule', function (): void {
-        // Act. Guards third-party code: Laravel's Validator skips a non-implicit rule for an empty value, so
-        // whether an IBAN may be blank is the required rule's decision, and a request can't forget it by
-        // relying on this rule.
-        $validator = validateIban('');
+    it('should leave a blank value to the required rule', function (string $blank): void {
+        // Act. Guards third-party code: Laravel's Validator skips a non-implicit rule when the trimmed value is
+        // empty, so whether an IBAN may be blank is the required rule's decision, and a request can't forget it
+        // by relying on this rule.
+        $validator = validateIban($blank);
 
         // Assert
         expect($validator->passes())->toBeTrue();
-    });
+    })->with([
+        'empty' => '',
+        'a space' => ' ',
+        'a newline' => "\n",
+    ]);
 
     it('should leave a non-string to the string rule', function (): void {
         // Act: an array can't be an IBAN, but that is the string rule's message to give, not this one's.

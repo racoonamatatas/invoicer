@@ -14,16 +14,15 @@ function validateBtwId(mixed $value): ValidatorInstance
 
 describe('The BtwId rule', function (): void {
 
-    it('should accept NL, nine digits, B and two digits', function (string $btwId): void {
-        // Act
-        $validator = validateBtwId($btwId);
+    it('should accept NL, nine digits, B and two digits', function (): void {
+        // Act. One case on purpose: this is a format check, so any 14-character value of this shape passes
+        // today. Pinning more of them here would turn that limitation into a requirement and fight the
+        // checksum when it lands.
+        $validator = validateBtwId('NL123456789B01');
 
         // Assert
         expect($validator->passes())->toBeTrue();
-    })->with([
-        'documentation example' => 'NL123456789B01',
-        'zeros' => 'NL000000000B00',
-    ]);
+    });
 
     it('should reject a value of the wrong format, with the message the API sends', function (string $btwId): void {
         // Act
@@ -41,15 +40,22 @@ describe('The BtwId rule', function (): void {
         'lowercase' => 'nl123456789b01',
         'spaces' => 'NL 123456789 B01',
         'surrounding whitespace' => 'NL123456789B01 ',
+        // A regex ending in $ matches before a final newline; the rule must end the match at the real end.
+        'trailing newline' => "NL123456789B01\n",
     ]);
 
-    it('should leave an empty string to the required rule', function (): void {
-        // Act. Guards third-party code: Laravel's Validator skips a non-implicit rule for an empty value.
-        $validator = validateBtwId('');
+    it('should leave a blank value to the required rule', function (string $blank): void {
+        // Act. Guards third-party code: Laravel's Validator skips a non-implicit rule when the trimmed value is
+        // empty.
+        $validator = validateBtwId($blank);
 
         // Assert
         expect($validator->passes())->toBeTrue();
-    });
+    })->with([
+        'empty' => '',
+        'a space' => ' ',
+        'a newline' => "\n",
+    ]);
 
     it('should leave a non-string to the string rule', function (): void {
         // Act

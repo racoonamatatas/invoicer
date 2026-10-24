@@ -38,15 +38,22 @@ describe('The KvkNumber rule', function (): void {
         'a letter' => '1234567A',
         'a space inside' => '1234 5678',
         'surrounding whitespace' => ' 12345678',
+        // A regex ending in $ matches before a final newline; the rule must end the match at the real end.
+        'trailing newline' => "12345678\n",
     ]);
 
-    it('should leave an empty string to the required rule', function (): void {
-        // Act. Guards third-party code: Laravel's Validator skips a non-implicit rule for an empty value.
-        $validator = validateKvkNumber('');
+    it('should leave a blank value to the required rule', function (string $blank): void {
+        // Act. Guards third-party code: Laravel's Validator skips a non-implicit rule when the trimmed value is
+        // empty.
+        $validator = validateKvkNumber($blank);
 
         // Assert
         expect($validator->passes())->toBeTrue();
-    });
+    })->with([
+        'empty' => '',
+        'a space' => ' ',
+        'a newline' => "\n",
+    ]);
 
     it('should leave a non-string to the string rule', function (): void {
         // Act: an integer is the obvious wrong type here, and a leading zero would already be lost in it.
