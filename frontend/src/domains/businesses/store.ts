@@ -9,14 +9,14 @@ import * as service from '@/services/businesses';
 // A list as the backend sent it, and the user it was sent for.
 interface OwnedList
 {
-    userId: number | null;
+    userId: number;
     businesses: service.Business[];
 }
 
 // A list request in flight, and the user it was sent for.
 interface PendingList
 {
-    userId: number | null;
+    userId: number;
     request: Promise<void>;
 }
 
@@ -32,8 +32,11 @@ export const useBusinessesStore = defineStore('businesses', () =>
 
     // Not refs: nothing renders them, they only steer load().
     let pending: PendingList | null = null;
-    // Numbers every list request, so only the newest one's answer is kept.
+    // Numbers every list request, so answers that arrive out of order can be
+    // told apart: latestRequest is the last one sent, storedRequest the one
+    // whose answer is in `loaded`.
     let latestRequest = 0;
+    let storedRequest = 0;
 
     const currentUserId = (): number | null => auth.user?.id ?? null;
 
@@ -42,6 +45,9 @@ export const useBusinessesStore = defineStore('businesses', () =>
     // path can forget to clear it: logout(), clear() (ResetPassword, without
     // a page load) and a slow request of one user that answers after the
     // next one logged in all leave a list another user can't see.
+    // The cost: the same user logging in again in the same document gets
+    // the list from before without a new request. Their own data, and only
+    // reachable through ResetPassword's clear(), since logout loads a page.
     const businesses = computed<readonly service.Business[] | null>(() =>
     {
         const userId = currentUserId();
@@ -49,7 +55,7 @@ export const useBusinessesStore = defineStore('businesses', () =>
         return userId !== null && loaded.value?.userId === userId ? loaded.value.businesses : null;
     });
 
-    const fetchList = (userId: number | null): Promise<void> =>
+    const fetchList = (userId: number): Promise<void> =>
     {
         latestRequest += 1;
         const thisRequest = latestRequest;
@@ -60,12 +66,37 @@ export const useBusinessesStore = defineStore('businesses', () =>
             {
                 const list = await service.listBusinesses();
 
-                // A newer request (a reload(), or another user's load()) has
-                // been sent since; this older answer must not overwrite it.
-                if (thisRequest === latestRequest)
+                // Kept unless a newer answer is already stored, so a slow
+                // older request can't overwrite it. Kept even when a newer
+                // request is still in flight: its caller is waiting for a
+                // list, and the newer answer replaces this one when it comes.
+                if (thisRequest > storedRequest)
                 {
                     loaded.value = { userId, businesses: list };
+                    storedRequest = thisRequest;
                 }
+            }
+            catch (error)
+            {
+                // A newer request has been sent since, so this caller can
+                // still get a list: the one already stored, or the newer
+                // request's, whose outcome it then shares.
+                if (thisRequest !== latestRequest)
+                {
+                    if (storedRequest > thisRequest)
+                    {
+                        return;
+                    }
+
+                    if (pending !== null)
+                    {
+                        await pending.request;
+
+                        return;
+                    }
+                }
+
+                throw error;
             }
             finally
             {
@@ -85,11 +116,13 @@ export const useBusinessesStore = defineStore('businesses', () =>
 
     // Asks the backend once per user: a call while the list is loaded does
     // nothing, and a call while it is loading waits for that same request.
+    // Logged out, there is no user to load a list for, so nothing is sent:
+    // the backend would answer 401 anyway.
     const load = (): Promise<void> =>
     {
         const userId = currentUserId();
 
-        if (businesses.value !== null)
+        if (userId === null || businesses.value !== null)
         {
             return Promise.resolve();
         }
@@ -102,8 +135,14 @@ export const useBusinessesStore = defineStore('businesses', () =>
         return fetchList(userId);
     };
 
-    // Asks the backend again, even when the list is loaded.
-    const reload = (): Promise<void> => fetchList(currentUserId());
+    // Asks the backend again, even when the list is loaded. Like load(),
+    // sends nothing while logged out.
+    const reload = (): Promise<void> =>
+    {
+        const userId = currentUserId();
+
+        return userId === null ? Promise.resolve() : fetchList(userId);
+    };
 
     // undefined both for an id that isn't in the list and while the list
     // isn't loaded: call load() first.
