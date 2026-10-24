@@ -6,7 +6,6 @@ namespace App\Http\Resources;
 
 use App\Models\User;
 use Illuminate\Contracts\Support\Responsable;
-use Illuminate\Http\JsonResponse;
 use JsonSerializable;
 
 /**
@@ -14,6 +13,8 @@ use JsonSerializable;
  */
 final readonly class UserResourceData implements JsonSerializable, Responsable
 {
+    use RespondsWithJson;
+
     public function __construct(
         public int $id,
         public string $name,
@@ -39,10 +40,5 @@ final readonly class UserResourceData implements JsonSerializable, Responsable
             'name' => $this->name,
             'email' => $this->email,
         ];
-    }
-
-    public function toResponse($request): JsonResponse
-    {
-        return new JsonResponse($this);
     }
 }

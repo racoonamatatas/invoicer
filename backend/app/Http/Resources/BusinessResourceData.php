@@ -6,7 +6,6 @@ namespace App\Http\Resources;
 
 use App\Models\Business;
 use Illuminate\Contracts\Support\Responsable;
-use Illuminate\Http\JsonResponse;
 use JsonSerializable;
 
 /**
@@ -15,6 +14,8 @@ use JsonSerializable;
  */
 final readonly class BusinessResourceData implements JsonSerializable, Responsable
 {
+    use RespondsWithJson;
+
     public function __construct(
         public int $id,
         public string $legalName,
@@ -80,10 +81,5 @@ final readonly class BusinessResourceData implements JsonSerializable, Responsab
             'country_code' => $this->countryCode,
             'payment_term_days' => $this->paymentTermDays,
         ];
-    }
-
-    public function toResponse($request): JsonResponse
-    {
-        return new JsonResponse($this);
     }
 }
