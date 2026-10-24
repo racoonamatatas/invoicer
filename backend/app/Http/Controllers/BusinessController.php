@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace App\Http\Controllers;
 
+use App\Actions\Business\ListBusinessesAction;
 use App\Http\Resources\BusinessResourceData;
 use App\Models\Business;
 use App\Models\User;
@@ -13,14 +14,11 @@ use Illuminate\Http\JsonResponse;
 final class BusinessController extends Controller
 {
     /**
-     * The user's own businesses. The query starts from the user, so another user's business can't appear here.
+     * The user's own businesses. The action's query starts from the user, so another user's business can't appear.
      */
-    public function index(#[CurrentUser] User $user): JsonResponse
+    public function index(#[CurrentUser] User $user, ListBusinessesAction $action): JsonResponse
     {
-        $businesses = $user->businesses()
-            ->orderBy('legal_name')
-            ->orderBy('id') // two businesses with one name still list in a fixed order
-            ->get()
+        $businesses = $action->execute($user)
             ->map(BusinessResourceData::from(...))
             ->all();
 
