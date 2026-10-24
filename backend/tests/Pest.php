@@ -55,3 +55,27 @@ function something()
 {
     // ..
 }
+
+/**
+ * A valid create or update body for a business, in canonical form, with $changes on top. A null in $changes
+ * removes the field, the way a client that leaves it out sends the request.
+ *
+ * @param  array<string, mixed>  $changes
+ * @return array<string, mixed>
+ */
+function businessPayload(array $changes = []): array
+{
+    return array_filter([
+        'legal_name' => 'Bakkerij de Vries',
+        'kvk_number' => '12345678',
+        'vat_number' => 'NL123456789B01',
+        'street' => 'Keizersgracht',
+        'house_number' => '123',
+        'house_number_addition' => 'A',
+        'postal_code' => '1015 CJ',
+        'city' => 'Amsterdam',
+        'country_code' => 'NL',
+        'payment_term_days' => 30,
+        ...$changes,
+    ], static fn (mixed $value): bool => $value !== null);
+}
