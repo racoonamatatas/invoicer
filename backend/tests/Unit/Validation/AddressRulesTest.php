@@ -72,30 +72,13 @@ describe('AddressRules for a Dutch address', function (): void {
         expect($validator->errors()->first('postal_code'))->toBe('The postal code field must be a Dutch postcode, like 1234 AB.');
     });
 
-    it('should accept a house number from 1 to 99999', function (string $houseNumber): void {
-        // Act
-        $validator = validateAddress(['house_number' => $houseNumber]);
+    it('should check the house number with the Dutch HouseNumber rule', function (): void {
+        // Act. One rejected value proves the rule is applied; HouseNumberTest carries the detailed cases.
+        $validator = validateAddress(['house_number' => '12a']);
 
         // Assert
-        expect($validator->passes())->toBeTrue();
-    })->with(['lowest' => '1', 'highest' => '99999']);
-
-    it('should reject a house number that is not a number from 1 to 99999', function (string $houseNumber): void {
-        // Act
-        $validator = validateAddress(['house_number' => $houseNumber]);
-
-        // Assert
-        expect($validator->errors()->first('house_number'))->toBe('The house number field format is invalid.');
-    })->with([
-        // The letter belongs in house_number_addition, so "12a" and "12" + "a" can't both be stored.
-        'with a letter' => '12a',
-        'zero' => '0',
-        'leading zero' => '012',
-        'six digits' => '100000',
-        'a range' => '12-14',
-        // A regex ending in $ matches before a final newline; the rule must end the match at the real end.
-        'trailing newline' => "12\n",
-    ]);
+        expect($validator->errors()->first('house_number'))->toBe('The house number field must be a Dutch house number, like 12.');
+    });
 
     it('should reject a region, as Dutch addresses have none', function (): void {
         // Act
