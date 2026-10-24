@@ -75,6 +75,41 @@ describe('Normaliser::btwId', function (): void {
     ]);
 });
 
+describe('Normaliser::kvkNumber', function (): void {
+
+    it('should drop spaces and dots', function (string $value): void {
+        // Act
+        $normalised = Normaliser::kvkNumber($value);
+
+        // Assert
+        expect($normalised)->toBe('12345678');
+    })->with([
+        'grouped by four' => '1234 5678',
+        'grouped with dots' => '12.34.56.78',
+        'already canonical' => '12345678',
+    ]);
+
+    it('should leave any other separator, for the KvkNumber rule to reject', function (): void {
+        // Act
+        $normalised = Normaliser::kvkNumber('1234-5678');
+
+        // Assert
+        expect($normalised)->toBe('1234-5678');
+    });
+
+    it('should hand back a non-string unchanged, for the string rule to reject', function (mixed $value): void {
+        // Act
+        $normalised = Normaliser::kvkNumber($value);
+
+        // Assert
+        expect($normalised)->toBe($value);
+    })->with([
+        'integer' => 12345678,
+        'null' => null,
+        'array' => [['1234 5678']],
+    ]);
+});
+
 describe('Normaliser::dutchPostcode', function (): void {
 
     it('should reshape four digits and two letters into "1234 AB"', function (string $value): void {
