@@ -16,9 +16,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * One KvK registration of a user. Every other resource (bank accounts, clients, invoices) hangs under a business
  * and is reached through /api/businesses/{business}/..., authorised by BusinessPolicy::access().
  *
- * The policy is named here rather than left to Laravel's auto-discovery (App\Models\X -> App\Policies\XPolicy):
- * a renamed or moved policy then fails loudly at boot instead of silently leaving the model without one, where
- * every ->can() check would deny.
+ * The policy is named here rather than left to Laravel's auto-discovery (App\Models\X -> App\Policies\XPolicy).
+ * The attribute only holds a class name, so a renamed or moved policy is not caught at boot; but the first
+ * ->can() check then throws, because the container can't build the class, instead of silently denying, which
+ * is what auto-discovery does once the policy is no longer where the convention looks.
  */
 #[UsePolicy(BusinessPolicy::class)]
 #[Fillable([
