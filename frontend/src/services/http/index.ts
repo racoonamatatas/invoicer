@@ -36,12 +36,14 @@ export class SessionEndedError extends Error
 // promised, e.g. after a backend change the frontend hasn't caught up with.
 // Thrown instead of returning the body as-is, so a missing key fails here,
 // loudly, and not later as an `undefined` deep inside a page. The body is
-// kept as `cause` for debugging, out of the message: it may hold customer data.
+// left out entirely, not only out of the message: it may hold customer data
+// (a business's KvK number, address), and an error's `cause` is printed by
+// the console and sent along by error reporters. The network tab has it.
 export class UnexpectedResponseError extends Error
 {
-    constructor(endpoint: string, body: unknown)
+    constructor(endpoint: string)
     {
-        super(`Unexpected response from ${endpoint}`, { cause: body });
+        super(`Unexpected response from ${endpoint}`);
         this.name = 'UnexpectedResponseError';
     }
 }
@@ -53,7 +55,7 @@ export const checkResponse = <Body>(endpoint: string, body: unknown, isExpected:
 {
     if (!isExpected(body))
     {
-        throw new UnexpectedResponseError(endpoint, body);
+        throw new UnexpectedResponseError(endpoint);
     }
 
     return body;
