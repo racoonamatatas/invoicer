@@ -44,7 +44,8 @@ abstract class BusinessRequest extends FormRequest
                 new KvkNumber,
                 // Once per user, matching the (user_id, kvk_number) index: a double submit is a 422 here rather
                 // than a 500 from the index. Not unique across users on purpose: two accounts may hold the same
-                // registration (an accountant's test data, a business handed over to someone else).
+                // registration (an accountant's test data, a business handed over to someone else). Whether that
+                // should change once ownership can be proven is open in INV-0061.
                 Rule::unique('businesses', 'kvk_number')
                     ->where('user_id', $this->owner()->id)
                     ->ignore($this->existingBusiness()),
