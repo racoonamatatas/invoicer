@@ -117,6 +117,18 @@ describe('Creating a business', function (): void {
         expect(Business::query()->count())->toBe(0);
     })->with('business field rules');
 
+    it('should return 422 (unprocessable) with exactly one error on country_code for an unknown code', function (): void {
+        // Arrange
+        $this->actingAs(User::factory()->create(), 'web');
+
+        // Act
+        $response = $this->postJson('/api/businesses', businessPayload(['country_code' => 'XX']));
+
+        // Assert: the whole list, since assertOnlyJsonValidationErrors() passes as long as the message is among them.
+        $response->assertUnprocessable();
+        expect($response->json('errors.country_code'))->toBe(['A business must be registered in the Netherlands.']);
+    });
+
     it('should return 422 (unprocessable) on kvk_number, alongside the other field errors, for a second business with the same number for the same user', function (): void {
         // Arrange
         $user = User::factory()->create();
