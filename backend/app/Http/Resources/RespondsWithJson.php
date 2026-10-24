@@ -12,6 +12,12 @@ use Illuminate\Http\JsonResponse;
  */
 trait RespondsWithJson
 {
+    /**
+     * Declared here so a resource that uses the trait but forgets "implements JsonSerializable" fails at class
+     * load, instead of JsonResponse quietly serialising its public properties and leaking whatever is in them.
+     */
+    abstract public function jsonSerialize(): mixed;
+
     public function toResponse($request): JsonResponse
     {
         return new JsonResponse($this);
