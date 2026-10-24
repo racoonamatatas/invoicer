@@ -22,9 +22,11 @@ Route::prefix('auth')->group(function (): void {
     });
 });
 
-// Explicit, not implicit, binding: Laravel only binds {business} implicitly when the matched action type-hints
-// Business. A route in the group below whose action doesn't (a store() that only needs the id, say) would hand the
-// policy the raw string "7" and deny the owner. Route::model() binds the parameter whatever the signature.
+// Explicit, not implicit, binding. The {business} segment of /api/businesses/7 starts out as the string "7"; binding
+// is the step that swaps it for the Business with that id. Implicit binding only runs when the matched action
+// type-hints Business, so a route in the group below whose action doesn't (a store() that only needs the id, say)
+// would hand the policy middleware the string "7" instead of a Business, and it would deny the owner.
+// Route::model() runs the binding for the parameter name alone, whatever the action's signature.
 Route::model('business', Business::class);
 
 Route::middleware('auth:sanctum')->prefix('businesses')->group(function (): void {
