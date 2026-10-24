@@ -36,6 +36,15 @@ final class Normaliser
     }
 
     /**
+     * A KvK number as people write it, "1234 5678" or "12.34.56.78", becomes "12345678". Only spaces and dots:
+     * anything else stays, for the KvkNumber rule to reject.
+     */
+    public static function kvkNumber(mixed $value): mixed
+    {
+        return self::withoutSpacesAndDots($value);
+    }
+
+    /**
      * Four digits and two letters, with or without spaces between and in any case, become "1234 AB". Anything
      * else is handed back as given, for the Postcode rule to reject: this method reshapes, it does not validate.
      */
