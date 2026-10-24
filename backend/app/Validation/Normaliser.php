@@ -32,7 +32,7 @@ final class Normaliser
      */
     public static function btwId(mixed $value): mixed
     {
-        return is_string($value) ? self::uppercase(str_replace([' ', '.'], '', $value)) : $value;
+        return self::uppercase(self::withoutSpacesAndDots($value));
     }
 
     /**
@@ -47,5 +47,13 @@ final class Normaliser
         }
 
         return $matches[1].' '.strtoupper($matches[2]);
+    }
+
+    /**
+     * The separators people put in identification numbers to make them readable.
+     */
+    private static function withoutSpacesAndDots(mixed $value): mixed
+    {
+        return is_string($value) ? str_replace([' ', '.'], '', $value) : $value;
     }
 }
