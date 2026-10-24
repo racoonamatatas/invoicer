@@ -17,13 +17,22 @@ namespace App\Validation;
 final class Normaliser
 {
     /**
-     * For codes that are uppercase by definition: a BTW-id, a country code. ASCII only, on purpose: strtoupper()
+     * For codes that are uppercase by definition, such as a country code. ASCII only, on purpose: strtoupper()
      * leaves "ß" and other non-ASCII letters alone, so the rule still rejects them rather than this method turning
      * them into something that passes.
      */
     public static function uppercase(mixed $value): mixed
     {
         return is_string($value) ? strtoupper($value) : $value;
+    }
+
+    /**
+     * A btw-id as people write it, "NL 1234.56.789.B01" or "nl123456789b01", becomes "NL123456789B01": spaces and
+     * dots removed, then uppercased. Only those two separators: anything else stays, for the BtwId rule to reject.
+     */
+    public static function btwId(mixed $value): mixed
+    {
+        return is_string($value) ? self::uppercase(str_replace([' ', '.'], '', $value)) : $value;
     }
 
     /**
