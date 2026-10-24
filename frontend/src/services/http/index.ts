@@ -37,8 +37,10 @@ export class SessionEndedError extends Error
 // Thrown instead of returning the body as-is, so a missing key fails here,
 // loudly, and not later as an `undefined` deep inside a page. The body is
 // left out entirely, not only out of the message: it may hold customer data
-// (a business's KvK number, address), and an error's `cause` is printed by
-// the console and sent along by error reporters. The network tab has it.
+// (a business's KvK number, address), and the console prints an error's
+// `cause` too. The network tab has it. This only keeps this error clean: an
+// axios error, SessionEndedError's cause included, still carries its request
+// and response, so an error reporter wired up later must scrub those itself.
 export class UnexpectedResponseError extends Error
 {
     constructor(endpoint: string)
