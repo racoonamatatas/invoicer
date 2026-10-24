@@ -34,12 +34,12 @@ final readonly class Iban implements ValidationRule
 
     private function isWellFormed(string $iban): bool
     {
-        if (preg_match('/^[A-Z]{2}\d{2}[A-Z0-9]{11,30}$/', $iban) !== 1)
+        if (preg_match('/^[A-Z]{2}\d{2}[A-Z0-9]{11,30}\z/', $iban) !== 1)
         {
             return false;
         }
 
-        if (str_starts_with($iban, 'NL') && preg_match('/^NL\d{2}[A-Z]{4}\d{10}$/', $iban) !== 1)
+        if (str_starts_with($iban, 'NL') && preg_match('/^NL\d{2}[A-Z]{4}\d{10}\z/', $iban) !== 1)
         {
             return false;
         }
@@ -66,7 +66,7 @@ final readonly class Iban implements ValidationRule
     }
 
     /**
-     * The number can be 68 digits long and PHP's int stops at 19, so it is divided in pieces, like long division
+     * The number can be 66 digits long and PHP's int stops at 19, so it is divided in pieces, like long division
      * by hand: the remainder so far (at most two digits) is prefixed to the next seven digits, and that number
      * (at most nine digits) is divided again. Modular arithmetic guarantees the same remainder as dividing the
      * whole number at once: (a·10^k + b) mod 97 = ((a mod 97)·10^k + b) mod 97. No bcmath or gmp needed.

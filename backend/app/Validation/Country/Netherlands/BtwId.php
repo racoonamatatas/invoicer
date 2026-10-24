@@ -23,7 +23,7 @@ final readonly class BtwId implements ValidationRule
             return;
         }
 
-        if (preg_match('/^NL\d{9}B\d{2}$/', $value) !== 1)
+        if (preg_match('/^NL\d{9}B\d{2}\z/', $value) !== 1)
         {
             $fail('The :attribute field must be a valid btw-id, like NL123456789B01.')->translate();
         }

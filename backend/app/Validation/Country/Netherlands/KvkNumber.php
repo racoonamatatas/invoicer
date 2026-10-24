@@ -22,7 +22,7 @@ final readonly class KvkNumber implements ValidationRule
             return;
         }
 
-        if (preg_match('/^\d{8}$/', $value) !== 1)
+        if (preg_match('/^\d{8}\z/', $value) !== 1)
         {
             $fail('The :attribute field must be a KvK number of 8 digits.')->translate();
         }

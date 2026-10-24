@@ -23,7 +23,7 @@ final readonly class Postcode implements ValidationRule
             return;
         }
 
-        if (preg_match('/^[1-9]\d{3} (?!SA|SD|SS)[A-Z]{2}$/', $value) !== 1)
+        if (preg_match('/^[1-9]\d{3} (?!SA|SD|SS)[A-Z]{2}\z/', $value) !== 1)
         {
             $fail('The :attribute field must be a Dutch postcode, like 1234 AB.')->translate();
         }
