@@ -34,8 +34,6 @@ abstract class BusinessRequest extends FormRequest
      */
     public function rules(): array
     {
-        $address = AddressRules::forAddress();
-
         return [
             'legal_name' => ['required', 'string', 'max:255'],
             'kvk_number' => [
@@ -51,9 +49,11 @@ abstract class BusinessRequest extends FormRequest
                     ->ignore($this->existingBusiness()),
             ],
             'vat_number' => ['required', 'string', new BtwId],
-            ...$address,
+            ...AddressRules::forAddress(),
             // A business is a KvK registration, so its address is Dutch; AddressRules alone would take any country.
-            'country_code' => [...$address['country_code'], 'in:NL'],
+            // Replaced rather than added to: NL is the one valid value, so the ISO list has nothing left to check,
+            // and keeping it would report a second error on an unknown code.
+            'country_code' => ['required', 'string', 'in:NL'],
             // strict: a JSON number only, so "30" or 30.0 is rejected instead of quietly cast.
             'payment_term_days' => ['required', 'integer:strict', 'between:1,365'],
         ];
