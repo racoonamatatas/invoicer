@@ -20,6 +20,7 @@ Commands and commit conventions: the root [`CLAUDE.md`](../CLAUDE.md). The Boost
 ## Tests
 
 - Pest, with `describe('…')` and `it('should …')`. Feature tests per endpoint live in `tests/Feature/<Area>/`.
+- `tests/Feature/` runs every test with `RefreshDatabase`. `tests/Unit/` boots nothing, except `tests/Unit/Validation/`: validation rules go through the Validator facade, so that folder boots the app but no database (the binding is in `tests/Pest.php`).
 - A test of what goes over the wire asserts the literal string (`'These credentials do not match our records.'`), not the lang key or constant, so that a renamed value fails the test.
 - When a test proves something the framework does for us, its comment starts with `Guards third-party code:` and names the framework class, e.g. `Laravel's SessionGuard::validate() pads failed logins, not LoginUserAction.`
 
