@@ -13,10 +13,12 @@ interface OwnedList
     businesses: service.Business[];
 }
 
-// A list request in flight, and the user it was sent for.
+// A list request in flight: the user it was sent for, its place in the
+// order requests were sent, and the promise its callers wait on.
 interface PendingList
 {
     userId: number;
+    number: number;
     request: Promise<void>;
 }
 
@@ -30,8 +32,11 @@ export const useBusinessesStore = defineStore('businesses', () =>
     // hands the list to the user it belongs to.
     const loaded = ref<OwnedList | null>(null);
 
-    // Not refs: nothing renders them, they only steer load().
-    let pending: PendingList | null = null;
+    // Not refs: nothing renders them, they only steer the requests.
+    // Every list request still in flight, not only the newest: a write
+    // waits for all of them (see settleListRequests), since any of them may
+    // answer with a list from before the write.
+    const inFlight = new Set<PendingList>();
     // Numbers every list request, so answers that arrive out of order can be
     // told apart: latestRequest is the last one sent, storedRequest the one
     // whose answer is in `loaded`.
@@ -55,12 +60,30 @@ export const useBusinessesStore = defineStore('businesses', () =>
         return userId !== null && loaded.value?.userId === userId ? loaded.value.businesses : null;
     });
 
+    // The newest request in flight for this user that was sent after
+    // `after`, or undefined. A Set iterates in insertion order, which is the
+    // order the requests were sent, so the last match is the newest.
+    const newestInFlight = (userId: number, after: number): PendingList | undefined =>
+    {
+        let newest: PendingList | undefined;
+
+        for (const list of inFlight)
+        {
+            if (list.userId === userId && list.number > after)
+            {
+                newest = list;
+            }
+        }
+
+        return newest;
+    };
+
     const fetchList = (userId: number): Promise<void> =>
     {
         latestRequest += 1;
         const thisRequest = latestRequest;
 
-        const request = (async (): Promise<void> =>
+        const send = async (): Promise<void> =>
         {
             try
             {
@@ -78,40 +101,42 @@ export const useBusinessesStore = defineStore('businesses', () =>
             }
             catch (error)
             {
-                // A newer request has been sent since, so this caller can
-                // still get a list: the one already stored, or the newer
-                // request's, whose outcome it then shares.
-                if (thisRequest !== latestRequest)
+                // A newer list of the same user can still answer this caller:
+                // the one already stored, or a newer request's, whose outcome
+                // it then shares. Another user's list never does; that
+                // caller gets its own failure.
+                if (storedRequest > thisRequest && loaded.value?.userId === userId)
                 {
-                    if (storedRequest > thisRequest)
-                    {
-                        return;
-                    }
+                    return;
+                }
 
-                    if (pending !== null)
-                    {
-                        await pending.request;
+                const newer = newestInFlight(userId, thisRequest);
 
-                        return;
-                    }
+                if (newer !== undefined)
+                {
+                    await newer.request;
+
+                    return;
                 }
 
                 throw error;
             }
-            finally
+        };
+
+        const pending: PendingList = {
+            userId,
+            number: thisRequest,
+            // Removed once settled, failed too, so the next load() asks again
+            // instead of handing out the same failure.
+            request: send().finally(() =>
             {
-                // A failed request is forgotten too, so the next load() asks
-                // again instead of handing out the same failure.
-                if (thisRequest === latestRequest)
-                {
-                    pending = null;
-                }
-            }
-        })();
+                inFlight.delete(pending);
+            }),
+        };
 
-        pending = { userId, request };
+        inFlight.add(pending);
 
-        return request;
+        return pending.request;
     };
 
     // Asks the backend once per user: a call while the list is loaded does
@@ -127,9 +152,11 @@ export const useBusinessesStore = defineStore('businesses', () =>
             return Promise.resolve();
         }
 
-        if (pending !== null && pending.userId === userId)
+        const joinable = newestInFlight(userId, 0);
+
+        if (joinable !== undefined)
         {
-            return pending.request;
+            return joinable.request;
         }
 
         return fetchList(userId);
@@ -173,14 +200,15 @@ export const useBusinessesStore = defineStore('businesses', () =>
         }
     };
 
-    // A list request in flight may answer with the list from before this
-    // write and overwrite it, so the write waits for it before remembering.
-    // That request's failure belongs to its own caller, not to this write.
-    // remember() replaces by id, so a list that already holds the result
-    // doesn't get it twice.
-    const settlePendingList = async (): Promise<void> =>
+    // Any list request in flight may answer with the list from before this
+    // write and overwrite it, so the write waits for all of them before
+    // remembering. A request sent after that was sent after the write landed,
+    // so it holds the result. Their failures belong to their own callers,
+    // not to this write. remember() replaces by id, so a list that already
+    // holds the result doesn't get it twice.
+    const settleListRequests = async (): Promise<void> =>
     {
-        await pending?.request.catch(() => undefined);
+        await Promise.allSettled([...inFlight].map((list) => list.request));
     };
 
     // Creates a business and returns it, so the page can go to it. A 422 is
@@ -189,7 +217,7 @@ export const useBusinessesStore = defineStore('businesses', () =>
     {
         const userId = currentUserId();
         const business = await service.createBusiness(payload);
-        await settlePendingList();
+        await settleListRequests();
         remember(userId, business);
 
         return business;
@@ -201,7 +229,7 @@ export const useBusinessesStore = defineStore('businesses', () =>
     {
         const userId = currentUserId();
         const business = await service.updateBusiness(id, payload);
-        await settlePendingList();
+        await settleListRequests();
         remember(userId, business);
 
         return business;
