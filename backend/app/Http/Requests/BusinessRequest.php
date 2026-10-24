@@ -89,7 +89,7 @@ abstract class BusinessRequest extends FormRequest
 
     /**
      * Canonical form before any rule runs, so the rules, including unique, and the stored value see one shape.
-     * Only fields that were sent are touched: merging a missing one would add it as null.
+     * A field that wasn't sent is merged as null, which its required rule rejects just as it would the missing field.
      */
     protected function prepareForValidation(): void
     {
@@ -102,10 +102,7 @@ abstract class BusinessRequest extends FormRequest
 
         foreach ($normalisers as $field => $normalise)
         {
-            if ($this->has($field))
-            {
-                $this->merge([$field => $normalise($this->input($field))]);
-            }
+            $this->merge([$field => $normalise($this->input($field))]);
         }
     }
 
