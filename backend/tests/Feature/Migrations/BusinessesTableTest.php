@@ -33,12 +33,12 @@ describe('The businesses table', function (): void {
             ->and($otherUser->exists)->toBeTrue();
     });
 
-    it('should have an index on user_id (SQLite does not index a foreign key by itself)', function (): void {
+    it('should have an index that leads with user_id (SQLite does not index a foreign key by itself)', function (): void {
         // Act
         $indexedColumns = collect(Schema::getIndexes('businesses'))->pluck('columns');
 
-        // Assert
-        expect($indexedColumns->contains(fn (array $columns): bool => $columns === ['user_id']))->toBeTrue();
+        // Assert: the leading column is what serves "where user_id = ?", whether or not more columns follow.
+        expect($indexedColumns->contains(fn (array $columns): bool => $columns[0] === 'user_id'))->toBeTrue();
     });
 
     it('should allow one user to own several businesses (user_id is not unique)', function (): void {
