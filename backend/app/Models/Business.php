@@ -22,8 +22,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * is what auto-discovery does once the policy is no longer where the convention looks.
  */
 #[UsePolicy(BusinessPolicy::class)]
+// user_id is left out on purpose: the owner is set by the relation (\$user->businesses()->create()), never from
+// input, so no create or update request can hand a business to another user. Factories ignore the list.
 #[Fillable([
-    'user_id',
     'legal_name',
     'kvk_number',
     'vat_number',
