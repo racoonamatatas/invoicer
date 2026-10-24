@@ -60,13 +60,14 @@ describe('Creating a business', function (): void {
             ->and($other->businesses()->count())->toBe(0);
     });
 
-    it('should store the postcode, btw-id and country code in canonical form', function (): void {
+    it('should store the KvK number, postcode, btw-id and country code in canonical form', function (): void {
         // Arrange
         $user = User::factory()->create();
         $this->actingAs($user, 'web');
 
         // Act
         $response = $this->postJson('/api/businesses', businessPayload([
+            'kvk_number' => '1234 5678',
             'postal_code' => '1015cj',
             'vat_number' => 'nl 1234.56.789.b01',
             'country_code' => 'nl',
@@ -75,7 +76,8 @@ describe('Creating a business', function (): void {
         // Assert
         $response->assertCreated();
         $business = $user->businesses()->sole();
-        expect($business->postal_code)->toBe('1015 CJ')
+        expect($business->kvk_number)->toBe('12345678')
+            ->and($business->postal_code)->toBe('1015 CJ')
             ->and($business->vat_number)->toBe('NL123456789B01')
             ->and($business->country_code)->toBe('NL');
     });
