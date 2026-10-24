@@ -16,7 +16,9 @@ return new class extends Migration
             // Not unique: a user can hold several KvK registrations. restrictOnDelete: a user with a business
             // can't be deleted, because nothing cleans up what hangs under the business yet (and invoices, once
             // they exist, must be kept for the Belastingdienst anyway).
-            $table->foreignId('user_id')->constrained()->restrictOnDelete();
+            // index(): SQLite and Postgres create the constraint only, and every list of a user's businesses
+            // selects on this column.
+            $table->foreignId('user_id')->index()->constrained()->restrictOnDelete();
             $table->string('legal_name');
             $table->char('kvk_number', 8); // 8 digits, a leading zero included: a string, never an integer
             $table->string('vat_number', 14); // BTW-id, e.g. NL123456789B01
@@ -31,6 +33,10 @@ return new class extends Migration
             $table->char('country_code', 2); // ISO 3166-1 alpha-2, must be NL: a business is a KvK registration
             $table->unsignedInteger('payment_term_days'); // the default for new invoices, e.g. 30
             $table->timestamps();
+
+            // One registration once per user: a double submit must not create the same business twice. Not unique
+            // across users: the number is checked for shape only, and nothing stops a second account claiming it.
+            $table->unique(['user_id', 'kvk_number']);
 
             // invoice_number_pattern and invoice_number_reset are not here on purpose: the numbering design is
             // still open (INV-0049), so those columns ship with the Send epic.
