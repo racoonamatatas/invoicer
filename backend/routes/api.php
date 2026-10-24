@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BusinessController;
+use App\Models\Business;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('auth')->group(function (): void {
@@ -21,13 +22,19 @@ Route::prefix('auth')->group(function (): void {
     });
 });
 
+// Explicit, not implicit, binding: Laravel only binds {business} implicitly when the matched action type-hints
+// Business. A route in the group below whose action doesn't (a store() that only needs the id, say) would hand the
+// policy the raw string "7" and deny the owner. Route::model() binds the parameter whatever the signature.
+Route::model('business', Business::class);
+
 Route::middleware('auth:sanctum')->prefix('businesses')->group(function (): void {
     Route::get('/', [BusinessController::class, 'index']);
 
     // Everything about one business lives in this group. Its ->can() runs BusinessPolicy::access() on the bound
     // {business} before any controller: a business of another user is a 403 here, an unknown id a 404 from the
-    // binding, and a guest a 401 from auth:sanctum, which Laravel's middleware priority runs first.
-    Route::prefix('{business}')->can('access', 'business')->group(function (): void {
+    // binding, and a guest a 401 from auth:sanctum, which Laravel's middleware priority runs first. whereNumber()
+    // makes "abc" a 404 from the router, before any query.
+    Route::prefix('{business}')->whereNumber('business')->can('access', 'business')->group(function (): void {
         Route::get('/', [BusinessController::class, 'show']);
     });
 });
