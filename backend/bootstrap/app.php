@@ -3,6 +3,7 @@
 declare(strict_types = 1);
 
 use App\Exceptions\Auth\InvalidCredentialsException;
+use App\Exceptions\Business\DuplicateKvkNumberException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -29,6 +30,14 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->map(
             fn (InvalidCredentialsException $exception) => ValidationException::withMessages([
                 'email' => __('auth.failed'),
+            ]),
+        );
+
+        // The same 422 and message as the request's unique rule, so a client can't tell (and needn't care)
+        // whether the rule or the index caught the duplicate.
+        $exceptions->map(
+            fn (DuplicateKvkNumberException $exception) => ValidationException::withMessages([
+                'kvk_number' => __('validation.unique', ['attribute' => 'kvk number']),
             ]),
         );
     })->create();
