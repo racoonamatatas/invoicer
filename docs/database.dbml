@@ -27,11 +27,13 @@ Table businesses
   legal_name varchar [not null]
   kvk_number char(8) [not null, note: '8 digits']
   vat_number varchar(14) [not null, note: 'BTW-id, e.g. NL123456789B01']
-  address_line_1 varchar [not null]
-  address_line_2 varchar
-  postal_code varchar(10) [not null]
+  street varchar [not null, note: 'Same address shape as clients, so AddressRules, the form fields and the snapshot copy are shared; here always a Dutch address']
+  house_number varchar(10) [not null, note: 'digits only, 1 to 99999']
+  house_number_addition varchar(10) [note: 'BAG letter and addition, e.g. "a", "bis"']
+  postal_code varchar(12) [not null, note: '"1234 AB"']
   city varchar [not null]
-  country_code char(2) [not null, note: 'ISO 3166-1 alpha-2, validated = NL']
+  region varchar [note: 'always null: a Dutch address has no region; the column exists for the shared shape']
+  country_code char(2) [not null, note: 'ISO 3166-1 alpha-2, must be NL: a business is a KvK registration; its clients may be anywhere']
   invoice_number_pattern varchar [not null, note: 'e.g. {YYYY}-{n}']
   invoice_number_reset integer [not null, note: 'never / yearly / monthly']
   payment_term_days integer [not null, note: 'default, e.g. 30']
@@ -59,11 +61,13 @@ Table clients
   business_id integer [not null]
   name varchar [not null]
   email varchar
-  address_line_1 varchar [not null]
-  address_line_2 varchar
-  postal_code varchar(10) [not null]
+  street varchar [not null]
+  house_number varchar(10) [not null]
+  house_number_addition varchar(10)
+  postal_code varchar(12)
   city varchar [not null]
-  country_code char(2) [not null, note: 'ISO 3166-1 alpha-2, validated = NL']
+  region varchar
+  country_code char(2) [not null, note: 'ISO 3166-1 alpha-2; the rules tighten for NL']
   created_at timestamp
   updated_at timestamp
 }
@@ -107,17 +111,21 @@ Table invoice_snapshots
   business_legal_name varchar [not null]
   business_kvk_number char(8) [not null]
   business_vat_number varchar(14) [not null]
-  business_address_line_1 varchar [not null]
-  business_address_line_2 varchar
-  business_postal_code varchar(10) [not null]
+  business_street varchar [not null]
+  business_house_number varchar(10) [not null]
+  business_house_number_addition varchar(10)
+  business_postal_code varchar(12)
   business_city varchar [not null]
+  business_region varchar
   business_country_code char(2) [not null]
   iban varchar(34) [not null]
   client_name varchar [not null]
-  client_address_line_1 varchar [not null]
-  client_address_line_2 varchar
-  client_postal_code varchar(10) [not null]
+  client_street varchar [not null]
+  client_house_number varchar(10) [not null]
+  client_house_number_addition varchar(10)
+  client_postal_code varchar(12)
   client_city varchar [not null]
+  client_region varchar
   client_country_code char(2) [not null]
   subtotal_cents integer [not null, note: 'excl. BTW']
   vat_cents integer [not null]
