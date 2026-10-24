@@ -144,6 +144,25 @@ describe('Updating a business', function (): void {
         expect($business->fresh()->kvk_number)->toBe('87654321');
     });
 
+    it('should return 500 (server error) when the update breaks a unique index other than kvk_number, and change nothing', function (): void {
+        // Arrange. A bug, not a race: the listener gives the business the id of another one, so the primary key
+        // breaks. Only kvk_number is mapped to a 422; this must still be a reported 500.
+        $user = User::factory()->create();
+        $business = Business::factory()->for($user)->create(['kvk_number' => '87654321']);
+        $other = Business::factory()->for($user)->create(['kvk_number' => '11111111']);
+        $this->actingAs($user, 'web');
+        Business::updating(static function (Business $updating) use ($other): void {
+            $updating->id = $other->id;
+        });
+
+        // Act
+        $response = $this->putJson("/api/businesses/{$business->id}", businessPayload());
+
+        // Assert
+        $response->assertInternalServerError();
+        expect($business->fresh()->kvk_number)->toBe('87654321');
+    });
+
     it('should return 403 (forbidden) for a business of another user, before validating the body', function (): void {
         // Arrange. An empty body would be a 422 if validation ran first; the 403 proves ->can() runs before
         // UpdateBusinessRequest, so another user's business can't be probed through validation errors.

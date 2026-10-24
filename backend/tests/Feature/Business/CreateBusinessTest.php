@@ -179,6 +179,23 @@ describe('Creating a business', function (): void {
         expect($user->businesses()->count())->toBe(1);
     });
 
+    it('should return 500 (server error) when the insert breaks a unique index other than kvk_number', function (): void {
+        // Arrange. A bug, not a race: the listener gives the new business the id of an existing one, so the
+        // primary key breaks. Only kvk_number is mapped to a 422; this must still be a reported 500.
+        $user = User::factory()->create();
+        $existing = Business::factory()->for($user)->create(['kvk_number' => '87654321']);
+        $this->actingAs($user, 'web');
+        Business::creating(static function (Business $business) use ($existing): void {
+            $business->id = $existing->id;
+        });
+
+        // Act
+        $response = $this->postJson('/api/businesses', businessPayload());
+
+        // Assert
+        $response->assertInternalServerError();
+    });
+
     it('should return 401 (unauthorized) for a guest, and store nothing', function (): void {
         // Act
         $response = $this->postJson('/api/businesses', businessPayload());
