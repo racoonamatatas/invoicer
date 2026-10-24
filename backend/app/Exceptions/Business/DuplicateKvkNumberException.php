@@ -14,15 +14,22 @@ use Illuminate\Database\UniqueConstraintViolationException;
 final class DuplicateKvkNumberException extends Exception
 {
     /**
+     * The name Laravel gives $table->unique(['user_id', 'kvk_number']) on businesses.
+     */
+    private const string INDEX = 'businesses_user_id_kvk_number_unique';
+
+    /**
      * Only a violation on kvk_number becomes this exception. Any other unique index is a bug, not a race, and is
      * rethrown as it is so it still ends up as a reported 500.
      *
-     * The columns are what Laravel parses out of the driver's error message; for SQLite that is the column list of
-     * the violated index.
+     * Laravel parses what it can out of the driver's error message, and drivers differ: SQLite names the columns
+     * only, MySQL and MariaDB the index only, PostgreSQL both. Either one is enough.
      */
     public static function from(UniqueConstraintViolationException $exception): UniqueConstraintViolationException|self
     {
-        return in_array('kvk_number', $exception->columns, true)
+        $isKvkNumberIndex = $exception->index === self::INDEX || in_array('kvk_number', $exception->columns, true);
+
+        return $isKvkNumberIndex
             ? new self('This user already has a business with this kvk_number.', previous: $exception)
             : $exception;
     }
