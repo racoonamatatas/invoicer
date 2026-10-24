@@ -24,7 +24,7 @@ dataset('business field rules', [
     'city missing' => [['city' => null], 'city', 'The city field is required.'],
     'region given' => [['region' => 'Noord-Holland'], 'region', 'The region field is prohibited.'],
     'country code missing' => [['country_code' => null], 'country_code', 'The country code field is required.'],
-    'country code unknown' => [['country_code' => 'XX'], 'country_code', 'The country code field must be a country code, like NL.'],
+    'country code unknown' => [['country_code' => 'XX'], 'country_code', 'A business must be registered in the Netherlands.'],
     // A real country, and a valid one for a client, but a business is a KvK registration.
     'country code not NL' => [['country_code' => 'DE'], 'country_code', 'A business must be registered in the Netherlands.'],
     'payment term missing' => [['payment_term_days' => null], 'payment_term_days', 'The payment term days field is required.'],
