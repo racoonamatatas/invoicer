@@ -41,6 +41,17 @@ describe('The businesses table', function (): void {
         expect($indexedColumns->contains(fn (array $columns): bool => $columns[0] === 'user_id'))->toBeTrue();
     });
 
+    it('should name the (user_id, kvk_number) unique index businesses_user_id_kvk_number_unique', function (): void {
+        // Act. DuplicateKvkNumberException matches on this name, which is all MySQL reports about a violation; a
+        // renamed index would turn a raced duplicate back into a 500 there.
+        $index = collect(Schema::getIndexes('businesses'))->firstWhere('name', 'businesses_user_id_kvk_number_unique');
+
+        // Assert
+        expect($index)->not->toBeNull()
+            ->and($index['columns'])->toBe(['user_id', 'kvk_number'])
+            ->and($index['unique'])->toBeTrue();
+    });
+
     it('should allow one user to own several businesses (user_id is not unique)', function (): void {
         // Arrange
         $first = Business::factory()->create();
