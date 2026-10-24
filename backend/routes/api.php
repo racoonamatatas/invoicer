@@ -4,7 +4,6 @@ declare(strict_types = 1);
 
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BusinessController;
-use App\Models\Business;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('auth')->group(function (): void {
@@ -22,13 +21,8 @@ Route::prefix('auth')->group(function (): void {
     });
 });
 
-// Explicit, not implicit, binding. The {business} segment of /api/businesses/7 starts out as the string "7"; binding
-// is the step that swaps it for the Business with that id. Implicit binding only runs when the matched action
-// type-hints Business, so a route in the group below whose action doesn't (a store() that only needs the id, say)
-// would hand the policy middleware the string "7" instead of a Business, and it would deny the owner.
-// Route::model() runs the binding for the parameter name alone, whatever the action's signature.
-Route::model('business', Business::class);
-
+// {business} is bound explicitly in AppServiceProvider::configureRouteBindings(), not implicitly from an action's
+// type-hint, so every route in the group below gets a Business whatever its action's signature.
 Route::middleware('auth:sanctum')->prefix('businesses')->group(function (): void {
     Route::get('/', [BusinessController::class, 'index']);
 
