@@ -32,6 +32,33 @@ export class SessionEndedError extends Error
     }
 }
 
+// What a service throws when a 2xx response's body isn't the shape it
+// promised, e.g. after a backend change the frontend hasn't caught up with.
+// Thrown instead of returning the body as-is, so a missing key fails here,
+// loudly, and not later as an `undefined` deep inside a page. The body is
+// kept as `cause` for debugging, out of the message: it may hold customer data.
+export class UnexpectedResponseError extends Error
+{
+    constructor(endpoint: string, body: unknown)
+    {
+        super(`Unexpected response from ${endpoint}`, { cause: body });
+        this.name = 'UnexpectedResponseError';
+    }
+}
+
+// Returns the body once the guard has proven its shape, or throws an
+// UnexpectedResponseError. The one way a service turns network data, which
+// is `unknown`, into a type.
+export const checkResponse = <Body>(endpoint: string, body: unknown, isExpected: (value: unknown) => value is Body): Body =>
+{
+    if (!isExpected(body))
+    {
+        throw new UnexpectedResponseError(endpoint, body);
+    }
+
+    return body;
+};
+
 // True when a request failed with a 401 (unauthenticated): there is no
 // session. The raw axios check, written once for the interceptor and the auth
 // store's restore(). A SessionEndedError answers false: it is not an axios

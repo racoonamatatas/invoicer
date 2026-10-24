@@ -7,7 +7,7 @@ Commands and commit conventions: the root [`CLAUDE.md`](../CLAUDE.md).
 
 - `src/domains/<domain>/`: a feature's `pages/`, `components/`, `handlers/` (callbacks the app registers, e.g. for a 401), `routes.ts` and Pinia `store.ts`. Pages are only reached through the router.
 - `src/router/`: `AppRoute` and `authGuard`. Every route is an `AppRoute`, protected unless it calls `.public()`, so a route can't forget its access rule.
-- `src/services/`: the only place requests are made. `http/` wraps axios; `auth.ts` holds the auth endpoints and their request/response types.
+- `src/services/`: the only place requests are made. `http/` wraps axios; `auth.ts` and `businesses.ts` hold their endpoints and request/response types.
 - `src/form/formSubmitFailure.ts`: turns whatever a failed submit threw into a `FormSubmitFailure` union. The only file that knows Laravel's 422 and 429 shapes.
 - `src/composables/useForm.ts`: one form's submit state (errors, general message, throttle message, pending). Every form uses it.
 
@@ -15,7 +15,7 @@ Commands and commit conventions: the root [`CLAUDE.md`](../CLAUDE.md).
 
 - **A new form** uses `useForm<keyof Payload>('form-name', { field: true, ... })` and reads errors through `fieldError(field)`. That gives typo-safe field names and error ids prefixed with the form name, so two forms on one page don't clash. The object marks every field `true` if the form displays its error, `false` if not; its status region ends with `generalMessage`, for a 422 none of those fields can show. Copy `ForgotPassword.vue`.
 - **A failed submit** is handled by `useForm`: a 422 fills the errors, a 429 fills the throttle message, a `SessionEndedError` (a 401 after which the http layer ended the session) is swallowed, anything else, a plain 401 included, is re-thrown to the page. A page should only add the step that comes after success, inside the `submit()` callback.
-- **Network data is `unknown` until checked.** Check it with a type guard (`value is X`), and keep that guard next to the type it proves. A value the frontend branches on is a union derived from a runtime `as const` array, so the type and the check can't disagree (no instance today: the last one, the 422 error code, went in INV-0044).
+- **Network data is `unknown` until checked.** Check it with a type guard (`value is X`), and keep that guard next to the type it proves. A value the frontend branches on is a union derived from a runtime `as const` array, so the type and the check can't disagree. A new service passes every response through `checkResponse()` with its guard, which throws an `UnexpectedResponseError` for the wrong shape (`auth.ts` predates it and still trusts its response types). Copy `isBusiness` and `BUSINESS_COUNTRY_CODES` in `services/businesses.ts`.
 - **Accessibility:** a `role="status"` live region is always rendered and only its content changes. Error text is linked with `aria-invalid` and `aria-describedby` from one `fieldError` value.
 
 ## Style

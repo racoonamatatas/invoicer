@@ -2,7 +2,7 @@ import { http as route, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, it, expect, vi } from 'vitest';
 
-import { getRequest, SessionEndedError, setUnauthenticatedHandler } from '@/services/http';
+import { checkResponse, getRequest, SessionEndedError, setUnauthenticatedHandler, UnexpectedResponseError } from '@/services/http';
 
 // msw answers the real axios instance's requests, so the interceptor runs
 // exactly as in the app, and src/ exports nothing just for this test.
@@ -81,5 +81,36 @@ describe('http', () =>
 
         // Assert: only a 401 means the session ended
         expect(handler).not.toHaveBeenCalled();
+    });
+});
+
+describe('checkResponse', () =>
+{
+    // A stand-in guard: checkResponse only needs some `value is X` to call.
+    const isNumber = (value: unknown): value is number => typeof value === 'number';
+
+    it('should return the body itself when the guard accepts it', () =>
+    {
+        // Act
+        const result = checkResponse('/probe', 42, isNumber);
+
+        // Assert
+        expect(result).toBe(42);
+    });
+
+    it('should throw an UnexpectedResponseError naming the endpoint, with the body as cause, when the guard rejects it', () =>
+    {
+        // Arrange
+        const body = { id: 1 };
+
+        // Act + Assert: a class, so callers can catch it with instanceof
+        expect(() => checkResponse('/probe', body, isNumber)).toThrow(UnexpectedResponseError);
+
+        // Assert: the body is kept for debugging, but stays out of the message
+        expect(() => checkResponse('/probe', body, isNumber)).toThrow(expect.objectContaining({
+            name: 'UnexpectedResponseError',
+            message: 'Unexpected response from /probe',
+            cause: body,
+        }));
     });
 });
