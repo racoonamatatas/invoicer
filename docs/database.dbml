@@ -34,11 +34,15 @@ Table businesses
   city varchar [not null]
   region varchar [note: 'always null: a Dutch address has no region; the column exists for the shared shape']
   country_code char(2) [not null, note: 'ISO 3166-1 alpha-2, must be NL: a business is a KvK registration; its clients may be anywhere']
-  invoice_number_pattern varchar [not null, note: 'e.g. {YYYY}-{n}']
-  invoice_number_reset integer [not null, note: 'never / yearly / monthly']
   payment_term_days integer [not null, note: 'default, e.g. 30']
   created_at timestamp
   updated_at timestamp
+
+  indexes {
+    (user_id, kvk_number) [unique, note: 'one registration once per user; another user may still claim the same number. Also serves lookups by user_id']
+  }
+
+  Note: 'invoice_number_pattern and invoice_number_reset come back with the Send epic, once the numbering design (INV-0049) is settled'
 }
 
 Table bank_accounts

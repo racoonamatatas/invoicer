@@ -4,12 +4,14 @@ declare(strict_types = 1);
 
 namespace App\Providers;
 
+use App\Models\Business;
 use Illuminate\Cache\RateLimiter;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Contracts\Validation\UncompromisedVerifier;
 use Illuminate\Http\Client\Factory as HttpFactory;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
 use Illuminate\Validation\NotPwnedVerifier;
@@ -52,6 +54,22 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->configurePasswordPolicy();
         $this->configureRateLimiters($rateLimiter);
+        $this->configureRouteBindings();
+    }
+
+    /**
+     * Explicit route model bindings. The {business} segment of /api/businesses/7 starts out as the string "7";
+     * binding is the step that swaps it for the Business with that id. Implicit binding only runs when the matched
+     * action type-hints Business, so a route in the business group whose action doesn't (a store() that only needs
+     * the id, say) would hand the policy middleware the string "7" instead of a Business, and it would deny the
+     * owner. Route::model() runs the binding for the parameter name alone, whatever the action's signature.
+     *
+     * Here and not in routes/api.php: once routes are cached (route:cache, optimize) the routes file is never loaded
+     * again, and a binding registered there is lost. A provider boots on every request.
+     */
+    private function configureRouteBindings(): void
+    {
+        Route::model('business', Business::class);
     }
 
     /**
