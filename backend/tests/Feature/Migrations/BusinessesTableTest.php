@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 use App\Models\Business;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\Schema;
 
 describe('The businesses table', function (): void {
 
@@ -17,6 +18,27 @@ describe('The businesses table', function (): void {
         // Assert
         expect($delete)->toThrow(QueryException::class)
             ->and($business->user()->exists())->toBeTrue();
+    });
+
+    it('should refuse the same kvk_number twice for one user, but allow it for another user', function (): void {
+        // Arrange
+        $first = Business::factory()->create(['kvk_number' => '12345678']);
+
+        // Act
+        $sameUser = fn () => Business::factory()->for($first->user)->create(['kvk_number' => '12345678']);
+        $otherUser = Business::factory()->create(['kvk_number' => '12345678']);
+
+        // Assert
+        expect($sameUser)->toThrow(QueryException::class)
+            ->and($otherUser->exists)->toBeTrue();
+    });
+
+    it('should have an index on user_id (SQLite does not index a foreign key by itself)', function (): void {
+        // Act
+        $indexedColumns = collect(Schema::getIndexes('businesses'))->pluck('columns');
+
+        // Assert
+        expect($indexedColumns->contains(fn (array $columns): bool => $columns === ['user_id']))->toBeTrue();
     });
 
     it('should allow one user to own several businesses (user_id is not unique)', function (): void {
