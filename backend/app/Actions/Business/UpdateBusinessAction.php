@@ -24,7 +24,12 @@ final readonly class UpdateBusinessAction
         }
         catch (UniqueConstraintViolationException $exception)
         {
-            throw DuplicateKvkNumberException::from($exception);
+            if (DuplicateKvkNumberException::isCausedBy($exception))
+            {
+                throw new DuplicateKvkNumberException($exception);
+            }
+
+            throw $exception;
         }
 
         return $business;

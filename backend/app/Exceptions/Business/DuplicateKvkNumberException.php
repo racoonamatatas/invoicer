@@ -18,19 +18,20 @@ final class DuplicateKvkNumberException extends Exception
      */
     private const string INDEX = 'businesses_user_id_kvk_number_unique';
 
+    public function __construct(UniqueConstraintViolationException $violation)
+    {
+        parent::__construct('This user already has a business with this kvk_number.', previous: $violation);
+    }
+
     /**
-     * Only a violation on kvk_number becomes this exception. Any other unique index is a bug, not a race, and is
-     * rethrown as it is so it still ends up as a reported 500.
+     * Only a violation on kvk_number is this exception. Any other unique index is a bug, not a race, and the caller
+     * rethrows it as it is so it still ends up as a reported 500.
      *
      * Laravel parses what it can out of the driver's error message, and drivers differ: SQLite names the columns
      * only, MySQL and MariaDB the index only, PostgreSQL both. Either one is enough.
      */
-    public static function from(UniqueConstraintViolationException $exception): UniqueConstraintViolationException|self
+    public static function isCausedBy(UniqueConstraintViolationException $violation): bool
     {
-        $isKvkNumberIndex = $exception->index === self::INDEX || in_array('kvk_number', $exception->columns, true);
-
-        return $isKvkNumberIndex
-            ? new self('This user already has a business with this kvk_number.', previous: $exception)
-            : $exception;
+        return $violation->index === self::INDEX || in_array('kvk_number', $violation->columns, true);
     }
 }
