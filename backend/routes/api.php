@@ -25,6 +25,7 @@ Route::prefix('auth')->group(function (): void {
 // type-hint, so every route in the group below gets a Business whatever its action's signature.
 Route::middleware('auth:sanctum')->prefix('businesses')->group(function (): void {
     Route::get('/', [BusinessController::class, 'index']);
+    Route::post('/', [BusinessController::class, 'store']);
 
     // Everything about one business lives in this group. Its ->can() runs BusinessPolicy::access() on the bound
     // {business} before any controller: a business of another user is a 403 here, an unknown id a 404 from the
@@ -32,5 +33,6 @@ Route::middleware('auth:sanctum')->prefix('businesses')->group(function (): void
     // makes "abc" a 404 from the router, before any query.
     Route::prefix('{business}')->whereNumber('business')->can('access', 'business')->group(function (): void {
         Route::get('/', [BusinessController::class, 'show']);
+        Route::put('/', [BusinessController::class, 'update']);
     });
 });
