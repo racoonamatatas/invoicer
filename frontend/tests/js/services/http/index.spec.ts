@@ -98,19 +98,21 @@ describe('checkResponse', () =>
         expect(result).toBe(42);
     });
 
-    it('should throw an UnexpectedResponseError naming the endpoint, with the body as cause, when the guard rejects it', () =>
+    it('should throw an UnexpectedResponseError naming the endpoint, without the body, when the guard rejects it', () =>
     {
-        // Arrange
-        const body = { id: 1 };
+        // Arrange: a body like a near-miss business, with data that must not travel with the error
+        const body = { id: 1, kvk_number: '12345678' };
 
         // Act + Assert: a class, so callers can catch it with instanceof
         expect(() => checkResponse('/probe', body, isNumber)).toThrow(UnexpectedResponseError);
 
-        // Assert: the body is kept for debugging, but stays out of the message
+        // Assert: the message names only the endpoint
         expect(() => checkResponse('/probe', body, isNumber)).toThrow(expect.objectContaining({
             name: 'UnexpectedResponseError',
             message: 'Unexpected response from /probe',
-            cause: body,
         }));
+
+        // Assert: no cause either, where the console and error reporters would find the body
+        expect(() => checkResponse('/probe', body, isNumber)).toThrow(expect.not.objectContaining({ cause: expect.anything() }));
     });
 });
