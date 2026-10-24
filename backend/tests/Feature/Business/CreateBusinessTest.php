@@ -68,7 +68,7 @@ describe('Creating a business', function (): void {
         // Act
         $response = $this->postJson('/api/businesses', businessPayload([
             'postal_code' => '1015cj',
-            'vat_number' => 'nl123456789b01',
+            'vat_number' => 'nl 1234.56.789.b01',
             'country_code' => 'nl',
         ]));
 
