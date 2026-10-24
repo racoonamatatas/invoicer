@@ -20,7 +20,10 @@ final readonly class ListBusinessesAction
     public function execute(User $user): Collection
     {
         return $user->businesses()
-            ->orderBy('legal_name')
+            // lower(): the database's default collation puts every capital before every lowercase letter, so
+            // "de Vries" would sort after "Zebra". lower() folds ASCII only; an accented first letter still sorts
+            // last, which is fine for a list of a handful of businesses.
+            ->orderByRaw('lower(legal_name)')
             ->orderBy('id') // two businesses with one name still list in a fixed order
             ->get();
     }
