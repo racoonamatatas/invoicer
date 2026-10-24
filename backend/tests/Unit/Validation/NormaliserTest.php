@@ -39,6 +39,42 @@ describe('Normaliser::uppercase', function (): void {
     ]);
 });
 
+describe('Normaliser::btwId', function (): void {
+
+    it('should drop spaces and dots and uppercase the rest', function (string $value): void {
+        // Act
+        $normalised = Normaliser::btwId($value);
+
+        // Assert
+        expect($normalised)->toBe('NL123456789B01');
+    })->with([
+        'grouped with spaces and dots' => 'NL 1234.56.789.B01',
+        'lowercase' => 'nl123456789b01',
+        'spaces only' => 'NL 123456789 B01',
+        'already canonical' => 'NL123456789B01',
+    ]);
+
+    it('should leave any other separator, for the BtwId rule to reject', function (): void {
+        // Act
+        $normalised = Normaliser::btwId('NL-123456789-B01');
+
+        // Assert
+        expect($normalised)->toBe('NL-123456789-B01');
+    });
+
+    it('should hand back a non-string unchanged, for the string rule to reject', function (mixed $value): void {
+        // Act
+        $normalised = Normaliser::btwId($value);
+
+        // Assert
+        expect($normalised)->toBe($value);
+    })->with([
+        'integer' => 123456789,
+        'null' => null,
+        'array' => [['NL 123']],
+    ]);
+});
+
 describe('Normaliser::dutchPostcode', function (): void {
 
     it('should reshape four digits and two letters into "1234 AB"', function (string $value): void {
