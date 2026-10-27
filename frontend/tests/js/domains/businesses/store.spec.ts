@@ -388,25 +388,27 @@ describe('businesses store', () =>
         expect(store.businesses).toStrictEqual([bakery, shop]);
     });
 
-    it('should not fill the list with a load() sent before a write that answers after the reload after it failed', async () =>
+    it('should send a new request for a load() sent before a write whose answer comes after the reload after the write failed', async () =>
     {
         // Arrange: the first list request is held; the reload after the create fails with a 500 (server error)
         await logInAs(jan);
         const older = createDeferred();
         vi.mocked(service.listBusinesses)
             .mockReturnValueOnce(older.promise.then(() => [bakery]))
-            .mockRejectedValueOnce(axiosErrorWith(500, { message: 'Server Error' }));
+            .mockRejectedValueOnce(axiosErrorWith(500, { message: 'Server Error' }))
+            .mockResolvedValueOnce([bakery, shop]);
         vi.mocked(service.createBusiness).mockResolvedValue(shop);
         const store = useBusinessesStore();
         const load = store.load();
         await store.create(payload);
 
-        // Act: the list from before the create answers last
+        // Act: the list from before the create answers last, and is dropped
         older.resolve();
         await load;
 
-        // Assert: still unknown, not the list without the new business
-        expect(store.businesses).toBeNull();
+        // Assert: load() resolved with a list that holds the new business, not with none
+        expect(service.listBusinesses).toHaveBeenCalledTimes(3);
+        expect(store.businesses).toStrictEqual([bakery, shop]);
     });
 
     it('should hand out no list after logout()', async () =>
