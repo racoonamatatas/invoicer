@@ -13,12 +13,10 @@ interface OwnedList
     businesses: service.Business[];
 }
 
-// A list request in flight: the user it was sent for, its place in the
-// order requests were sent, and the promise its callers wait on.
+// The list request in flight, and the user it was sent for.
 interface PendingList
 {
     userId: number;
-    number: number;
     request: Promise<void>;
 }
 
@@ -33,13 +31,12 @@ export const useBusinessesStore = defineStore('businesses', () =>
     const loaded = ref<OwnedList | null>(null);
 
     // Not refs: nothing renders them, they only steer the requests.
-    // Every list request still in flight, not only the newest: a write
-    // waits for all of them (see settleListRequests), since any of them may
-    // answer with a list from before the write.
-    const inFlight = new Set<PendingList>();
+    // The newest list request in flight, which load() joins instead of
+    // sending another.
+    let pending: PendingList | null = null;
     // Numbers every list request, so answers that arrive out of order can be
-    // told apart: latestRequest is the last one sent, storedRequest the one
-    // whose answer is in `loaded`.
+    // told apart: latestRequest is the last one sent, storedRequest the
+    // newest one no answer may be older than (see reloadAfterWrite).
     let latestRequest = 0;
     let storedRequest = 0;
 
@@ -60,35 +57,19 @@ export const useBusinessesStore = defineStore('businesses', () =>
         return userId !== null && loaded.value?.userId === userId ? loaded.value.businesses : null;
     });
 
-    // The newest request in flight for this user that was sent after
-    // `after`, or undefined. A Set iterates in insertion order, which is the
-    // order the requests were sent, so the last match is the newest.
-    const newestInFlight = (userId: number, after: number): PendingList | undefined =>
-    {
-        let newest: PendingList | undefined;
-
-        for (const list of inFlight)
-        {
-            if (list.userId === userId && list.number > after)
-            {
-                newest = list;
-            }
-        }
-
-        return newest;
-    };
-
+    // Only guards against what happens in normal use: a layout and its page
+    // asking at once (load() shares the request) and an older answer arriving
+    // last (the counters). A failed request rejects its own caller, even when
+    // a newer one may still answer: that needs two requests in the air within
+    // a few hundred milliseconds, on a list that changes about once a year.
     const fetchList = (userId: number): Promise<void> =>
     {
         latestRequest += 1;
         const thisRequest = latestRequest;
 
-        const send = async (): Promise<void> =>
-        {
-            try
+        const request = service.listBusinesses()
+            .then((list) =>
             {
-                const list = await service.listBusinesses();
-
                 // Kept unless a newer answer is already stored, so a slow
                 // older request can't overwrite it. Kept even when a newer
                 // request is still in flight: its caller is waiting for a
@@ -98,68 +79,38 @@ export const useBusinessesStore = defineStore('businesses', () =>
                     loaded.value = { userId, businesses: list };
                     storedRequest = thisRequest;
                 }
-            }
-            catch (error)
+            })
+            .finally(() =>
             {
-                // A newer list of the same user can still answer this caller:
-                // the one already stored, or a newer request's, whose outcome
-                // it then shares. Another user's list never does; that
-                // caller gets its own failure.
-                if (storedRequest > thisRequest && loaded.value?.userId === userId)
+                // Forgotten once settled, failed too, so the next load() asks
+                // again instead of handing out the same failure. Unless a
+                // newer request already took its place.
+                if (pending?.request === request)
                 {
-                    return;
+                    pending = null;
                 }
+            });
 
-                const newer = newestInFlight(userId, thisRequest);
+        pending = { userId, request };
 
-                if (newer !== undefined)
-                {
-                    await newer.request;
-
-                    return;
-                }
-
-                throw error;
-            }
-        };
-
-        const pending: PendingList = {
-            userId,
-            number: thisRequest,
-            // Removed once settled, failed too, so the next load() asks again
-            // instead of handing out the same failure.
-            request: send().finally(() =>
-            {
-                inFlight.delete(pending);
-            }),
-        };
-
-        inFlight.add(pending);
-
-        return pending.request;
+        return request;
     };
 
     // Asks the backend once per user: a call while the list is loaded does
     // nothing, and a call while it is loading waits for that same request.
+    // Resolved, the list is loaded, unless the user changed meanwhile: a
+    // request can settle without filling it, when a failed reload after a
+    // write dropped its answer, and then load() asks again.
     // Logged out, there is no user to load a list for, so nothing is sent:
     // the backend would answer 401 anyway.
-    const load = (): Promise<void> =>
+    const load = async (): Promise<void> =>
     {
         const userId = currentUserId();
 
-        if (userId === null || businesses.value !== null)
+        while (userId !== null && currentUserId() === userId && businesses.value === null)
         {
-            return Promise.resolve();
+            await (pending?.userId === userId ? pending.request : fetchList(userId));
         }
-
-        const joinable = newestInFlight(userId, 0);
-
-        if (joinable !== undefined)
-        {
-            return joinable.request;
-        }
-
-        return fetchList(userId);
     };
 
     // Asks the backend again, even when the list is loaded. Like load(),
@@ -178,47 +129,37 @@ export const useBusinessesStore = defineStore('businesses', () =>
         return businesses.value?.find((business) => business.id === id);
     };
 
-    // Adds the business to the list, or replaces the one with its id. Only
-    // into a list of the user the request was made for, and only once it is
-    // loaded: an unloaded list gets the business from the next load().
-    const remember = (userId: number | null, business: service.Business): void =>
+    // Asks for the whole list again instead of merging the written business
+    // into it. A list request sent before the write may answer after it with
+    // the list from before, but the reload is numbered newer, so its answer
+    // wins. Costs one GET per write.
+    const reloadAfterWrite = async (): Promise<void> =>
     {
-        if (loaded.value === null || loaded.value.userId !== userId)
+        try
         {
-            return;
+            await reload();
         }
-
-        const index = loaded.value.businesses.findIndex((known) => known.id === business.id);
-
-        if (index === -1)
+        catch
         {
-            loaded.value.businesses.push(business);
+            // The write landed, only the list is out of date: unknown rather
+            // than stale, so the next load() asks again. No answer to a
+            // request already sent may fill it either: one sent before the
+            // write holds the list from before it. That also drops one sent
+            // after the write, and wipes its list if already stored; both
+            // need two requests in the air at once, and cost one more GET.
+            // Every error is caught, an UnexpectedResponseError too: the
+            // next load() asks again and throws it there.
+            loaded.value = null;
+            storedRequest = latestRequest;
         }
-        else
-        {
-            loaded.value.businesses.splice(index, 1, business);
-        }
-    };
-
-    // Any list request in flight may answer with the list from before this
-    // write and overwrite it, so the write waits for all of them before
-    // remembering. A request sent after that was sent after the write landed,
-    // so it holds the result. Their failures belong to their own callers,
-    // not to this write. remember() replaces by id, so a list that already
-    // holds the result doesn't get it twice.
-    const settleListRequests = async (): Promise<void> =>
-    {
-        await Promise.allSettled([...inFlight].map((list) => list.request));
     };
 
     // Creates a business and returns it, so the page can go to it. A 422 is
     // thrown, not caught, for useForm.
     const create = async (payload: service.BusinessPayload): Promise<service.Business> =>
     {
-        const userId = currentUserId();
         const business = await service.createBusiness(payload);
-        await settleListRequests();
-        remember(userId, business);
+        await reloadAfterWrite();
 
         return business;
     };
@@ -227,10 +168,8 @@ export const useBusinessesStore = defineStore('businesses', () =>
     // not caught, for useForm.
     const update = async (id: number, payload: service.BusinessPayload): Promise<service.Business> =>
     {
-        const userId = currentUserId();
         const business = await service.updateBusiness(id, payload);
-        await settleListRequests();
-        remember(userId, business);
+        await reloadAfterWrite();
 
         return business;
     };

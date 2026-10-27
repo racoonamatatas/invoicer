@@ -1,4 +1,3 @@
-import { flushPromises } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, it, expect, vi } from 'vitest';
 
@@ -12,6 +11,8 @@ import { createDeferred } from '../../utility/createDeferred';
 // Every export of both services becomes a vi.fn(), so no request leaves the test.
 vi.mock('@/services/auth');
 vi.mock('@/services/businesses');
+
+type BusinessesStore = ReturnType<typeof useBusinessesStore>;
 
 const jan = { id: 1, name: 'Jan de Vries', email: 'jan@example.nl' };
 const piet = { id: 2, name: 'Piet Bakker', email: 'piet@example.nl' };
@@ -194,158 +195,33 @@ describe('businesses store', () =>
         expect(store.businesses).toStrictEqual([bakery, studio]);
     });
 
-    it('should settle a failed load() with the list of a newer reload() still in flight, instead of rejecting', async () =>
+    it('should join a reload() still in flight after an older load() failed, instead of sending another request', async () =>
     {
         // Arrange: both requests are held; the older one will fail with a 500 (server error)
         await logInAs(jan);
         const older = createDeferred();
         const newer = createDeferred();
-        vi.mocked(service.listBusinesses)
-            .mockReturnValueOnce(older.promise.then(() =>
-            {
-                throw axiosErrorWith(500, { message: 'Server Error' });
-            }))
-            .mockReturnValueOnce(newer.promise.then(() => [bakery, studio]));
-        const store = useBusinessesStore();
-        let loadSettled = false;
-        const load = store.load().finally(() =>
-        {
-            loadSettled = true;
-        });
-        const reload = store.reload();
-
-        // Act: the older fails first
-        older.resolve();
-        await flushPromises();
-
-        // Assert: still waiting for the newer request
-        expect(loadSettled).toBe(false);
-
-        // Act
-        newer.resolve();
-        await Promise.all([load, reload]);
-
-        // Assert: resolved, with the newer list
-        expect(store.businesses).toStrictEqual([bakery, studio]);
-    });
-
-    it('should settle a failed load() without an error when a newer list is already stored', async () =>
-    {
-        // Arrange: the older request is held and will fail; the reload() answers at once
-        await logInAs(jan);
-        const older = createDeferred();
-        vi.mocked(service.listBusinesses)
-            .mockReturnValueOnce(older.promise.then(() =>
-            {
-                throw axiosErrorWith(500, { message: 'Server Error' });
-            }))
-            .mockResolvedValueOnce([bakery, studio]);
-        const store = useBusinessesStore();
-        const load = store.load();
-        await store.reload();
-
-        // Act
-        older.resolve();
-
-        // Assert: resolves, and the stored list stays
-        await expect(load).resolves.toBeUndefined();
-        expect(store.businesses).toStrictEqual([bakery, studio]);
-    });
-
-    it('should keep the older list when the newer reload() fails before it answers', async () =>
-    {
-        // Arrange: the older request is held; the reload() fails with a 500 (server error)
-        await logInAs(jan);
-        const older = createDeferred();
         const error = axiosErrorWith(500, { message: 'Server Error' });
         vi.mocked(service.listBusinesses)
-            .mockReturnValueOnce(older.promise.then(() => [bakery]))
-            .mockRejectedValueOnce(error);
-        const store = useBusinessesStore();
-        const load = store.load();
-        await expect(store.reload()).rejects.toBe(error);
-
-        // Act
-        older.resolve();
-        await load;
-
-        // Assert: no newer list exists, so the older one is the best there is
-        expect(store.businesses).toStrictEqual([bakery]);
-    });
-
-    it('should join the older load() still in flight after a newer reload() failed, instead of sending another request', async () =>
-    {
-        // Arrange: the first request is held; the reload() fails with a 500 (server error)
-        await logInAs(jan);
-        const older = createDeferred();
-        vi.mocked(service.listBusinesses)
-            .mockReturnValueOnce(older.promise.then(() => [bakery]))
-            .mockRejectedValueOnce(axiosErrorWith(500, { message: 'Server Error' }));
+            .mockReturnValueOnce(older.promise.then(() =>
+            {
+                throw error;
+            }))
+            .mockReturnValueOnce(newer.promise.then(() => [bakery]));
         const store = useBusinessesStore();
         const first = store.load();
-        await store.reload().catch(() => undefined);
-
-        // Act
-        const second = store.load();
+        const reload = store.reload();
         older.resolve();
-        await Promise.all([first, second]);
+        await expect(first).rejects.toBe(error);
+
+        // Act: the older request's failure must not have forgotten the newer one
+        const second = store.load();
+        newer.resolve();
+        await Promise.all([second, reload]);
 
         // Assert
         expect(service.listBusinesses).toHaveBeenCalledTimes(2);
         expect(store.businesses).toStrictEqual([bakery]);
-    });
-
-    it('should reject a failed load() of the previous user instead of sharing the next user\'s request in flight', async () =>
-    {
-        // Arrange: Jan's request is held and will fail; Piet logs in and his request is held too
-        await logInAs(jan);
-        const janRequest = createDeferred();
-        const pietRequest = createDeferred();
-        const error = axiosErrorWith(500, { message: 'Server Error' });
-        vi.mocked(service.listBusinesses)
-            .mockReturnValueOnce(janRequest.promise.then(() =>
-            {
-                throw error;
-            }))
-            .mockReturnValueOnce(pietRequest.promise.then(() => [studio]));
-        const store = useBusinessesStore();
-        const janLoad = store.load();
-        useAuthStore().clear();
-        await logInAs(piet);
-        const pietLoad = store.load();
-
-        // Act
-        janRequest.resolve();
-
-        // Assert: Jan's caller gets Jan's failure, not Piet's outcome
-        await expect(janLoad).rejects.toBe(error);
-        pietRequest.resolve();
-        await pietLoad;
-    });
-
-    it('should reject a failed load() of the previous user instead of settling with the next user\'s stored list', async () =>
-    {
-        // Arrange: Jan's request is held and will fail; Piet logs in and his list is stored
-        await logInAs(jan);
-        const janRequest = createDeferred();
-        const error = axiosErrorWith(500, { message: 'Server Error' });
-        vi.mocked(service.listBusinesses)
-            .mockReturnValueOnce(janRequest.promise.then(() =>
-            {
-                throw error;
-            }))
-            .mockResolvedValueOnce([studio]);
-        const store = useBusinessesStore();
-        const janLoad = store.load();
-        useAuthStore().clear();
-        await logInAs(piet);
-        await store.load();
-
-        // Act
-        janRequest.resolve();
-
-        // Assert
-        await expect(janLoad).rejects.toBe(error);
     });
 
     it('should send nothing on load() and reload() while logged out', async () =>
@@ -385,11 +261,11 @@ describe('businesses store', () =>
         expect(store.byId(1)).toBeUndefined();
     });
 
-    it('should post the payload on create(), append the business to the list and return it', async () =>
+    it('should post the payload on create(), reload the list and return the business', async () =>
     {
         // Arrange
         await logInAs(jan);
-        vi.mocked(service.listBusinesses).mockResolvedValue([bakery, studio]);
+        vi.mocked(service.listBusinesses).mockResolvedValueOnce([bakery, studio]).mockResolvedValueOnce([bakery, studio, shop]);
         vi.mocked(service.createBusiness).mockResolvedValue(shop);
         const store = useBusinessesStore();
         await store.load();
@@ -399,63 +275,33 @@ describe('businesses store', () =>
 
         // Assert
         expect(service.createBusiness).toHaveBeenCalledExactlyOnceWith(payload);
+        expect(service.listBusinesses).toHaveBeenCalledTimes(2);
         expect(result).toStrictEqual(shop);
         expect(store.businesses).toStrictEqual([bakery, studio, shop]);
     });
 
-    it('should leave the list unknown after create() when it was not loaded', async () =>
+    it('should keep the list of the reload after create() when a load() sent before the create answers last', async () =>
     {
-        // Arrange
+        // Arrange: the first list request is held, and answers with the list from before the create
         await logInAs(jan);
+        const older = createDeferred();
+        vi.mocked(service.listBusinesses)
+            .mockReturnValueOnce(older.promise.then(() => [bakery]))
+            .mockResolvedValueOnce([bakery, shop]);
         vi.mocked(service.createBusiness).mockResolvedValue(shop);
         const store = useBusinessesStore();
-
-        // Act
+        const load = store.load();
         await store.create(payload);
 
-        // Assert: a list of only the new business would hide the others; load() fetches them all
-        expect(store.businesses).toBeNull();
-    });
-
-    it('should hold the created business when a load() sent before it answers after it', async () =>
-    {
-        // Arrange: the list request is held, and answers with the list from before the create
-        await logInAs(jan);
-        const list = createDeferred();
-        vi.mocked(service.listBusinesses).mockReturnValue(list.promise.then(() => [bakery]));
-        vi.mocked(service.createBusiness).mockResolvedValue(shop);
-        const store = useBusinessesStore();
-        const load = store.load();
-
-        // Act: the create answers first, the stale list last
-        const create = store.create(payload);
-        list.resolve();
-        await Promise.all([load, create]);
+        // Act: the list from before the create answers last
+        older.resolve();
+        await load;
 
         // Assert
         expect(store.businesses).toStrictEqual([bakery, shop]);
     });
 
-    it('should hold the created business once when the list already has it', async () =>
-    {
-        // Arrange: the list was sent after the business was stored, so it already holds it
-        await logInAs(jan);
-        const list = createDeferred();
-        vi.mocked(service.listBusinesses).mockReturnValue(list.promise.then(() => [bakery, shop]));
-        vi.mocked(service.createBusiness).mockResolvedValue(shop);
-        const store = useBusinessesStore();
-        const load = store.load();
-
-        // Act
-        const create = store.create(payload);
-        list.resolve();
-        await Promise.all([load, create]);
-
-        // Assert
-        expect(store.businesses).toStrictEqual([bakery, shop]);
-    });
-
-    it('should rethrow a 422 (unprocessable) from create() and leave the list unchanged', async () =>
+    it('should rethrow a 422 (unprocessable) from create(), send no reload and leave the list unchanged', async () =>
     {
         // Arrange
         await logInAs(jan);
@@ -469,15 +315,16 @@ describe('businesses store', () =>
         await expect(store.create(payload)).rejects.toBe(error);
 
         // Assert
+        expect(service.listBusinesses).toHaveBeenCalledOnce();
         expect(store.businesses).toStrictEqual([bakery]);
     });
 
-    it('should put the payload on update(), replace the business in place and return it', async () =>
+    it('should put the payload on update(), reload the list and return the business', async () =>
     {
         // Arrange
         await logInAs(jan);
         const renamed = { ...bakery, legal_name: 'Bakkerij en Lunchroom de Vries' };
-        vi.mocked(service.listBusinesses).mockResolvedValue([bakery, studio]);
+        vi.mocked(service.listBusinesses).mockResolvedValueOnce([bakery, studio]).mockResolvedValueOnce([renamed, studio]);
         vi.mocked(service.updateBusiness).mockResolvedValue(renamed);
         const store = useBusinessesStore();
         await store.load();
@@ -485,83 +332,14 @@ describe('businesses store', () =>
         // Act
         const result = await store.update(1, payload);
 
-        // Assert: same position, not removed and appended
+        // Assert
         expect(service.updateBusiness).toHaveBeenCalledExactlyOnceWith(1, payload);
+        expect(service.listBusinesses).toHaveBeenCalledTimes(2);
         expect(result).toStrictEqual(renamed);
         expect(store.businesses).toStrictEqual([renamed, studio]);
     });
 
-    it('should hold the updated business when a load() sent before it answers after it', async () =>
-    {
-        // Arrange: the list request is held, and answers with the business as it was before the update
-        await logInAs(jan);
-        const renamed = { ...bakery, legal_name: 'Bakkerij en Lunchroom de Vries' };
-        const list = createDeferred();
-        vi.mocked(service.listBusinesses).mockReturnValue(list.promise.then(() => [bakery, studio]));
-        vi.mocked(service.updateBusiness).mockResolvedValue(renamed);
-        const store = useBusinessesStore();
-        const load = store.load();
-
-        // Act: the update answers first, the stale list last
-        const update = store.update(1, payload);
-        list.resolve();
-        await Promise.all([load, update]);
-
-        // Assert
-        expect(store.businesses).toStrictEqual([renamed, studio]);
-    });
-
-    it('should hold the updated business when an older list request answers after a newer reload() failed', async () =>
-    {
-        // Arrange: a loaded list, then a held reload() and a failing one, so the newest request is gone while an older one is out
-        await logInAs(jan);
-        const renamed = { ...bakery, legal_name: 'Bakkerij en Lunchroom de Vries' };
-        const older = createDeferred();
-        vi.mocked(service.listBusinesses)
-            .mockResolvedValueOnce([bakery, studio])
-            .mockReturnValueOnce(older.promise.then(() => [bakery, studio]))
-            .mockRejectedValueOnce(axiosErrorWith(500, { message: 'Server Error' }));
-        vi.mocked(service.updateBusiness).mockResolvedValue(renamed);
-        const store = useBusinessesStore();
-        await store.load();
-        const reload = store.reload();
-        await store.reload().catch(() => undefined);
-
-        // Act: the update has answered before the held list with the old name answers
-        const update = store.update(1, payload);
-        await flushPromises();
-        older.resolve();
-        await Promise.all([reload, update]);
-
-        // Assert
-        expect(store.businesses).toStrictEqual([renamed, studio]);
-    });
-
-    it('should hold the updated business when the first load() answers after a reload() failed and the update answered', async () =>
-    {
-        // Arrange: nothing loaded yet; the first request is held, the reload() fails
-        await logInAs(jan);
-        const renamed = { ...bakery, legal_name: 'Bakkerij en Lunchroom de Vries' };
-        const older = createDeferred();
-        vi.mocked(service.listBusinesses)
-            .mockReturnValueOnce(older.promise.then(() => [bakery, studio]))
-            .mockRejectedValueOnce(axiosErrorWith(500, { message: 'Server Error' }));
-        vi.mocked(service.updateBusiness).mockResolvedValue(renamed);
-        const store = useBusinessesStore();
-        const load = store.load();
-        await store.reload().catch(() => undefined);
-
-        // Act: the update has answered before the held list with the old name answers
-        const update = store.update(1, payload);
-        await flushPromises();
-        older.resolve();
-        await Promise.all([load, update]);
-
-        // Assert
-        expect(store.businesses).toStrictEqual([renamed, studio]);
-    });
-
-    it('should rethrow a 422 (unprocessable) from update() and leave the list unchanged', async () =>
+    it('should rethrow a 422 (unprocessable) from update(), send no reload and leave the list unchanged', async () =>
     {
         // Arrange
         await logInAs(jan);
@@ -575,7 +353,62 @@ describe('businesses store', () =>
         await expect(store.update(1, payload)).rejects.toBe(error);
 
         // Assert
+        expect(service.listBusinesses).toHaveBeenCalledOnce();
         expect(store.businesses).toStrictEqual([bakery]);
+    });
+
+    it.for([
+        { name: 'create()', write: (store: BusinessesStore) => store.create(payload) },
+        { name: 'update()', write: (store: BusinessesStore) => store.update(3, payload) },
+    ])('should resolve with the business, and leave the list unknown until the next load(), when the reload after a write fails: $name', async ({ write }) =>
+    {
+        // Arrange: the reload after the write fails with a 500 (server error)
+        await logInAs(jan);
+        vi.mocked(service.listBusinesses)
+            .mockResolvedValueOnce([bakery])
+            .mockRejectedValueOnce(axiosErrorWith(500, { message: 'Server Error' }))
+            .mockResolvedValueOnce([bakery, shop]);
+        vi.mocked(service.createBusiness).mockResolvedValue(shop);
+        vi.mocked(service.updateBusiness).mockResolvedValue(shop);
+        const store = useBusinessesStore();
+        await store.load();
+
+        // Act
+        const result = await write(store);
+
+        // Assert: the write landed, so the page can go on with it; the list from before it isn't handed out
+        expect(result).toStrictEqual(shop);
+        expect(store.businesses).toBeNull();
+
+        // Act
+        await store.load();
+
+        // Assert
+        expect(service.listBusinesses).toHaveBeenCalledTimes(3);
+        expect(store.businesses).toStrictEqual([bakery, shop]);
+    });
+
+    it('should send a new request for a load() sent before a write whose answer comes after the reload after the write failed', async () =>
+    {
+        // Arrange: the first list request is held; the reload after the create fails with a 500 (server error)
+        await logInAs(jan);
+        const older = createDeferred();
+        vi.mocked(service.listBusinesses)
+            .mockReturnValueOnce(older.promise.then(() => [bakery]))
+            .mockRejectedValueOnce(axiosErrorWith(500, { message: 'Server Error' }))
+            .mockResolvedValueOnce([bakery, shop]);
+        vi.mocked(service.createBusiness).mockResolvedValue(shop);
+        const store = useBusinessesStore();
+        const load = store.load();
+        await store.create(payload);
+
+        // Act: the list from before the create answers last, and is dropped
+        older.resolve();
+        await load;
+
+        // Assert: load() resolved with a list that holds the new business, not with none
+        expect(service.listBusinesses).toHaveBeenCalledTimes(3);
+        expect(store.businesses).toStrictEqual([bakery, shop]);
     });
 
     it('should hand out no list after logout()', async () =>
@@ -670,48 +503,6 @@ describe('businesses store', () =>
 
         // Assert
         expect(service.listBusinesses).toHaveBeenCalledTimes(2);
-        expect(store.businesses).toStrictEqual([studio]);
-    });
-
-    it('should not add a business created by the previous user to the next user\'s list', async () =>
-    {
-        // Arrange: Jan's create is held while Piet logs in and loads his own list
-        await logInAs(jan);
-        const janCreate = createDeferred();
-        vi.mocked(service.createBusiness).mockReturnValue(janCreate.promise.then(() => shop));
-        vi.mocked(service.listBusinesses).mockResolvedValue([studio]);
-        const store = useBusinessesStore();
-        const create = store.create(payload);
-        useAuthStore().clear();
-        await logInAs(piet);
-        await store.load();
-
-        // Act
-        janCreate.resolve();
-        await create;
-
-        // Assert
-        expect(store.businesses).toStrictEqual([studio]);
-    });
-
-    it('should not put a business updated by the previous user into the next user\'s list', async () =>
-    {
-        // Arrange: Jan's update is held while Piet logs in and loads his own list
-        await logInAs(jan);
-        const janUpdate = createDeferred();
-        vi.mocked(service.updateBusiness).mockReturnValue(janUpdate.promise.then(() => ({ ...studio, legal_name: 'Studio Jan' })));
-        vi.mocked(service.listBusinesses).mockResolvedValue([studio]);
-        const store = useBusinessesStore();
-        const update = store.update(2, payload);
-        useAuthStore().clear();
-        await logInAs(piet);
-        await store.load();
-
-        // Act
-        janUpdate.resolve();
-        await update;
-
-        // Assert
         expect(store.businesses).toStrictEqual([studio]);
     });
 });
