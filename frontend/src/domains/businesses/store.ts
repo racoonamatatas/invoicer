@@ -35,8 +35,8 @@ export const useBusinessesStore = defineStore('businesses', () =>
     // sending another.
     let pending: PendingList | null = null;
     // Numbers every list request, so answers that arrive out of order can be
-    // told apart: latestRequest is the last one sent, storedRequest the one
-    // whose answer is in `loaded`.
+    // told apart: latestRequest is the last one sent, storedRequest the
+    // newest one no answer may be older than (see reloadAfterWrite).
     let latestRequest = 0;
     let storedRequest = 0;
 
@@ -98,23 +98,19 @@ export const useBusinessesStore = defineStore('businesses', () =>
 
     // Asks the backend once per user: a call while the list is loaded does
     // nothing, and a call while it is loading waits for that same request.
+    // Resolved, the list is loaded, unless the user changed meanwhile: a
+    // request can settle without filling it, when a failed reload after a
+    // write dropped its answer, and then load() asks again.
     // Logged out, there is no user to load a list for, so nothing is sent:
     // the backend would answer 401 anyway.
-    const load = (): Promise<void> =>
+    const load = async (): Promise<void> =>
     {
         const userId = currentUserId();
 
-        if (userId === null || businesses.value !== null)
+        while (userId !== null && currentUserId() === userId && businesses.value === null)
         {
-            return Promise.resolve();
+            await (pending?.userId === userId ? pending.request : fetchList(userId));
         }
-
-        if (pending?.userId === userId)
-        {
-            return pending.request;
-        }
-
-        return fetchList(userId);
     };
 
     // Asks the backend again, even when the list is loaded. Like load(),
@@ -147,8 +143,12 @@ export const useBusinessesStore = defineStore('businesses', () =>
         {
             // The write landed, only the list is out of date: unknown rather
             // than stale, so the next load() asks again. No answer to a
-            // request sent before may fill it either, since that list is from
-            // before the write too.
+            // request already sent may fill it either: one sent before the
+            // write holds the list from before it. That also drops one sent
+            // after the write, and wipes its list if already stored; both
+            // need two requests in the air at once, and cost one more GET.
+            // Every error is caught, an UnexpectedResponseError too: the
+            // next load() asks again and throws it there.
             loaded.value = null;
             storedRequest = latestRequest;
         }
