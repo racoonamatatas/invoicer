@@ -7,7 +7,8 @@ Commands and commit conventions: the root [`CLAUDE.md`](../CLAUDE.md).
 
 - `src/domains/<domain>/`: a feature's `pages/`, `components/`, `composables/`, `handlers/` (callbacks the app registers, e.g. for a 401), `routes.ts` and Pinia `store.ts`. Pages are only reached through the router.
 - `src/router/`: `AppRoute` and `authGuard`. Every route is an `AppRoute`, protected unless it calls `.public()`, so a route can't forget its access rule.
-- `src/services/`: the only place requests are made. `http/` wraps axios; `auth.ts` and `businesses.ts` hold their endpoints and request/response types.
+- `src/components/`: components used by more than one page and owned by no one domain (`AddressFields`, `LogoutButton`). A component only one domain uses goes in that domain's `components/`.
+- `src/services/`: the only place requests are made. `http/` wraps axios; `auth.ts` and `businesses.ts` hold their endpoints and request/response types. `address.ts` holds the `Address` shape that payloads with an address extend.
 - `src/form/formSubmitFailure.ts`: turns whatever a failed submit threw into a `FormSubmitFailure` union. The only file that knows Laravel's 422 and 429 shapes.
 - `src/composables/useForm.ts`: one form's submit state (errors, general message, throttle message, pending). Every form uses it.
 
