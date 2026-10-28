@@ -1,6 +1,6 @@
-import { flushPromises, mount } from '@vue/test-utils';
+import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
-import { beforeEach, describe, it, expect, vi } from 'vitest';
+import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 
 import EditBusiness from '@/domains/businesses/pages/EditBusiness.vue';
 import * as service from '@/services/businesses';
@@ -13,6 +13,10 @@ import { createTestRouter } from '../../../utility/createTestRouter';
 vi.mock('@/services/auth');
 vi.mock('@/services/businesses');
 
+// Unmounts every page after each test, so no page left mounted keeps
+// reacting to the next test's store.
+enableAutoUnmount(afterEach);
+
 const bakery = business(1, 'Bakkerij de Vries');
 const studio = business(2, 'Studio de Vries');
 
@@ -21,7 +25,7 @@ const detailsForm = 'form[aria-label="Business details"]';
 // Mounts EditBusiness on /businesses/<businessId>/edit with a fresh
 // Pinia, a logged-in user (the store loads nothing without one) and the app's
 // real routes. An empty store, the way a direct page load starts.
-const mountEditBusiness = async (businessId: string) =>
+const mountEditBusiness = async (businessId: string, errorHandler?: (error: unknown) => void) =>
 {
     const pinia = createPinia();
     setActivePinia(pinia);
@@ -30,7 +34,7 @@ const mountEditBusiness = async (businessId: string) =>
     const router = createTestRouter();
     await router.push(`/businesses/${businessId}/edit`);
 
-    const wrapper = mount(EditBusiness, { global: { plugins: [pinia, router] } });
+    const wrapper = mount(EditBusiness, { global: { plugins: [pinia, router], config: { errorHandler } } });
 
     return { wrapper, router };
 };
@@ -159,6 +163,86 @@ describe('EditBusiness page', () =>
 
         // Assert: shown by the field, and the save isn't claimed
         expect(wrapper.find(`${detailsForm} [role="status"]`).text()).toBe('');
+    });
+
+    it('should keep the form and what was typed after saving when the list reload after the save fails with a 500 (server error)', async () =>
+    {
+        // Arrange: the first list loads the page; every later one fails, the
+        // store's reload after the write and the page's own retry of it.
+        // errorHandler is a spy standing in for app.config.errorHandler,
+        // which receives that failure
+        vi.mocked(service.listBusinesses).mockResolvedValueOnce([bakery]).mockRejectedValue(axiosErrorWith(500, {}));
+        vi.mocked(service.updateBusiness).mockResolvedValue(bakery);
+        const errorHandler = vi.fn<(error: unknown) => void>();
+        const { wrapper } = await mountEditBusiness('1', errorHandler);
+        await flushPromises();
+
+        // Act: the save and its failed reload settle before the user types on
+        await wrapper.find(detailsForm).trigger('submit');
+        await flushPromises();
+        await wrapper.find('#business-city').setValue('Utrecht');
+
+        // Assert: the failure is shown, as the page's own load error
+        expect(wrapper.find('[role="status"]').text()).toBe('Couldn\'t load your businesses.');
+        expect(errorHandler).toHaveBeenCalled();
+
+        // Assert: the form is still there, with what was typed after the save
+        expect(wrapper.find(detailsForm).exists()).toBe(true);
+        expect(valueOf(wrapper, 'business-city')).toBe('Utrecht');
+    });
+
+    it('should keep Saved. in the form when the list reload after the save fails with a 500 (server error), since the save itself went through', async () =>
+    {
+        // Arrange: as above, without an edit after the save
+        vi.mocked(service.listBusinesses).mockResolvedValueOnce([bakery]).mockRejectedValue(axiosErrorWith(500, {}));
+        vi.mocked(service.updateBusiness).mockResolvedValue(bakery);
+        const { wrapper } = await mountEditBusiness('1', vi.fn());
+        await flushPromises();
+
+        // Act
+        await wrapper.find(detailsForm).trigger('submit');
+        await flushPromises();
+
+        // Assert: the reload failed, and the save is still reported
+        expect(service.listBusinesses).toHaveBeenCalledTimes(3);
+        expect(wrapper.find(`${detailsForm} [role="status"]`).text()).toBe('Saved.');
+    });
+
+    it('should clear Saved. as soon as a field changes again, since the new value isn\'t saved', async () =>
+    {
+        // Arrange
+        vi.mocked(service.listBusinesses).mockResolvedValue([bakery]);
+        vi.mocked(service.updateBusiness).mockResolvedValue(bakery);
+        const { wrapper } = await mountEditBusiness('1');
+        await flushPromises();
+        await wrapper.find(detailsForm).trigger('submit');
+        await flushPromises();
+        expect(wrapper.find(`${detailsForm} [role="status"]`).text()).toBe('Saved.');
+
+        // Act
+        await wrapper.find('#business-city').setValue('Utrecht');
+
+        // Assert
+        expect(wrapper.find(`${detailsForm} [role="status"]`).text()).toBe('');
+    });
+
+    it('should show Couldn\'t save. in the form and hand the error on when updateBusiness fails with a 500 (server error)', async () =>
+    {
+        // Arrange: errorHandler is a spy standing in for app.config.errorHandler
+        const error = axiosErrorWith(500, {});
+        vi.mocked(service.listBusinesses).mockResolvedValue([bakery]);
+        vi.mocked(service.updateBusiness).mockRejectedValue(error);
+        const errorHandler = vi.fn<(error: unknown) => void>();
+        const { wrapper } = await mountEditBusiness('1', errorHandler);
+        await flushPromises();
+
+        // Act
+        await wrapper.find(detailsForm).trigger('submit');
+        await flushPromises();
+
+        // Assert: the user sees it, and Vue's error handler gets the original
+        expect(wrapper.find(`${detailsForm} [role="status"]`).text()).toBe('Couldn\'t save.');
+        expect(errorHandler).toHaveBeenCalledWith(error, expect.anything(), expect.anything());
     });
 
     it('should show not found and no form when listBusinesses gets a 200 (ok) without the id in the URL', async () =>
