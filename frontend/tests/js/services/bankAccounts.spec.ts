@@ -11,6 +11,7 @@ import {
     type BankAccountPayload,
 } from '@/services/bankAccounts';
 import { deleteRequest, getRequest, postRequest, putRequest, UnexpectedResponseError } from '@/services/http';
+import { axiosErrorWith } from '../utility/axiosErrorWith';
 
 // Only the request functions become vi.fn()s, so no request leaves the test.
 // checkResponse and UnexpectedResponseError stay real: they are what these
@@ -168,6 +169,28 @@ describe('bank accounts service', () =>
         // Assert
         expect(deleteRequest).toHaveBeenCalledExactlyOnceWith('/businesses/7/bank-accounts/3');
         expect(result).toBeUndefined();
+    });
+
+    it('should resolve without a value when the delete gets a 404 (not found): the account is already gone, which is what was asked', async () =>
+    {
+        // Arrange
+        vi.mocked(deleteRequest).mockRejectedValue(axiosErrorWith(404, { message: 'Not Found' }));
+
+        // Act
+        const result = await deleteBankAccount(7, 3);
+
+        // Assert
+        expect(result).toBeUndefined();
+    });
+
+    it('should throw the error when the delete fails with a 500 (server error)', async () =>
+    {
+        // Arrange
+        const error = axiosErrorWith(500, { message: 'Server Error' });
+        vi.mocked(deleteRequest).mockRejectedValue(error);
+
+        // Act + Assert: the original, not a wrapper
+        await expect(deleteBankAccount(7, 3)).rejects.toBe(error);
     });
 
     // One case per function: each must hand its own response to the check.

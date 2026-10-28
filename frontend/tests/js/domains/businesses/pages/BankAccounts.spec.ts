@@ -59,6 +59,13 @@ const clickButton = async (wrapper: VueWrapper, name: string): Promise<void> =>
 
 const renameForm = (wrapper: VueWrapper, label: string) => wrapper.find(`form[aria-label="Rename ${label}"]`);
 
+const deleteGroup = (wrapper: VueWrapper, label: string) => wrapper.find(`[role="group"][aria-label="Delete ${label}?"]`);
+
+const clickIn = async (container: ReturnType<VueWrapper['find']>, text: string): Promise<void> =>
+{
+    await container.findAll('button').find((button) => button.text() === text)?.trigger('click');
+};
+
 const addFormStatus = (wrapper: VueWrapper): string => wrapper.find('form[aria-label="Add a bank account"] [role="status"]').text();
 
 describe('BankAccounts page', () =>
@@ -436,5 +443,121 @@ describe('BankAccounts page', () =>
 
         // Assert
         expect(wrapper.findAll('form[aria-label^="Rename"]').map((form) => form.attributes('aria-label'))).toStrictEqual(['Rename Savings']);
+    });
+
+    it('should ask before deleting: Delete opens a confirm with Cancel focused and sends nothing yet', async () =>
+    {
+        // Arrange: attached to the document, where focus exists
+        vi.mocked(bankAccountsService.listBankAccounts).mockResolvedValue([main, savings]);
+        const { wrapper } = await mountBankAccounts('1', undefined, document.body);
+        await flushPromises();
+
+        // Act: flushed, so a request sent on this click would have been made
+        await clickButton(wrapper, 'Delete Main');
+        await flushPromises();
+
+        // Assert
+        const group = deleteGroup(wrapper, 'Main');
+        expect(group.text()).toContain('Delete "Main"?');
+        expect(document.activeElement).toBe(group.findAll('button').find((button) => button.text() === 'Cancel')?.element);
+        expect(bankAccountsService.deleteBankAccount).not.toHaveBeenCalled();
+
+        wrapper.unmount();
+    });
+
+    it('should delete the account and show the reloaded list without it when deleteBankAccount succeeds', async () =>
+    {
+        // Arrange: the reload after the delete no longer has Main
+        vi.mocked(bankAccountsService.listBankAccounts).mockResolvedValueOnce([main, savings]).mockResolvedValueOnce([savings]);
+        vi.mocked(bankAccountsService.deleteBankAccount).mockResolvedValue();
+        const { wrapper } = await mountBankAccounts('1');
+        await flushPromises();
+        await clickButton(wrapper, 'Delete Main');
+
+        // Act
+        await clickIn(deleteGroup(wrapper, 'Main'), 'Delete for good');
+        await flushPromises();
+
+        // Assert
+        expect(bankAccountsService.deleteBankAccount).toHaveBeenCalledExactlyOnceWith(1, 3);
+        expect(listedAccounts(wrapper)).toStrictEqual(['Savings NL02 RABO 0123 4567 89']);
+        expect(wrapper.find('[role="group"]').exists()).toBe(false);
+    });
+
+    it('should close the confirm without a request and show Rename and Delete again when Cancel is clicked', async () =>
+    {
+        // Arrange
+        vi.mocked(bankAccountsService.listBankAccounts).mockResolvedValue([main]);
+        const { wrapper } = await mountBankAccounts('1');
+        await flushPromises();
+        await clickButton(wrapper, 'Delete Main');
+
+        // Act
+        await clickIn(deleteGroup(wrapper, 'Main'), 'Cancel');
+
+        // Assert
+        expect(deleteGroup(wrapper, 'Main').exists()).toBe(false);
+        expect(wrapper.find('button[aria-label="Rename Main"]').exists()).toBe(true);
+        expect(wrapper.find('button[aria-label="Delete Main"]').exists()).toBe(true);
+        expect(bankAccountsService.deleteBankAccount).not.toHaveBeenCalled();
+    });
+
+    it('should say Couldn\'t delete., keep the confirm open and hand the error on when deleteBankAccount fails with a 500 (server error)', async () =>
+    {
+        // Arrange: errorHandler is a spy standing in for app.config.errorHandler
+        const error = axiosErrorWith(500, { message: 'Server Error' });
+        vi.mocked(bankAccountsService.listBankAccounts).mockResolvedValue([main]);
+        vi.mocked(bankAccountsService.deleteBankAccount).mockRejectedValue(error);
+        const errorHandler = vi.fn<(error: unknown) => void>();
+        const { wrapper } = await mountBankAccounts('1', errorHandler);
+        await flushPromises();
+        await clickButton(wrapper, 'Delete Main');
+
+        // Act
+        await clickIn(deleteGroup(wrapper, 'Main'), 'Delete for good');
+        await flushPromises();
+
+        // Assert
+        expect(deleteGroup(wrapper, 'Main').find('[role="status"]').text()).toBe('Couldn\'t delete.');
+        expect(listedAccounts(wrapper)).toStrictEqual(['Main NL91 ABNA 0417 1643 00']);
+        expect(errorHandler).toHaveBeenCalledExactlyOnceWith(error, expect.anything(), expect.anything());
+    });
+
+    it('should disable Delete for good while deleteBankAccount is in flight', async () =>
+    {
+        // Arrange: deleteBankAccount is a stub whose request the test finishes by hand
+        const request = createDeferred();
+        vi.mocked(bankAccountsService.listBankAccounts).mockResolvedValue([main]);
+        vi.mocked(bankAccountsService.deleteBankAccount).mockReturnValue(request.promise.then(() => undefined));
+        const { wrapper } = await mountBankAccounts('1');
+        await flushPromises();
+        await clickButton(wrapper, 'Delete Main');
+        const confirm = deleteGroup(wrapper, 'Main').findAll('button').find((button) => button.text() === 'Delete for good');
+
+        // Act
+        await confirm?.trigger('click');
+
+        // Assert
+        expect(confirm?.attributes('disabled')).toBeDefined();
+
+        // Act: let the request finish, so nothing is left pending after the test
+        request.resolve();
+        await flushPromises();
+    });
+
+    it('should close an open delete confirm when Rename is clicked on another row', async () =>
+    {
+        // Arrange
+        vi.mocked(bankAccountsService.listBankAccounts).mockResolvedValue([main, savings]);
+        const { wrapper } = await mountBankAccounts('1');
+        await flushPromises();
+        await clickButton(wrapper, 'Delete Main');
+
+        // Act
+        await clickButton(wrapper, 'Rename Savings');
+
+        // Assert
+        expect(renameForm(wrapper, 'Savings').exists()).toBe(true);
+        expect(wrapper.find('[role="group"]').exists()).toBe(false);
     });
 });
