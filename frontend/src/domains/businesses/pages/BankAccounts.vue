@@ -58,10 +58,6 @@ const groupIban = (iban: string): string => iban.replace(/(.{4})(?=.)/g, '$1 ');
         <div role="status">
             <p v-if="state.kind === 'loading'">Loading...</p>
             <p v-else-if="state.kind === 'failed'">Couldn't load your businesses.</p>
-            <template v-else-if="state.kind === 'found'">
-                <p v-if="accounts.kind === 'loading'">Loading bank accounts...</p>
-                <p v-else-if="accounts.kind === 'failed'">Couldn't load the bank accounts.</p>
-            </template>
         </div>
 
         <button v-if="state.kind === 'failed'" type="button" @click="retry">Try again</button>
@@ -69,8 +65,17 @@ const groupIban = (iban: string): string => iban.replace(/(.{4})(?=.)/g, '$1 ');
         <template v-else-if="state.kind === 'found'">
             <h1>Bank accounts · {{ state.business.registered_name }}</h1>
 
-            <button v-if="accounts.kind === 'failed'" type="button" @click="reload">Try again</button>
-            <template v-else-if="accounts.kind === 'loaded'">
+            <!-- The accounts' own live region, under the heading, so its
+                 message sits next to its Try again. Spans, so both share a
+                 line. -->
+            <p>
+                <span id="bank-accounts-status" role="status">
+                    <template v-if="accounts.kind === 'loading'">Loading bank accounts...</template>
+                    <template v-else-if="accounts.kind === 'failed'">Couldn't load the bank accounts.</template>
+                </span>
+                <button v-if="accounts.kind === 'failed'" type="button" @click="reload">Try again</button>
+            </p>
+            <template v-if="accounts.kind === 'loaded'">
                 <ul v-if="accounts.accounts.length > 0" aria-label="Bank accounts">
                     <!-- Label and IBAN in their own span, apart from the row's
                          buttons. -->
