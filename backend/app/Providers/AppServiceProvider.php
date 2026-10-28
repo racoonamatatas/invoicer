@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace App\Providers;
 
 use App\Models\Business;
+use Illuminate\Auth\AuthenticationException;
 use Illuminate\Cache\RateLimiter;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Contracts\Foundation\Application;
@@ -12,6 +13,7 @@ use Illuminate\Contracts\Validation\UncompromisedVerifier;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\Client\Factory as HttpFactory;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
@@ -65,13 +67,19 @@ class AppServiceProvider extends ServiceProvider
      * Another user's business is a 404, identical to an unknown id. The check sits in the binding because a scoped
      * child like {bankAccount} binds in the same step: checked any later, child ids would answer differently.
      *
-     * auth:sanctum runs first (middleware priority), so Gate::allows() sees the user; a guest is denied.
+     * auth:sanctum runs first (middleware priority), so Gate::allows() sees the user. No user means a route lost
+     * auth:sanctum: a 401 says so, where the policy's denial would hide it behind a 404.
      *
      * In a provider, not routes/api.php: a cached routes file is never loaded, and a binding there would be lost.
      */
     private function configureRouteBindings(): void
     {
         Route::bind('business', static function (string $value): Business {
+            if (Auth::guest())
+            {
+                throw new AuthenticationException;
+            }
+
             $business = Business::findOrFail($value);
 
             if (! Gate::allows('access', $business))
