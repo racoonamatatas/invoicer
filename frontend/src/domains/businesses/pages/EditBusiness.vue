@@ -1,5 +1,6 @@
 <script setup lang="ts">
 // Package imports
+import { ref, watch } from 'vue';
 import { RouterLink } from 'vue-router';
 
 // Project imports
@@ -7,10 +8,29 @@ import LogoutButton from '@/components/LogoutButton.vue';
 import BusinessForm from '@/domains/businesses/components/BusinessForm.vue';
 import { useRouteBusiness } from '@/domains/businesses/composables/useRouteBusiness';
 import { useBusinessesStore } from '@/domains/businesses/store';
-import type { BusinessPayload } from '@/services/businesses';
+import type { Business, BusinessPayload } from '@/services/businesses';
 
 const store = useBusinessesStore();
 const { state, retry } = useRouteBusiness();
+
+// The business the form edits: the last one found, kept while the list loads
+// again or fails. A failed reload after a save empties the store's list, and
+// rendering on state alone would unmount the form and lose what was typed,
+// along with the "Saved." that says the write went through. Cleared only
+// when the URL points at no business of the user's.
+const shown = ref<Business | null>(null);
+
+watch(state, (current) =>
+{
+    if (current.kind === 'found')
+    {
+        shown.value = current.business;
+    }
+    else if (current.kind === 'notFound')
+    {
+        shown.value = null;
+    }
+}, { immediate: true });
 
 // Through the store, so the list and every page's heading show the new
 // values without a page load. Stays on this page: the form shows its saved
@@ -31,20 +51,21 @@ const saveTo = (id: number) => async (payload: BusinessPayload): Promise<void> =
         </div>
 
         <button v-if="state.kind === 'failed'" type="button" @click="retry">Try again</button>
-        <!-- Only once the business is found, so the inputs never show empty
-             and then fill. Keyed by id: BusinessForm copies its initial
-             business once, so another business in the URL needs a new form. -->
-        <template v-else-if="state.kind === 'found'">
-            <h1>Edit {{ state.business.registered_name }}</h1>
+        <!-- Only once a business was found, so the inputs never show empty
+             and then fill. Not v-else: the form stays next to a failure.
+             Keyed by id: BusinessForm copies its initial business once, so
+             another business in the URL needs a new form. -->
+        <template v-if="shown !== null">
+            <h1>Edit {{ shown.registered_name }}</h1>
             <BusinessForm
-                :key="state.business.id"
-                :initial="state.business"
+                :key="shown.id"
+                :initial="shown"
                 label="Business details"
                 submit-label="Save"
-                :save="saveTo(state.business.id)"
+                :save="saveTo(shown.id)"
                 saved-message="Saved."
             />
-            <p><RouterLink :to="{ name: 'dashboard', params: { businessId: state.business.id } }">Back to the dashboard</RouterLink></p>
+            <p><RouterLink :to="{ name: 'dashboard', params: { businessId: shown.id } }">Back to the dashboard</RouterLink></p>
         </template>
         <template v-else-if="state.kind === 'notFound'">
             <h1>Business not found</h1>
