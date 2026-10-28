@@ -47,7 +47,7 @@ class Business extends Model
      * Get the attributes that should be cast.
      *
      * Explicit integer casts: the policy compares user_id with === to the user's id, and a database driver that
-     * returns integers as strings must not turn that into a 403 for everyone.
+     * returns integers as strings must not turn that into a 404 for every owner.
      *
      * @return array<string, string>
      */
