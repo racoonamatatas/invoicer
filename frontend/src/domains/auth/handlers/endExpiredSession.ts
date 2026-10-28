@@ -38,7 +38,7 @@ export const endExpiredSession = (): boolean =>
     store.clear();
 
     // A full page load, not router.push, for the same reason as logout in
-    // Dashboard.vue: every store and in-flight request dies with the
+    // LogoutButton.vue: every store and in-flight request dies with the
     // document, so nothing reaches the next session.
     window.location.assign('/login');
 

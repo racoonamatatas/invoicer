@@ -43,7 +43,7 @@ describe('Login page', () =>
         vi.resetAllMocks();
     });
 
-    it('should log in with the typed credentials and go to the dashboard when login gets a 200 (ok)', async () =>
+    it('should log in with the typed credentials and go to home, which picks the next page, when login gets a 200 (ok)', async () =>
     {
         // Arrange: auth.login is a stub (canned user) and a spy (records its call)
         vi.mocked(auth.login).mockResolvedValue(user);
@@ -52,9 +52,9 @@ describe('Login page', () =>
         // Act
         await submitCredentials(wrapper);
 
-        // Assert (outcome): the user ended up on the dashboard. waitFor retries,
-        // because the dashboard route lazy-loads its page before the push resolves
-        await vi.waitFor(() => expect(router.currentRoute.value.name).toBe('dashboard'));
+        // Assert (outcome): the user ended up on home. waitFor retries,
+        // because the home route lazy-loads its page before the push resolves
+        await vi.waitFor(() => expect(router.currentRoute.value.name).toBe('home'));
 
         // Assert (interaction): the typed values reached the request
         expect(auth.login).toHaveBeenCalledExactlyOnceWith(credentials);
@@ -107,7 +107,7 @@ describe('Login page', () =>
     it('should not navigate when login fails with a 422 (unprocessable)', async () =>
     {
         // Arrange: auth.login is a stub that fails validation. router.push is a
-        // spy that still navigates: the dashboard page loads lazily, so the
+        // spy that still navigates: the home page loads lazily, so the
         // route alone could still read 'login' while a wrong push is under way
         vi.mocked(auth.login).mockRejectedValue(axiosErrorWith(422, {
             message: 'These credentials do not match our records.',
@@ -146,7 +146,7 @@ describe('Login page', () =>
 
         // Act: the request finishes, and the page navigates
         request.resolve();
-        await vi.waitFor(() => expect(router.currentRoute.value.name).toBe('dashboard'));
+        await vi.waitFor(() => expect(router.currentRoute.value.name).toBe('home'));
         await flushPromises();
 
         // Assert: usable again once submit() is done

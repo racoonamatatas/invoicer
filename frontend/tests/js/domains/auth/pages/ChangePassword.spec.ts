@@ -20,7 +20,7 @@ const change = { current_password: 'the-old-long-password', password: 'a-new-lon
 const changeForm = 'form[aria-label="Change password"]';
 
 // Mounts ChangePassword on /change-password with the app's real routes, so
-// the dashboard links resolve. The route is protected, so the user is logged
+// the links to home resolve. The route is protected, so the user is logged
 // in first, through the store the way the login page does it.
 const mountChangePassword = async (errorHandler?: (error: unknown) => void) =>
 {
@@ -65,7 +65,7 @@ describe('ChangePassword page', () =>
         expect(input.attributes('readonly')).toBeDefined();
     });
 
-    it('should put the typed passwords and show the changed message with a dashboard link when changePassword gets a 204 (no content)', async () =>
+    it('should put the typed passwords and show the changed message with a Continue link to home when changePassword gets a 204 (no content)', async () =>
     {
         // Arrange: auth.changePassword is a stub (resolves, like a 204) and a spy (records its call)
         vi.mocked(auth.changePassword).mockResolvedValue();
@@ -78,9 +78,10 @@ describe('ChangePassword page', () =>
         // Assert (interaction): exactly the three fields the backend reads
         expect(auth.changePassword).toHaveBeenCalledExactlyOnceWith(change);
 
-        // Assert (outcome): the message sits in the live region and links back to the dashboard
+        // Assert (outcome): the message sits in the live region and links on to home
         const status = wrapper.find('[role="status"]');
         expect(status.text()).toContain('Your password is changed.');
+        expect(status.find('a').text()).toBe('Continue');
         expect(status.find('a').attributes('href')).toBe('/');
 
         // Assert: nothing is left to do, so the form is gone
@@ -200,7 +201,7 @@ describe('ChangePassword page', () =>
         expect(errorHandler).not.toHaveBeenCalled();
     });
 
-    it('should link back to the dashboard next to the form, so the user can leave without changing anything', async () =>
+    it('should link to home next to the form, so the user can leave without changing anything', async () =>
     {
         // Act
         const wrapper = await mountChangePassword();

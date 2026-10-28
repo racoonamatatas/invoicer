@@ -1,12 +1,12 @@
 <script setup lang="ts">
 // Package imports
-import { RouterLink } from 'vue-router';
+import { ref } from 'vue';
 
 // Project imports
 import { useAuthStore } from '@/domains/auth/store';
 import { useForm } from '@/composables/useForm';
 
-const store = useAuthStore();
+const auth = useAuthStore();
 
 // No fields, so no field errors: useForm is here for its double-click guard,
 // isPending, and its re-throw of failures.
@@ -17,17 +17,20 @@ const { submit, isPending } = useForm('logout', {});
 // in-flight request dies with the document, so nothing reaches the next
 // session. Back can't revive it from the back/forward cache either:
 // reloadRestoredPage reloads any restored page.
+//
+// hasLoggedOut keeps the button disabled after that: location.assign only
+// starts the page load, so isPending is false again before the page goes,
+// and a second click would send a logout for a session that has ended.
+const hasLoggedOut = ref(false);
+
 const onLogout = () => submit(async () =>
 {
-    await store.logout();
+    await auth.logout();
+    hasLoggedOut.value = true;
     window.location.assign('/login');
 });
 </script>
 
 <template>
-    <div>
-        <h1>Dashboard</h1>
-        <p><RouterLink :to="{ name: 'changePassword' }">Change password</RouterLink></p>
-        <button type="button" :disabled="isPending" @click="onLogout">Log out</button>
-    </div>
+    <button type="button" :disabled="isPending || hasLoggedOut" @click="onLogout">Log out</button>
 </template>

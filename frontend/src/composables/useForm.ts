@@ -17,6 +17,15 @@ const throttleMessageFor = (retryAfterSeconds: number | null): string =>
     return `Too many attempts. Try again in ${minutes} ${minutes === 1 ? 'minute' : 'minutes'}.`;
 };
 
+// A field's first error, and the id its input points to with aria-describedby.
+// Named, so a component that renders fields for a parent's form can take the
+// parent's fieldError as a prop.
+export interface FieldError
+{
+    message: string;
+    id: string;
+}
+
 // One form's submit state. Each call creates its own refs, so two forms on a
 // page never share or clear each other's errors.
 // TField lists the form's fields, so a typo in fieldError() is a type error.
@@ -94,7 +103,7 @@ export const useForm = <TField extends string = never>(formName: string, display
     // This field's first error and the id its input points to, or null
     // when the field has no error. Called from the template, so it re-runs
     // whenever errors changes.
-    const fieldError = (field: TField): { message: string; id: string } | null =>
+    const fieldError = (field: TField): FieldError | null =>
     {
         const message = firstError(field);
 
