@@ -464,14 +464,16 @@ describe('Businesses page, create form', () =>
         expect(vi.mocked(service.createBusiness).mock.calls[0]?.[0].payment_term_days).toBeNull();
     });
 
-    it('should show Loading..., not the old failure, when the reload after createBusiness fails with a 500 (server error) after a failed first load was recovered by a visible tab', async () =>
+    it('should load the list again, not show the old failure, when the reload after createBusiness fails with a 500 (server error) after a failed first load was recovered by a visible tab', async () =>
     {
         // Arrange: the first load fails; the reload on a visible tab brings the
-        // list; the reload after the create fails, which empties the store
+        // list; the reload after the create fails, which empties the store;
+        // the page's own load after that brings the list with the new business
         vi.mocked(service.listBusinesses)
             .mockRejectedValueOnce(axiosErrorWith(500, { message: 'Server Error' }))
             .mockResolvedValueOnce([bakery])
-            .mockRejectedValueOnce(axiosErrorWith(500, { message: 'Server Error' }));
+            .mockRejectedValueOnce(axiosErrorWith(500, { message: 'Server Error' }))
+            .mockResolvedValueOnce([bakery, shop]);
         vi.mocked(service.createBusiness).mockResolvedValue(shop);
         const wrapper = await mountBusinesses(() =>
         {});
@@ -485,10 +487,15 @@ describe('Businesses page, create form', () =>
         await wrapper.find(addForm).trigger('submit');
         await flushPromises();
 
-        // Assert: the create went through, and the page doesn't think the
-        // failure from before the visible tab still holds
-        expect(service.createBusiness).toHaveBeenCalledOnce();
-        expect(wrapper.find('[role="status"]').text()).toBe('Loading...');
+        // Assert (interaction): asked a fourth time, by the page itself
+        expect(service.listBusinesses).toHaveBeenCalledTimes(4);
+
+        // Assert (outcome): the new list, and no failure from before the visible tab
+        expect(wrapper.findAll('li').map((item) => item.text())).toStrictEqual([
+            'Bakkerij de Vries (KvK 12345671)',
+            'Winkel de Vries (KvK 12345673)',
+        ]);
+        expect(wrapper.find('[role="status"]').text()).toBe('');
     });
 
     // One row for a field of the page, one for a field inside AddressFields:
