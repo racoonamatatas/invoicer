@@ -3,6 +3,7 @@
 declare(strict_types = 1);
 
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\BankAccountController;
 use App\Http\Controllers\BusinessController;
 use Illuminate\Support\Facades\Route;
 
@@ -34,5 +35,13 @@ Route::middleware('auth:sanctum')->prefix('businesses')->group(function (): void
     Route::prefix('{business}')->whereNumber('business')->can('access', 'business')->group(function (): void {
         Route::get('/', [BusinessController::class, 'show']);
         Route::put('/', [BusinessController::class, 'update']);
+
+        // scopeBindings(): {bankAccount} will resolve through $business->bankAccounts(), so an account of another
+        // business is a 404 even under the user's own business. That only works through implicit binding: an
+        // explicit Route::model('bankAccount') would look the id up on its own and skip the scope.
+        Route::prefix('bank-accounts')->scopeBindings()->group(function (): void {
+            Route::get('/', [BankAccountController::class, 'index']);
+            Route::post('/', [BankAccountController::class, 'store']);
+        });
     });
 });
