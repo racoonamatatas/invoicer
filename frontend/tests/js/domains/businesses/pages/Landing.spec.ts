@@ -103,6 +103,20 @@ describe('Landing page', () =>
         expect(errorHandler.mock.calls[0]?.[0]).toBe(error);
     });
 
+    it('should offer Log out next to Try again when listBusinesses fails with a 500 (server error), so the user isn\'t stuck on /', async () =>
+    {
+        // Arrange
+        vi.mocked(service.listBusinesses).mockRejectedValue(axiosErrorWith(500, { message: 'Server Error' }));
+
+        // Act
+        const { wrapper } = await mountLanding(() =>
+        {});
+        await flushPromises();
+
+        // Assert
+        expect(wrapper.findAll('button').map((button) => button.text())).toEqual(['Try again', 'Log out']);
+    });
+
     it('should go on to the dashboard when Try again gets a 200 (ok) with one business after a failed load', async () =>
     {
         // Arrange: the first request fails, the retry succeeds

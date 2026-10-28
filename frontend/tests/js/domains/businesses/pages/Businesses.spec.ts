@@ -128,6 +128,22 @@ describe('Businesses page', () =>
         expect(wrapper.find('ul').exists()).toBe(false);
     });
 
+    it('should offer Log out and link to /change-password when listBusinesses gets a 200 (ok) with an empty list, since this is the only page such a user has', async () =>
+    {
+        // Arrange
+        vi.mocked(service.listBusinesses).mockResolvedValue([]);
+
+        // Act
+        const wrapper = await mountBusinesses();
+        await flushPromises();
+
+        // Assert: found by their text the way a user finds them
+        expect(wrapper.text()).toContain('You have no businesses yet.');
+        expect(buttonNamed(wrapper, 'Log out')).toBeDefined();
+        const link = wrapper.findAll('a').find((anchor) => anchor.text() === 'Change password');
+        expect(link?.attributes('href')).toBe('/change-password');
+    });
+
     it('should show the failure with a Try again button and hand the error on when listBusinesses fails with a 500 (server error)', async () =>
     {
         // Arrange: errorHandler is a spy standing in for app.config.errorHandler,
