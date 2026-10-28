@@ -358,6 +358,20 @@ describe('Businesses page, create form', () =>
         expect(notRequired).toStrictEqual([]);
     });
 
+    it('should label the name input "Registered name", the name the business has in the KvK register', async () =>
+    {
+        // Arrange
+        vi.mocked(service.listBusinesses).mockResolvedValue([]);
+
+        // Act
+        const wrapper = await mountBusinesses();
+        await flushPromises();
+
+        // Assert: through label[for], the link a screen reader names the input by,
+        // since every other spec finds the input by id and passes with any label
+        expect(wrapper.find('label[for="business-registered_name"]').text()).toBe('Registered name');
+    });
+
     it('should keep the form that opened for an empty list, and what was typed in it, when the reload on a visible tab gets a 200 (ok) with a business', async () =>
     {
         // Arrange: empty at first; a business is added in another tab while
