@@ -51,7 +51,14 @@ export const useBusinessList = (isNeeded: () => boolean = () => true) =>
     // to its error handler, where a promise nobody awaits would only be an
     // unhandled rejection. Created in setup, so it stops with the page.
     // immediate: the first check runs now, not on the first change.
-    watch(isNeeded, (needed) => (needed ? load() : undefined), { immediate: true });
+    //
+    // It watches the list too, not only isNeeded: a failed reload after a
+    // write empties the store while the page is open, and without a new
+    // load() the page would show "Loading..." with nothing in flight. Not
+    // after a failure: that waits for retry(), so a backend that is down
+    // isn't asked again in a loop.
+    watch([isNeeded, () => store.businesses], ([needed, businesses]) =>
+        (needed && businesses === null && !hasFailed.value ? load() : undefined), { immediate: true });
 
     // A list from anywhere ends a failure, not only one from load(): a page
     // can also fill the store with store.reload(). Left set, a later
