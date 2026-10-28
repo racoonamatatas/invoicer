@@ -40,13 +40,13 @@ describe('The clients table', function (): void {
         expect($indexedColumns->contains(fn (array $columns): bool => $columns[0] === 'business_id'))->toBeTrue();
     });
 
-    it('should refuse a client without a name (name is NOT NULL)', function (): void {
-        // Act
-        $create = fn () => Client::factory()->create(['name' => null]);
+    it('should refuse a client whose required column is null (NOT NULL)', function (string $column): void {
+        // Act. ClientResourceData types these as non-nullable strings, so a NULL that got in would be a 500 on read.
+        $create = fn () => Client::factory()->create([$column => null]);
 
         // Assert
         expect($create)->toThrow(QueryException::class);
-    });
+    })->with(['name', 'street', 'house_number', 'city', 'country_code']);
 
     it('should allow two clients with the same name for one business (name is not unique)', function (): void {
         // Arrange

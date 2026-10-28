@@ -69,6 +69,24 @@ describe('Showing a client', function (): void {
         $response->assertNotFound();
     });
 
+    it('should return the same 404 (not found) for an existing and an unknown client id under a business of another user', function (): void {
+        // Arrange. If {client} were looked up before the owner check, the existing id would answer differently and
+        // reveal that it belongs to this business.
+        config(['app.debug' => false]); // production's body; debug adds a trace with this file's line numbers
+        $business = Business::factory()->create();
+        $client = Client::factory()->for($business)->create();
+        $this->actingAs(Business::factory()->create()->user, 'web');
+
+        // Act
+        $existing = $this->getJson("/api/businesses/{$business->id}/clients/{$client->id}");
+        $unknown = $this->getJson("/api/businesses/{$business->id}/clients/".($client->id + 1000));
+
+        // Assert. The whole body too, not only the status: a different body would leak the same way.
+        $existing->assertNotFound();
+        $unknown->assertNotFound();
+        expect($existing->json())->toBe($unknown->json());
+    });
+
     it('should return 404 (not found) for an unknown client id', function (): void {
         // Guards third-party code: Laravel's ImplicitRouteBinding turns a missing Client into the 404, as long as
         // ClientController::show() type-hints Client.
