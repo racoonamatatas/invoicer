@@ -9,8 +9,10 @@ use Illuminate\Cache\RateLimiter;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Contracts\Validation\UncompromisedVerifier;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\Client\Factory as HttpFactory;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
@@ -58,18 +60,27 @@ class AppServiceProvider extends ServiceProvider
     }
 
     /**
-     * Explicit route model bindings. The {business} segment of /api/businesses/7 starts out as the string "7";
-     * binding is the step that swaps it for the Business with that id. Implicit binding only runs when the matched
-     * action type-hints Business, so a route in the business group whose action doesn't (a store() that only needs
-     * the id, say) would hand the policy middleware the string "7" instead of a Business, and it would deny the
-     * owner. Route::model() runs the binding for the parameter name alone, whatever the action's signature.
+     * Explicit, so {business} is bound on every route in the group, whatever the action type-hints.
      *
-     * Here and not in routes/api.php: once routes are cached (route:cache, optimize) the routes file is never loaded
-     * again, and a binding registered there is lost. A provider boots on every request.
+     * Another user's business is a 404, identical to an unknown id. The check sits in the binding because a scoped
+     * child like {bankAccount} binds in the same step: checked any later, child ids would answer differently.
+     *
+     * auth:sanctum runs first (middleware priority), so Gate::allows() sees the user; a guest is denied.
+     *
+     * In a provider, not routes/api.php: a cached routes file is never loaded, and a binding there would be lost.
      */
     private function configureRouteBindings(): void
     {
-        Route::model('business', Business::class);
+        Route::bind('business', static function (string $value): Business {
+            $business = Business::findOrFail($value);
+
+            if (! Gate::allows('access', $business))
+            {
+                throw (new ModelNotFoundException)->setModel(Business::class, [$value]);
+            }
+
+            return $business;
+        });
     }
 
     /**
