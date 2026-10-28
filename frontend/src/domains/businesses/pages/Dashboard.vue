@@ -4,13 +4,11 @@ import { computed } from 'vue';
 import { RouterLink, useRoute } from 'vue-router';
 
 // Project imports
-import { useAuthStore } from '@/domains/auth/store';
+import LogoutButton from '@/components/LogoutButton.vue';
 import { useBusinessList } from '@/domains/businesses/composables/useBusinessList';
 import { useBusinessesStore } from '@/domains/businesses/store';
-import { useForm } from '@/composables/useForm';
 import type { Business } from '@/services/businesses';
 
-const auth = useAuthStore();
 const businesses = useBusinessesStore();
 const route = useRoute();
 
@@ -61,21 +59,6 @@ const state = computed<DashboardState>(() =>
 
     return business === undefined ? { kind: 'notFound' } : { kind: 'found', business };
 });
-
-// No fields, so no field errors: useForm is here for its double-click guard,
-// isPending, and its re-throw of failures.
-const { submit, isPending } = useForm('logout', {});
-
-// The reload sits inside the callback, so a failed logout keeps the user
-// here, still logged in. A full page load, not router.push: every store and
-// in-flight request dies with the document, so nothing reaches the next
-// session. Back can't revive it from the back/forward cache either:
-// reloadRestoredPage reloads any restored page.
-const onLogout = () => submit(async () =>
-{
-    await auth.logout();
-    window.location.assign('/login');
-});
 </script>
 
 <template>
@@ -98,6 +81,6 @@ const onLogout = () => submit(async () =>
         <!-- In every state, so the user can always leave or log out. -->
         <p><RouterLink :to="{ name: 'businesses' }">Your businesses</RouterLink></p>
         <p><RouterLink :to="{ name: 'changePassword' }">Change password</RouterLink></p>
-        <button type="button" :disabled="isPending" @click="onLogout">Log out</button>
+        <LogoutButton />
     </div>
 </template>
