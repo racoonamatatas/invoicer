@@ -62,5 +62,7 @@ export const useRouteBusiness = () =>
         return business === undefined ? { kind: 'notFound' } : { kind: 'found', business };
     });
 
-    return { state, retry };
+    // businessId too, for a page that keeps a business across reloads: it
+    // must check that it is still the one in the URL.
+    return { businessId, state, retry };
 };

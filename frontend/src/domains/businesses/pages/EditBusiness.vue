@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Package imports
-import { ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { RouterLink } from 'vue-router';
 
 // Project imports
@@ -11,26 +11,32 @@ import { useBusinessesStore } from '@/domains/businesses/store';
 import type { Business, BusinessPayload } from '@/services/businesses';
 
 const store = useBusinessesStore();
-const { state, retry } = useRouteBusiness();
+const { businessId, state, retry } = useRouteBusiness();
 
-// The business the form edits: the last one found, kept while the list loads
-// again or fails. A failed reload after a save empties the store's list, and
-// rendering on state alone would unmount the form and lose what was typed,
-// along with the "Saved." that says the write went through. Cleared only
-// when the URL points at no business of the user's.
-const shown = ref<Business | null>(null);
+// The last business found, kept while the list loads again or fails. A
+// failed reload after a save empties the store's list, and rendering on
+// state alone would unmount the form and lose what was typed, along with the
+// "Saved." that says the write went through. Cleared when the URL points at
+// no business of the user's.
+const lastFound = ref<Business | null>(null);
 
 watch(state, (current) =>
 {
     if (current.kind === 'found')
     {
-        shown.value = current.business;
+        lastFound.value = current.business;
     }
     else if (current.kind === 'notFound')
     {
-        shown.value = null;
+        lastFound.value = null;
     }
 }, { immediate: true });
+
+// The business the form edits: the last one found, but only while it is
+// still the one in the URL. Back/forward to another id while the list is
+// loading or failed would otherwise show this one's form under that URL,
+// and save to it.
+const shown = computed(() => (lastFound.value?.id === businessId.value ? lastFound.value : null));
 
 // Through the store, so the list and every page's heading show the new
 // values without a page load. Stays on this page: the form shows its saved
