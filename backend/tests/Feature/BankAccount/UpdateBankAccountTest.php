@@ -36,24 +36,50 @@ describe('Updating a bank account', function (): void {
         $response->assertOk()->assertJsonPath('label', 'MAIN');
     });
 
-    it('should return 422 (unprocessable) on iban when the body holds one, and change nothing', function (): void {
+    it('should return 200 (ok) when the body holds the stored IBAN, as sent or as people write it', function (string $iban): void {
         // Arrange
         $business = Business::factory()->create();
         $account = BankAccount::factory()->for($business)->create(['iban' => 'NL91ABNA0417164300', 'label' => 'Main']);
         $this->actingAs($business->user, 'web');
 
-        // Act. A valid IBAN and a valid label: only "an IBAN was sent at all" can fail.
+        // Act. The whole account back, as a client that edits what GET returned would send it.
         $response = $this->putJson("/api/businesses/{$business->id}/bank-accounts/{$account->id}", [
-            'iban' => 'NL20INGB0001234567',
+            'iban' => $iban,
+            'label' => 'Zakelijk',
+        ]);
+
+        // Assert
+        $response->assertOk()
+            ->assertExactJson(['id' => $account->id, 'iban' => 'NL91ABNA0417164300', 'label' => 'Zakelijk']);
+    })->with([
+        'canonical' => 'NL91ABNA0417164300',
+        'grouped and lowercase' => 'nl91 abna 0417 1643 00',
+    ]);
+
+    it('should return 422 (unprocessable) on iban for any other value, and change nothing', function (mixed $iban): void {
+        // Arrange
+        $business = Business::factory()->create();
+        $account = BankAccount::factory()->for($business)->create(['iban' => 'NL91ABNA0417164300', 'label' => 'Main']);
+        $this->actingAs($business->user, 'web');
+
+        // Act. A valid label: only the IBAN can fail.
+        $response = $this->putJson("/api/businesses/{$business->id}/bank-accounts/{$account->id}", [
+            'iban' => $iban,
             'label' => 'Zakelijk',
         ]);
 
         // Assert
         $response->assertUnprocessable()
-            ->assertOnlyJsonValidationErrors(['iban' => 'The iban field is prohibited.']);
+            ->assertOnlyJsonValidationErrors(['iban' => 'The iban can\'t be changed.']);
         expect($account->fresh()?->iban)->toBe('NL91ABNA0417164300')
             ->and($account->fresh()?->label)->toBe('Main');
-    });
+    })->with([
+        'another valid IBAN' => 'NL20INGB0001234567',
+        // Empty is not "no change": prohibited would have let these through.
+        'null' => null,
+        'empty string' => '',
+        'a number' => 1234,
+    ]);
 
     it('should return 422 (unprocessable) on label for a label another account of the business has in another case', function (): void {
         // Arrange
