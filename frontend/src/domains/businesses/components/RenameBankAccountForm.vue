@@ -4,16 +4,19 @@ import { computed, onMounted, ref, useTemplateRef } from 'vue';
 
 // Project imports
 import { useForm } from '@/composables/useForm';
-import { updateBankAccountLabel, type BankAccount, type BankAccountLabelPayload } from '@/services/bankAccounts';
+import { BankAccountNotFoundError, updateBankAccountLabel, type BankAccount, type BankAccountLabelPayload } from '@/services/bankAccounts';
 
 const props = defineProps<{
     businessId: number;
     account: BankAccount;
 }>();
 
-// The page closes the form on either, and reloads the list after saved.
+// The page closes the form on each, and reloads the list after saved and
+// gone. gone: the account no longer exists, so this form has nothing left to
+// rename; the page says why the row went.
 const emit = defineEmits<{
     saved: [account: BankAccount];
+    gone: [];
     cancel: [];
 }>();
 
@@ -28,8 +31,8 @@ const { submit, isPending, fieldError, throttleMessage, generalMessage } = useFo
 
 const labelError = computed(() => fieldError('label'));
 
-// A failure useForm doesn't show: a 404 (the account is gone), a 500, a
-// response of the wrong shape. Cleared by the next submit.
+// A failure useForm doesn't show: a 500, a response of the wrong shape.
+// Cleared by the next submit.
 const hasFailed = ref(false);
 
 // The Rename button that opened this form is gone, so focus would fall back
@@ -56,6 +59,15 @@ const onSubmit = async (): Promise<void> =>
     }
     catch (error) // unknown: anything can be thrown
     {
+        // Expected, not a fault: another tab deleted the account. Not
+        // re-thrown, so it doesn't reach Vue's error handler.
+        if (error instanceof BankAccountNotFoundError)
+        {
+            emit('gone');
+
+            return;
+        }
+
         hasFailed.value = true;
         throw error;
     }

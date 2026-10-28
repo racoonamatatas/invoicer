@@ -43,6 +43,19 @@ const isBankAccountList = (value: unknown): value is BankAccount[] =>
 
 const endpointFor = (businessId: number): string => `/businesses/${businessId}/bank-accounts`;
 
+// A rename's 404: the account is gone (deleted in another tab, say). Its own
+// class, so the page can tell it from other failures with instanceof and
+// never reads a status code itself. The original 404 is kept as `cause`, like
+// SessionEndedError.
+export class BankAccountNotFoundError extends Error
+{
+    constructor(cause: unknown)
+    {
+        super('The bank account no longer exists', { cause });
+        this.name = 'BankAccountNotFoundError';
+    }
+}
+
 // A business's accounts, in the backend's order (label, then IBAN). A 404
 // means the business isn't the user's, or no longer exists.
 export const listBankAccounts = async (businessId: number): Promise<BankAccount[]> =>
@@ -63,14 +76,28 @@ export const createBankAccount = async (businessId: number, payload: BankAccount
     return checkResponse(endpoint, response.data, isBankAccount);
 };
 
-// 200 (ok) with the renamed account. A 422 is thrown for useForm, a 404 (the
-// account is gone, or isn't under this business) for the page.
+// 200 (ok) with the renamed account. A 422 is thrown for useForm. A 404 (the
+// account is gone) is a BankAccountNotFoundError: unlike a delete's, it means
+// the new label was not saved.
 export const updateBankAccountLabel = async (businessId: number, accountId: number, payload: BankAccountLabelPayload): Promise<BankAccount> =>
 {
     const endpoint = `${endpointFor(businessId)}/${accountId}`;
-    const response = await putRequest<BankAccountLabelPayload, unknown>(endpoint, payload);
 
-    return checkResponse(endpoint, response.data, isBankAccount);
+    try
+    {
+        const response = await putRequest<BankAccountLabelPayload, unknown>(endpoint, payload);
+
+        return checkResponse(endpoint, response.data, isBankAccount);
+    }
+    catch (error) // unknown: anything can be thrown
+    {
+        if (isAxiosError(error) && error.response?.status === 404)
+        {
+            throw new BankAccountNotFoundError(error);
+        }
+
+        throw error;
+    }
 };
 
 // 204 (no content): nothing to check. A 404 counts as deleted too: the

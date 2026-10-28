@@ -29,13 +29,27 @@ const openRow = ref<OpenRow>({ kind: 'none' });
 const isOpen = (kind: OpenRow['kind'], accountId: number): boolean =>
     openRow.value.kind === kind && 'accountId' in openRow.value && openRow.value.accountId === accountId;
 
+// Shown after a rename found its account gone, so the row's disappearing has
+// a reason. Cleared when the user opens another row or the business changes.
+const isGoneNoticeShown = ref(false);
+
+const openRowFor = (row: OpenRow): void =>
+{
+    isGoneNoticeShown.value = false;
+    openRow.value = row;
+};
+
 const closeRow = (): void =>
 {
     openRow.value = { kind: 'none' };
 };
 
 // Another business's list has other ids; nothing of the old one stays open.
-watch(() => (state.value.kind === 'found' ? state.value.business.id : null), closeRow);
+watch(() => (state.value.kind === 'found' ? state.value.business.id : null), () =>
+{
+    isGoneNoticeShown.value = false;
+    closeRow();
+});
 
 // Closed first, so the row shows its label again while the list reloads.
 // After a delete, the reload is what removes the row.
@@ -44,6 +58,13 @@ const closeAndReload = (): Promise<void> =>
     closeRow();
 
     return reload();
+};
+
+const onGone = (): Promise<void> =>
+{
+    isGoneNoticeShown.value = true;
+
+    return closeAndReload();
 };
 
 // For reading only: 'NL91ABNA0417164300' shows as 'NL91 ABNA 0417 1643 00'.
@@ -72,6 +93,7 @@ const groupIban = (iban: string): string => iban.replace(/(.{4})(?=.)/g, '$1 ');
                 <span id="bank-accounts-status" role="status">
                     <template v-if="accounts.kind === 'loading'">Loading bank accounts...</template>
                     <template v-else-if="accounts.kind === 'failed'">Couldn't load the bank accounts.</template>
+                    <template v-else-if="isGoneNoticeShown">That account no longer exists.</template>
                 </span>
                 <button v-if="accounts.kind === 'failed'" type="button" @click="reload">Try again</button>
             </p>
@@ -85,6 +107,7 @@ const groupIban = (iban: string): string => iban.replace(/(.{4})(?=.)/g, '$1 ');
                             :business-id="state.business.id"
                             :account="account"
                             @saved="closeAndReload"
+                            @gone="onGone"
                             @cancel="closeRow"
                         />
                         <template v-else>
@@ -97,8 +120,8 @@ const groupIban = (iban: string): string => iban.replace(/(.{4})(?=.)/g, '$1 ');
                                 @cancel="closeRow"
                             />
                             <template v-else>
-                                <button type="button" :aria-label="`Rename ${account.label}`" @click="openRow = { kind: 'renaming', accountId: account.id }">Rename</button>
-                                <button type="button" :aria-label="`Delete ${account.label}`" @click="openRow = { kind: 'confirmingDelete', accountId: account.id }">Delete</button>
+                                <button type="button" :aria-label="`Rename ${account.label}`" @click="openRowFor({ kind: 'renaming', accountId: account.id })">Rename</button>
+                                <button type="button" :aria-label="`Delete ${account.label}`" @click="openRowFor({ kind: 'confirmingDelete', accountId: account.id })">Delete</button>
                             </template>
                         </template>
                     </li>
