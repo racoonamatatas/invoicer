@@ -1,3 +1,4 @@
+import type { Address } from '@/services/address';
 import { checkResponse, getRequest, postRequest, putRequest } from '@/services/http';
 
 // The countries a business can be registered in. A business is a KvK
@@ -28,17 +29,12 @@ export interface Business
 // What the create and edit forms send. Keys match BusinessRequest's rules, so
 // they are also the keys of a 422's errors. No region: the backend prohibits
 // one on a Dutch address, and a business is always Dutch, so a form has
-// nothing to show or send for it.
-export interface BusinessPayload
+// nothing to show or send for it. Extends Address, so AddressFields fits it.
+export interface BusinessPayload extends Address
 {
     legal_name: string;
     kvk_number: string;
     vat_number: string;
-    street: string;
-    house_number: string;
-    house_number_addition: string | null;
-    postal_code: string;
-    city: string;
     country_code: BusinessCountryCode;
     payment_term_days: number;
 }
