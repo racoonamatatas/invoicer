@@ -448,6 +448,33 @@ describe('Businesses page, create form', () =>
         expect(vi.mocked(service.createBusiness).mock.calls[0]?.[0].payment_term_days).toBeNull();
     });
 
+    it('should show Loading..., not the old failure, when the reload after createBusiness fails with a 500 (server error) after a failed first load was recovered by a visible tab', async () =>
+    {
+        // Arrange: the first load fails; the reload on a visible tab brings the
+        // list; the reload after the create fails, which empties the store
+        vi.mocked(service.listBusinesses)
+            .mockRejectedValueOnce(axiosErrorWith(500, { message: 'Server Error' }))
+            .mockResolvedValueOnce([bakery])
+            .mockRejectedValueOnce(axiosErrorWith(500, { message: 'Server Error' }));
+        vi.mocked(service.createBusiness).mockResolvedValue(shop);
+        const wrapper = await mountBusinesses(() =>
+        {});
+        await flushPromises();
+        setVisibility('visible');
+        await flushPromises();
+        await buttonNamed(wrapper, 'Add a business')?.trigger('click');
+        await fillForm(wrapper);
+
+        // Act
+        await wrapper.find(addForm).trigger('submit');
+        await flushPromises();
+
+        // Assert: the create went through, and the page doesn't think the
+        // failure from before the visible tab still holds
+        expect(service.createBusiness).toHaveBeenCalledOnce();
+        expect(wrapper.find('[role="status"]').text()).toBe('Loading...');
+    });
+
     // One row for a field of the page, one for a field inside AddressFields:
     // both read the same useForm errors.
     it.for([
