@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Package imports
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 // Project imports
 import AddressFields from '@/components/AddressFields.vue';
@@ -15,7 +15,8 @@ import type { Business, BusinessPayload } from '@/services/businesses';
 // and the form has to await it, so a 422 lands in useForm's errors and the
 // button stays disabled while the request runs.
 const props = defineProps<{
-    // null: an empty form, for a new business.
+    // null: an empty form, for a new business. Copied once, when the form
+    // mounts: a caller that can change it keys the form by the business id.
     initial: Business | null;
     // The form's accessible name, e.g. "Add a business".
     label: string;
@@ -96,26 +97,51 @@ const kvkNumberError = computed(() => fieldError('kvk_number'));
 const vatNumberError = computed(() => fieldError('vat_number'));
 const paymentTermDaysError = computed(() => fieldError('payment_term_days'));
 
-// Set only after save resolves, and cleared by the next submit, so it never
-// stands next to an error from a later attempt.
+// Set only after save resolves. Cleared by the next submit, so it never
+// stands next to an error from a later attempt, and by the next edit, so it
+// never claims values that aren't saved yet.
 const isSaved = ref(false);
+
+watch(form, () =>
+{
+    isSaved.value = false;
+}, { deep: true });
+
+// A failure useForm doesn't show: a 403, a 404, a 500, a response of the
+// wrong shape. Without it the button re-enables and nothing says why.
+const hasFailed = ref(false);
 
 // isSaved is set inside the callback: submit() resolves the same way after a
 // 422, so only reaching that line proves the save went through. The address
 // is spread back to the flat shape the API takes, and an emptied payment
 // term becomes the payload's null.
-const onSubmit = () => submit(async () =>
+// What submit() re-throws is shown, then re-thrown again, so Vue's error
+// handler still sees what went wrong.
+const onSubmit = async (): Promise<void> =>
 {
     isSaved.value = false;
-    const { address, payment_term_days: paymentTermDays, ...fields } = form.value;
-    await props.save({
-        ...fields,
-        ...address,
-        country_code: 'NL',
-        payment_term_days: paymentTermDays === '' ? null : paymentTermDays,
-    });
-    isSaved.value = true;
-});
+    hasFailed.value = false;
+
+    try
+    {
+        await submit(async () =>
+        {
+            const { address, payment_term_days: paymentTermDays, ...fields } = form.value;
+            await props.save({
+                ...fields,
+                ...address,
+                country_code: 'NL',
+                payment_term_days: paymentTermDays === '' ? null : paymentTermDays,
+            });
+            isSaved.value = true;
+        });
+    }
+    catch (error) // unknown: anything can be thrown
+    {
+        hasFailed.value = true;
+        throw error;
+    }
+};
 </script>
 
 <template>
@@ -128,6 +154,7 @@ const onSubmit = () => submit(async () =>
         <div role="status">
             <p v-if="throttleMessage">{{ throttleMessage }}</p>
             <p v-else-if="generalMessage">{{ generalMessage }}</p>
+            <p v-else-if="hasFailed">Couldn't save.</p>
             <p v-else-if="isSaved && savedMessage !== null">{{ savedMessage }}</p>
         </div>
 
