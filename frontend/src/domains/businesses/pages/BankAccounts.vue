@@ -1,0 +1,149 @@
+<script setup lang="ts">
+// Package imports
+import { ref, watch } from 'vue';
+import { RouterLink } from 'vue-router';
+
+// Project imports
+import LogoutButton from '@/components/LogoutButton.vue';
+import AddBankAccountForm from '@/domains/businesses/components/AddBankAccountForm.vue';
+import DeleteBankAccountConfirm from '@/domains/businesses/components/DeleteBankAccountConfirm.vue';
+import RenameBankAccountForm from '@/domains/businesses/components/RenameBankAccountForm.vue';
+import { useBankAccounts } from '@/domains/businesses/composables/useBankAccounts';
+import { useRouteBusiness } from '@/domains/businesses/composables/useRouteBusiness';
+
+const { state, retry } = useRouteBusiness();
+
+// Accounts load once the business is found, never for an id that isn't the
+// user's: the list already answered that, so a request would only be a 404.
+const { state: accounts, reload } = useBankAccounts(() => (state.value.kind === 'found' ? state.value.business.id : null));
+
+// The row the user has opened, and for what. One value for the whole list,
+// so two rows can't be open at once, nor one row for both.
+type OpenRow =
+    | { kind: 'none' }
+    | { kind: 'renaming'; accountId: number }
+    | { kind: 'confirmingDelete'; accountId: number };
+
+const openRow = ref<OpenRow>({ kind: 'none' });
+
+const isOpen = (kind: OpenRow['kind'], accountId: number): boolean =>
+    openRow.value.kind === kind && 'accountId' in openRow.value && openRow.value.accountId === accountId;
+
+// Shown after a rename found its account gone, so the row's disappearing has
+// a reason. Cleared when the user opens another row or the business changes.
+const isGoneNoticeShown = ref(false);
+
+const openRowFor = (row: OpenRow): void =>
+{
+    isGoneNoticeShown.value = false;
+    openRow.value = row;
+};
+
+const closeRow = (): void =>
+{
+    openRow.value = { kind: 'none' };
+};
+
+// Another business's list has other ids; nothing of the old one stays open.
+watch(() => (state.value.kind === 'found' ? state.value.business.id : null), () =>
+{
+    isGoneNoticeShown.value = false;
+    closeRow();
+});
+
+// Closed first, so the row shows its label again while the list reloads.
+// After a delete, the reload is what removes the row.
+const closeAndReload = (): Promise<void> =>
+{
+    closeRow();
+
+    return reload();
+};
+
+const onGone = (): Promise<void> =>
+{
+    isGoneNoticeShown.value = true;
+
+    return closeAndReload();
+};
+
+// For reading only: 'NL91ABNA0417164300' shows as 'NL91 ABNA 0417 1643 00'.
+// The stored value is never changed, and nothing sends this form back.
+const groupIban = (iban: string): string => iban.replace(/(.{4})(?=.)/g, '$1 ');
+</script>
+
+<template>
+    <div>
+        <!-- Always rendered: a screen reader only announces changes inside a
+             live region it already knows about. -->
+        <div role="status">
+            <p v-if="state.kind === 'loading'">Loading...</p>
+            <p v-else-if="state.kind === 'failed'">Couldn't load your businesses.</p>
+        </div>
+
+        <button v-if="state.kind === 'failed'" type="button" @click="retry">Try again</button>
+        <!-- The registered name, so a wrong id in the URL is visible at once. -->
+        <template v-else-if="state.kind === 'found'">
+            <h1>Bank accounts · {{ state.business.registered_name }}</h1>
+
+            <!-- The accounts' own live region, under the heading, so its
+                 message sits next to its Try again. Spans, so both share a
+                 line. -->
+            <p>
+                <span id="bank-accounts-status" role="status">
+                    <template v-if="accounts.kind === 'loading'">Loading bank accounts...</template>
+                    <template v-else-if="accounts.kind === 'failed'">Couldn't load the bank accounts.</template>
+                    <template v-else-if="isGoneNoticeShown">That account no longer exists.</template>
+                </span>
+                <button v-if="accounts.kind === 'failed'" type="button" @click="reload">Try again</button>
+            </p>
+            <template v-if="accounts.kind === 'loaded'">
+                <ul v-if="accounts.accounts.length > 0" aria-label="Bank accounts">
+                    <!-- Label and IBAN in their own span, apart from the row's
+                         buttons. -->
+                    <li v-for="account in accounts.accounts" :key="account.id">
+                        <RenameBankAccountForm
+                            v-if="isOpen('renaming', account.id)"
+                            :business-id="state.business.id"
+                            :account="account"
+                            @saved="closeAndReload"
+                            @gone="onGone"
+                            @cancel="closeRow"
+                        />
+                        <template v-else>
+                            <span>{{ account.label }} {{ groupIban(account.iban) }}</span>
+                            <DeleteBankAccountConfirm
+                                v-if="isOpen('confirmingDelete', account.id)"
+                                :business-id="state.business.id"
+                                :account="account"
+                                @deleted="closeAndReload"
+                                @cancel="closeRow"
+                            />
+                            <template v-else>
+                                <button type="button" :aria-label="`Rename ${account.label}`" @click="openRowFor({ kind: 'renaming', accountId: account.id })">Rename</button>
+                                <button type="button" :aria-label="`Delete ${account.label}`" @click="openRowFor({ kind: 'confirmingDelete', accountId: account.id })">Delete</button>
+                            </template>
+                        </template>
+                    </li>
+                </ul>
+                <p v-else>No bank accounts yet.</p>
+            </template>
+
+            <!-- Outside the list's states: adding works even while the list
+                 is loading or failed. Keyed by id, so another business in the
+                 URL gets an empty form. The reload puts the new account in
+                 the server's order. -->
+            <AddBankAccountForm :key="state.business.id" :business-id="state.business.id" @added="reload" />
+
+            <p><RouterLink :to="{ name: 'dashboard', params: { businessId: state.business.id } }">Back to the dashboard</RouterLink></p>
+        </template>
+        <template v-else-if="state.kind === 'notFound'">
+            <h1>Business not found</h1>
+            <p>It doesn't exist, or it isn't one of yours.</p>
+        </template>
+
+        <!-- In every state, so the user can always leave or log out. -->
+        <p><RouterLink :to="{ name: 'businesses' }">Your businesses</RouterLink></p>
+        <LogoutButton />
+    </div>
+</template>

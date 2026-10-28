@@ -23,6 +23,7 @@ const { state, retry } = useRouteBusiness();
         <template v-else-if="state.kind === 'found'">
             <h1>{{ state.business.registered_name }}</h1>
             <p><RouterLink :to="{ name: 'editBusiness', params: { businessId: state.business.id } }">Edit details</RouterLink></p>
+            <p><RouterLink :to="{ name: 'bankAccounts', params: { businessId: state.business.id } }">Bank accounts</RouterLink></p>
         </template>
         <template v-else-if="state.kind === 'notFound'">
             <h1>Business not found</h1>

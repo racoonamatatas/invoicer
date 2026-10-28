@@ -9,4 +9,5 @@ export const businessesRoutes: AppRoute[] = [
     // refresh, a bookmark or a second tab always shows the same business.
     new AppRoute('/businesses/:businessId', 'dashboard', () => import('./pages/Dashboard.vue')),
     new AppRoute('/businesses/:businessId/edit', 'editBusiness', () => import('./pages/EditBusiness.vue')),
+    new AppRoute('/businesses/:businessId/bank-accounts', 'bankAccounts', () => import('./pages/BankAccounts.vue')),
 ];
