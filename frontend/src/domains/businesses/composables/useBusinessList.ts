@@ -53,6 +53,18 @@ export const useBusinessList = (isNeeded: () => boolean = () => true) =>
     // immediate: the first check runs now, not on the first change.
     watch(isNeeded, (needed) => (needed ? load() : undefined), { immediate: true });
 
+    // A list from anywhere ends a failure, not only one from load(): a page
+    // can also fill the store with store.reload(). Left set, a later
+    // invalidation (a failed reload after a create) would show the old
+    // failure instead of loading.
+    watch(() => store.businesses, (businesses) =>
+    {
+        if (businesses !== null)
+        {
+            hasFailed.value = false;
+        }
+    });
+
     // A loaded list wins over a failure: after a failed retry the store can
     // still hold the list it had.
     const state = computed<BusinessListState>(() =>
