@@ -475,6 +475,31 @@ describe('Businesses page, create form', () =>
         expect(vi.mocked(service.createBusiness).mock.calls[0]?.[0]).toStrictEqual(expectedPayload);
     });
 
+    it('should not show Couldn\'t save. when createBusiness gets a 201 (created) but the navigation to the dashboard fails, and hand that failure on', async () =>
+    {
+        // Arrange: the push rejects, the way it does when the dashboard's
+        // lazy chunk fails to load. errorHandler is a spy standing in for
+        // app.config.errorHandler
+        const failure = new Error('Failed to fetch dynamically imported module');
+        vi.mocked(service.listBusinesses).mockResolvedValueOnce([]).mockResolvedValueOnce([shop]);
+        vi.mocked(service.createBusiness).mockResolvedValue(shop);
+        const errorHandler = vi.fn<(error: unknown) => void>();
+        const { wrapper, router } = await mountBusinessesWithRouter(errorHandler);
+        await flushPromises();
+        vi.spyOn(router, 'push').mockRejectedValue(failure);
+        await fillForm(wrapper);
+
+        // Act
+        await wrapper.find(addForm).trigger('submit');
+        await flushPromises();
+
+        // Assert: the business was created and the push tried, so the form
+        // doesn't claim the save failed; the failure still reaches Vue
+        expect(router.push).toHaveBeenCalledOnce();
+        expect(wrapper.find(`${addForm} [role="status"]`).text()).toBe('');
+        expect(errorHandler).toHaveBeenCalledWith(failure, expect.anything(), expect.anything());
+    });
+
     it('should send a typed payment term as a number, not the input\'s text', async () =>
     {
         // Arrange
@@ -571,7 +596,7 @@ describe('Businesses page, create form', () =>
         expect(input.attributes('aria-describedby')).toBe(`business-${field}-error`);
 
         // Assert: shown once, by the field, not again in the status region
-        expect(wrapper.find('[role="status"]').text()).toBe('');
+        expect(wrapper.find(`${addForm} [role="status"]`).text()).toBe('');
 
         // Assert (interaction): no navigation was started
         expect(push).not.toHaveBeenCalled();
@@ -592,6 +617,6 @@ describe('Businesses page, create form', () =>
         await flushPromises();
 
         // Assert: without it the user would see no feedback at all
-        expect(wrapper.find('[role="status"]').text()).toBe(message);
+        expect(wrapper.find(`${addForm} [role="status"]`).text()).toBe(message);
     });
 });
