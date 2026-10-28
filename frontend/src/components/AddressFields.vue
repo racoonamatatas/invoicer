@@ -14,10 +14,22 @@ const props = defineProps<{
     fieldError: (field: AddressField) => FieldError | null;
 }>();
 
-// The parent's address object. The inputs write into it directly, so typing
-// changes the parent's form without an update event: the object stays the
-// same, only its fields change.
+// The parent's address. Never changed in place: each keystroke assigns a new
+// object, which emits update:modelValue. In-place writes would only reach the
+// parent when it happens to pass a reactive object, and a parent listening
+// for the event (or binding a computed with a setter) would hear nothing.
 const address = defineModel<Address>({ required: true });
+
+// target is only typed as EventTarget; the check proves it's the input.
+const onInput = (key: AddressField, event: Event): void =>
+{
+    if (!(event.target instanceof HTMLInputElement))
+    {
+        return;
+    }
+
+    address.value = { ...address.value, [key]: event.target.value };
+};
 
 interface Row
 {
@@ -46,11 +58,12 @@ const rows = computed(() => ROWS.map((row) => ({ ...row, id: `${props.formName}-
         <label :for="row.id">{{ row.label }}</label>
         <input
             :id="row.id"
-            v-model="address[row.key]"
+            :value="address[row.key] ?? ''"
             type="text"
             :autocomplete="row.autocomplete"
             :aria-invalid="row.error !== null"
             :aria-describedby="row.error?.id"
+            @input="onInput(row.key, $event)"
         />
         <p v-if="row.error" :id="row.error.id">{{ row.error.message }}</p>
     </div>
