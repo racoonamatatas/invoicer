@@ -9,8 +9,8 @@ use App\Models\BankAccount;
 final readonly class DeleteBankAccountAction
 {
     /**
-     * Nothing points at a bank account yet. Once invoices do, an account an invoice uses can't be deleted, and
-     * this action refuses it with a 409 instead of letting the foreign key throw.
+     * A plain delete, because nothing points at a bank account yet. Once invoices do, this action will have to
+     * refuse an account an invoice uses with a 409, before the foreign key throws.
      */
     public function execute(BankAccount $bankAccount): void
     {
