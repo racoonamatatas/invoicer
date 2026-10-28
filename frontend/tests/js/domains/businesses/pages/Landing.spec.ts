@@ -4,6 +4,7 @@ import { beforeEach, describe, it, expect, vi } from 'vitest';
 import type { NavigationGuardWithThis } from 'vue-router';
 
 import Landing from '@/domains/businesses/pages/Landing.vue';
+import { useBusinessesStore } from '@/domains/businesses/store';
 import * as service from '@/services/businesses';
 import { axiosErrorWith } from '../../../utility/axiosErrorWith';
 import { business, jan, logInAs } from '../../../utility/businesses';
@@ -69,6 +70,28 @@ describe('Landing page', () =>
         // Assert (interaction): replaced, not pushed, so Back skips /
         expect(replace).toHaveBeenCalledExactlyOnceWith(route);
         expect(push).not.toHaveBeenCalled();
+    });
+
+    it('should replace / without a failure when the store already holds the list, so the redirect starts during setup', async () =>
+    {
+        // Arrange: the list is loaded before Landing mounts, the way it is
+        // when the user comes back to / from another page. The watcher's
+        // immediate run then calls replace while setup is still running
+        vi.mocked(service.listBusinesses).mockResolvedValue([bakery, studio]);
+        const pinia = createPinia();
+        setActivePinia(pinia);
+        await logInAs(jan);
+        await useBusinessesStore().load();
+        const router = createTestRouter();
+        await router.push({ name: 'home' });
+
+        // Act
+        const wrapper = mount(Landing, { global: { plugins: [pinia, router] } });
+
+        // Assert: the redirect landed, and the page never thought it failed
+        await vi.waitFor(() => expect(router.currentRoute.value.path).toBe('/businesses'));
+        expect(wrapper.find('[role="status"]').text()).toBe('Loading...');
+        expect(service.listBusinesses).toHaveBeenCalledOnce();
     });
 
     it('should show Loading... in the status region and stay on / while listBusinesses is in flight', async () =>
