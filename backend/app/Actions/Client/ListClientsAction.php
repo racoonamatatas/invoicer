@@ -11,6 +11,10 @@ use Illuminate\Database\Eloquent\Collection;
 /**
  * A business's clients in display order: for the clients page now, and for the invoice form's picker later, so the
  * order is decided once.
+ *
+ * Every client, unpaginated: a freelancer has tens of clients, a few hundred at most. No index serves the
+ * lower(name) sort, so the database sorts the business's rows in memory, which is instant at that size. If a
+ * business ever reaches thousands, the list needs pagination (and the picker a search) before an index would help.
  */
 final readonly class ListClientsAction
 {
