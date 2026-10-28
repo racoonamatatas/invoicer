@@ -245,6 +245,67 @@ describe('EditBusiness page', () =>
         expect(errorHandler).toHaveBeenCalledWith(error, expect.anything(), expect.anything());
     });
 
+    it('should show the business as stored in the inputs after a save, not as typed, when updateBusiness gets a 200 (ok) with normalised values', async () =>
+    {
+        // Arrange: the backend stores the postcode in its canonical form
+        vi.mocked(service.listBusinesses).mockResolvedValue([bakery]);
+        vi.mocked(service.updateBusiness).mockResolvedValue({ ...bakery, postal_code: '1015 CJ' });
+        const { wrapper } = await mountEditBusiness('1');
+        await flushPromises();
+        await wrapper.find('#business-postal_code').setValue('1015cj');
+
+        // Act
+        await wrapper.find(detailsForm).trigger('submit');
+        await flushPromises();
+
+        // Assert: what was sent, and what the input shows now
+        expect(vi.mocked(service.updateBusiness).mock.calls[0]?.[1].postal_code).toBe('1015cj');
+        expect(valueOf(wrapper, 'business-postal_code')).toBe('1015 CJ');
+        expect(wrapper.find(`${detailsForm} [role="status"]`).text()).toBe('Saved.');
+    });
+
+    it('should show Saved. again when an edit after the save is undone, since the inputs hold what was stored again', async () =>
+    {
+        // Arrange
+        vi.mocked(service.listBusinesses).mockResolvedValue([bakery]);
+        vi.mocked(service.updateBusiness).mockResolvedValue(bakery);
+        const { wrapper } = await mountEditBusiness('1');
+        await flushPromises();
+        await wrapper.find(detailsForm).trigger('submit');
+        await flushPromises();
+        await wrapper.find('#business-city').setValue('Utrecht');
+
+        // Act
+        await wrapper.find('#business-city').setValue('Amsterdam');
+
+        // Assert
+        expect(wrapper.find(`${detailsForm} [role="status"]`).text()).toBe('Saved.');
+    });
+
+    it('should not show the previous business\'s form when the URL changes to another id while the list is failed, so a save can\'t write to the wrong business', async () =>
+    {
+        // Arrange: business 1 loads, then a save's reload fails and every
+        // later list request fails too, so the page keeps business 1 only
+        // as its last found. vi.fn() takes the handed-on load failures
+        vi.mocked(service.listBusinesses).mockResolvedValueOnce([bakery, studio]).mockRejectedValue(axiosErrorWith(500, {}));
+        vi.mocked(service.updateBusiness).mockResolvedValue(bakery);
+        const { wrapper, router } = await mountEditBusiness('1', vi.fn());
+        await flushPromises();
+        await wrapper.find(detailsForm).trigger('submit');
+        await flushPromises();
+        expect(wrapper.find(detailsForm).exists()).toBe(true);
+
+        // Act: the page stays mounted while only the param changes, the way
+        // Vue Router reuses a page between two URLs of the same route
+        await router.push('/businesses/2/edit');
+        await flushPromises();
+
+        // Assert: the failure, and no form or heading of business 1
+        expect(wrapper.find('[role="status"]').text()).toBe('Couldn\'t load your businesses.');
+        expect(wrapper.find(detailsForm).exists()).toBe(false);
+        expect(wrapper.find('h1').exists()).toBe(false);
+    });
+
     it('should show not found and no form when listBusinesses gets a 200 (ok) without the id in the URL', async () =>
     {
         // Arrange
