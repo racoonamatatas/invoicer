@@ -7,9 +7,9 @@ import { useAuthStore } from '@/domains/auth/store';
 export const jan: auth.User = { id: 1, name: 'Jan de Vries', email: 'jan@example.nl' };
 
 // A business as listBusinesses returns it; only the id and name differ.
-export const business = (id: number, legalName: string): Business => ({
+export const business = (id: number, registeredName: string): Business => ({
     id,
-    legal_name: legalName,
+    registered_name: registeredName,
     kvk_number: `1234567${id}`,
     vat_number: 'NL123456789B01',
     street: 'Keizersgracht',

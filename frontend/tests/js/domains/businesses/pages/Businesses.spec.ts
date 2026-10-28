@@ -84,7 +84,7 @@ describe('Businesses page', () =>
         await flushPromises();
     });
 
-    it('should list the legal name and KvK number of each business when listBusinesses gets a 200 (ok)', async () =>
+    it('should list the registered name and KvK number of each business when listBusinesses gets a 200 (ok)', async () =>
     {
         // Arrange
         vi.mocked(service.listBusinesses).mockResolvedValue([bakery, studio]);
@@ -101,7 +101,7 @@ describe('Businesses page', () =>
         expect(wrapper.find('[role="status"]').text()).toBe('');
     });
 
-    it('should link each legal name to its business\'s dashboard', async () =>
+    it('should link each registered name to its business\'s dashboard', async () =>
     {
         // Arrange
         vi.mocked(service.listBusinesses).mockResolvedValue([bakery, studio]);
@@ -282,7 +282,7 @@ describe('Businesses page, create form', () =>
     // the address flat again, country_code added, the default payment term
     // sent as the number 30.
     const typed = {
-        legal_name: 'Winkel de Vries',
+        registered_name: 'Winkel de Vries',
         kvk_number: '12345673',
         vat_number: 'NL123456789B01',
         street: 'Keizersgracht',
@@ -353,7 +353,7 @@ describe('Businesses page, create form', () =>
 
         // Assert: none left without it, so a failure names the field. The
         // address fields are AddressFields' own, checked in its spec
-        const fields = ['legal_name', 'kvk_number', 'vat_number', 'payment_term_days'];
+        const fields = ['registered_name', 'kvk_number', 'vat_number', 'payment_term_days'];
         const notRequired = fields.filter((field) => wrapper.find(`#business-${field}`).attributes('required') === undefined);
         expect(notRequired).toStrictEqual([]);
     });
@@ -367,7 +367,7 @@ describe('Businesses page, create form', () =>
             .mockResolvedValueOnce([bakery]);
         const wrapper = await mountBusinesses();
         await flushPromises();
-        await wrapper.find('#business-legal_name').setValue('Winkel de Vries');
+        await wrapper.find('#business-registered_name').setValue('Winkel de Vries');
 
         // Act
         setVisibility('visible');
@@ -376,7 +376,7 @@ describe('Businesses page, create form', () =>
         // Assert: the reload arrived, so the form outlived it
         expect(wrapper.findAll('li').map((item) => item.text())).toStrictEqual(['Bakkerij de Vries (KvK 12345671)']);
         expect(wrapper.find(addForm).exists()).toBe(true);
-        expect(wrapper.find<HTMLInputElement>('#business-legal_name').element.value).toBe('Winkel de Vries');
+        expect(wrapper.find<HTMLInputElement>('#business-registered_name').element.value).toBe('Winkel de Vries');
 
         // Assert: with a list to go back to, Cancel is there now
         expect(buttonNamed(wrapper, 'Cancel')).toBeDefined();
@@ -396,7 +396,7 @@ describe('Businesses page, create form', () =>
         const wrapper = await mountBusinesses();
         await flushPromises();
         await buttonNamed(wrapper, 'Add a business')?.trigger('click');
-        await wrapper.find('#business-legal_name').setValue('Studio de Vries');
+        await wrapper.find('#business-registered_name').setValue('Studio de Vries');
 
         // Act: a write from outside this form, the way a later page will
         await useBusinessesStore().create(expectedPayload);
@@ -405,7 +405,7 @@ describe('Businesses page, create form', () =>
         // Assert: the list is loading again, and the form outlived it
         expect(wrapper.find('[role="status"]').text()).toBe('Loading...');
         expect(wrapper.find(addForm).exists()).toBe(true);
-        expect(wrapper.find<HTMLInputElement>('#business-legal_name').element.value).toBe('Studio de Vries');
+        expect(wrapper.find<HTMLInputElement>('#business-registered_name').element.value).toBe('Studio de Vries');
 
         // Act: let the request finish, so nothing is left pending after the test
         request.resolve();

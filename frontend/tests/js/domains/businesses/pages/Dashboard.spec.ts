@@ -41,7 +41,7 @@ describe('Dashboard page', () =>
         vi.resetAllMocks();
     });
 
-    it('should show the legal name of the business in the URL when listBusinesses gets a 200 (ok) that has it', async () =>
+    it('should show the registered name of the business in the URL when listBusinesses gets a 200 (ok) that has it', async () =>
     {
         // Arrange
         vi.mocked(service.listBusinesses).mockResolvedValue([bakery, studio]);

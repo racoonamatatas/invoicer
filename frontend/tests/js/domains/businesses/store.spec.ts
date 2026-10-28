@@ -17,9 +17,9 @@ type BusinessesStore = ReturnType<typeof useBusinessesStore>;
 const jan = { id: 1, name: 'Jan de Vries', email: 'jan@example.nl' };
 const piet = { id: 2, name: 'Piet Bakker', email: 'piet@example.nl' };
 
-const business = (id: number, legalName: string): service.Business => ({
+const business = (id: number, registeredName: string): service.Business => ({
     id,
-    legal_name: legalName,
+    registered_name: registeredName,
     kvk_number: `1234567${id}`,
     vat_number: 'NL123456789B01',
     street: 'Keizersgracht',
@@ -37,7 +37,7 @@ const studio = business(2, 'Studio de Vries');
 const shop = business(3, 'Winkel de Vries');
 
 const payload: service.BusinessPayload = {
-    legal_name: 'Winkel de Vries',
+    registered_name: 'Winkel de Vries',
     kvk_number: '12345673',
     vat_number: 'NL123456789B01',
     street: 'Keizersgracht',
@@ -323,7 +323,7 @@ describe('businesses store', () =>
     {
         // Arrange
         await logInAs(jan);
-        const renamed = { ...bakery, legal_name: 'Bakkerij en Lunchroom de Vries' };
+        const renamed = { ...bakery, registered_name: 'Bakkerij en Lunchroom de Vries' };
         vi.mocked(service.listBusinesses).mockResolvedValueOnce([bakery, studio]).mockResolvedValueOnce([renamed, studio]);
         vi.mocked(service.updateBusiness).mockResolvedValue(renamed);
         const store = useBusinessesStore();
@@ -343,7 +343,7 @@ describe('businesses store', () =>
     {
         // Arrange
         await logInAs(jan);
-        const error = axiosErrorWith(422, { message: 'Invalid', errors: { legal_name: ['The legal name field is required.'] } });
+        const error = axiosErrorWith(422, { message: 'Invalid', errors: { registered_name: ['The registered name field is required.'] } });
         vi.mocked(service.listBusinesses).mockResolvedValue([bakery]);
         vi.mocked(service.updateBusiness).mockRejectedValue(error);
         const store = useBusinessesStore();

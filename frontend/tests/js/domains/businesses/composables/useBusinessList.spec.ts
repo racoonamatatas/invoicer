@@ -21,7 +21,7 @@ const bakery = business(1, 'Bakkerij de Vries');
 const shop = business(3, 'Winkel de Vries');
 
 const payload: service.BusinessPayload = {
-    legal_name: 'Winkel de Vries',
+    registered_name: 'Winkel de Vries',
     kvk_number: '12345673',
     vat_number: 'NL123456789B01',
     street: 'Keizersgracht',

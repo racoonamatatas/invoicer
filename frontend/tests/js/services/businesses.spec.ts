@@ -17,7 +17,7 @@ vi.mock('@/services/http', async (importOriginal) => ({
 // A business as BusinessResourceData sends it.
 const business = {
     id: 7,
-    legal_name: 'Bakkerij de Vries',
+    registered_name: 'Bakkerij de Vries',
     kvk_number: '12345678',
     vat_number: 'NL123456789B01',
     street: 'Keizersgracht',
@@ -31,7 +31,7 @@ const business = {
 };
 
 const payload: BusinessPayload = {
-    legal_name: 'Bakkerij de Vries',
+    registered_name: 'Bakkerij de Vries',
     kvk_number: '12345678',
     vat_number: 'NL123456789B01',
     street: 'Keizersgracht',
@@ -79,7 +79,7 @@ describe('isBusiness', () =>
     it.for([
         { name: 'id as a string', value: { ...business, id: '7' } },
         { name: 'id as a fraction', value: { ...business, id: 7.5 } },
-        { name: 'legal_name as null', value: { ...business, legal_name: null } },
+        { name: 'registered_name as null', value: { ...business, registered_name: null } },
         { name: 'kvk_number as a number', value: { ...business, kvk_number: 12345678 } },
         { name: 'vat_number as null', value: { ...business, vat_number: null } },
         { name: 'street as null', value: { ...business, street: null } },
