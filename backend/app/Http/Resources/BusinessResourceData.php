@@ -18,7 +18,7 @@ final readonly class BusinessResourceData implements JsonSerializable, Responsab
 
     public function __construct(
         public int $id,
-        public string $legalName,
+        public string $registeredName,
         public string $kvkNumber,
         public string $vatNumber,
         public string $street,
@@ -35,7 +35,7 @@ final readonly class BusinessResourceData implements JsonSerializable, Responsab
     {
         return new self(
             id: $business->id,
-            legalName: $business->legal_name,
+            registeredName: $business->registered_name,
             kvkNumber: $business->kvk_number,
             vatNumber: $business->vat_number,
             street: $business->street,
@@ -52,7 +52,7 @@ final readonly class BusinessResourceData implements JsonSerializable, Responsab
     /**
      * @return array{
      *     id: int,
-     *     legal_name: string,
+     *     registered_name: string,
      *     kvk_number: string,
      *     vat_number: string,
      *     street: string,
@@ -69,7 +69,7 @@ final readonly class BusinessResourceData implements JsonSerializable, Responsab
     {
         return [
             'id' => $this->id,
-            'legal_name' => $this->legalName,
+            'registered_name' => $this->registeredName,
             'kvk_number' => $this->kvkNumber,
             'vat_number' => $this->vatNumber,
             'street' => $this->street,

@@ -22,7 +22,7 @@ describe('Showing a business', function (): void {
         // Exact: a new column on businesses must not reach the browser unless it is added on purpose.
         $response->assertExactJson([
             'id' => $business->id,
-            'legal_name' => $business->legal_name,
+            'registered_name' => $business->registered_name,
             'kvk_number' => $business->kvk_number,
             'vat_number' => $business->vat_number,
             'street' => $business->street,

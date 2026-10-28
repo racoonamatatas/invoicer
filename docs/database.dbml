@@ -24,7 +24,7 @@ Table businesses
 {
   id integer [pk, increment]
   user_id integer [not null]
-  legal_name varchar [not null]
+  registered_name varchar [not null]
   kvk_number char(8) [not null, note: '8 digits']
   vat_number varchar(14) [not null, note: 'BTW-id, e.g. NL123456789B01']
   street varchar [not null, note: 'Same address shape as clients, so AddressRules, the form fields and the snapshot copy are shared; here always a Dutch address']
@@ -112,7 +112,7 @@ Table invoice_snapshots
   invoice_id integer [not null, unique]
   issued_on date [not null, note: 'invoice date, set on send']
   due_on date [not null, note: 'issued_on + effective term, set on send']
-  business_legal_name varchar [not null]
+  business_registered_name varchar [not null]
   business_kvk_number char(8) [not null]
   business_vat_number varchar(14) [not null]
   business_street varchar [not null]

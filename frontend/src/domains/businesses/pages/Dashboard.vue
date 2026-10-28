@@ -71,8 +71,8 @@ const state = computed<DashboardState>(() =>
         </div>
 
         <button v-if="state.kind === 'failed'" type="button" @click="retry">Try again</button>
-        <!-- The legal name, so a wrong id in the URL is visible at once. -->
-        <h1 v-else-if="state.kind === 'found'">{{ state.business.legal_name }}</h1>
+        <!-- The registered name, so a wrong id in the URL is visible at once. -->
+        <h1 v-else-if="state.kind === 'found'">{{ state.business.registered_name }}</h1>
         <template v-else-if="state.kind === 'notFound'">
             <h1>Business not found</h1>
             <p>It doesn't exist, or it isn't one of yours.</p>

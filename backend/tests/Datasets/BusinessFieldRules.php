@@ -8,8 +8,8 @@ declare(strict_types = 1);
  * carry the detailed cases; this proves each rule is wired to its field.
  */
 dataset('business field rules', [
-    'legal name missing' => [['legal_name' => null], 'legal_name', 'The legal name field is required.'],
-    'legal name too long' => [['legal_name' => str_repeat('x', 256)], 'legal_name', 'The legal name field must not be greater than 255 characters.'],
+    'registered name missing' => [['registered_name' => null], 'registered_name', 'The registered name field is required.'],
+    'registered name too long' => [['registered_name' => str_repeat('x', 256)], 'registered_name', 'The registered name field must not be greater than 255 characters.'],
     'kvk number missing' => [['kvk_number' => null], 'kvk_number', 'The kvk number field is required.'],
     'kvk number of 7 digits' => [['kvk_number' => '1234567'], 'kvk_number', 'The kvk number field must be a KvK number of 8 digits.'],
     'vat number missing' => [['vat_number' => null], 'vat_number', 'The vat number field is required.'],

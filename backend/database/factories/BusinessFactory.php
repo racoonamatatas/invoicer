@@ -25,7 +25,7 @@ class BusinessFactory extends Factory
     {
         return [
             'user_id' => User::factory(),
-            'legal_name' => fake()->company(),
+            'registered_name' => fake()->company(),
             'kvk_number' => fake()->numerify('########'),
             // Format only, no checksum (INV-0059): the BtwId rule doesn't check one yet either.
             'vat_number' => fake()->numerify('NL#########B##'),

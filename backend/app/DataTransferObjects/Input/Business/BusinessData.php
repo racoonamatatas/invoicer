@@ -12,7 +12,7 @@ namespace App\DataTransferObjects\Input\Business;
 final readonly class BusinessData
 {
     public function __construct(
-        public string $legalName,
+        public string $registeredName,
         public string $kvkNumber,
         public string $vatNumber,
         public string $street,
@@ -29,7 +29,7 @@ final readonly class BusinessData
      * left out, so a PUT replaces every address column.
      *
      * @return array{
-     *     legal_name: string,
+     *     registered_name: string,
      *     kvk_number: string,
      *     vat_number: string,
      *     street: string,
@@ -45,7 +45,7 @@ final readonly class BusinessData
     public function toAttributes(): array
     {
         return [
-            'legal_name' => $this->legalName,
+            'registered_name' => $this->registeredName,
             'kvk_number' => $this->kvkNumber,
             'vat_number' => $this->vatNumber,
             'street' => $this->street,
