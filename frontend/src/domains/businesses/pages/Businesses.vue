@@ -1,6 +1,7 @@
 <script setup lang="ts">
 // Package imports
 import { onMounted, onUnmounted } from 'vue';
+import { RouterLink } from 'vue-router';
 
 // Project imports
 import { useBusinessList } from '@/domains/businesses/composables/useBusinessList';
@@ -50,7 +51,8 @@ onUnmounted(() => document.removeEventListener('visibilitychange', onVisibilityC
         <template v-else-if="state.kind === 'loaded'">
             <ul v-if="state.businesses.length > 0">
                 <li v-for="business in state.businesses" :key="business.id">
-                    {{ business.legal_name }} (KvK {{ business.kvk_number }})
+                    <RouterLink :to="{ name: 'dashboard', params: { businessId: business.id } }">{{ business.legal_name }}</RouterLink>
+                    (KvK {{ business.kvk_number }})
                 </li>
             </ul>
             <p v-else>You have no businesses yet.</p>

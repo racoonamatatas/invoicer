@@ -1,5 +1,5 @@
 // Package imports
-import { computed, onMounted, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 // Project imports
 import { useBusinessesStore } from '@/domains/businesses/store';
@@ -13,11 +13,12 @@ export type BusinessListState =
     | { kind: 'failed' }
     | { kind: 'loaded'; businesses: readonly Business[] };
 
-// Loads the user's businesses when the page mounts, for every page that needs
-// the list: the landing page, the list page and the pages under a business.
-// The store shares one request between them, so calling this from a layout
-// and its page sends one GET.
-export const useBusinessList = () =>
+// Loads the user's businesses for every page that needs the list: the landing
+// page, the list page and the pages under a business. The store shares one
+// request between them, so calling this from a layout and its page sends one
+// GET. isNeeded lets a page skip the request, e.g. for a URL whose business
+// id can't exist; it loads as soon as isNeeded turns true.
+export const useBusinessList = (isNeeded: () => boolean = () => true) =>
 {
     const store = useBusinessesStore();
     const hasFailed = ref(false);
@@ -46,10 +47,11 @@ export const useBusinessList = () =>
         }
     };
 
-    // onMounted, not a call in setup: Vue hands a rejected hook to its error
-    // handler, where a promise nobody awaits would only be an unhandled
-    // rejection.
-    onMounted(load);
+    // A watcher, not a bare call in setup: Vue hands a rejected watch callback
+    // to its error handler, where a promise nobody awaits would only be an
+    // unhandled rejection. Created in setup, so it stops with the page.
+    // immediate: the first check runs now, not on the first change.
+    watch(isNeeded, (needed) => (needed ? load() : undefined), { immediate: true });
 
     // A loaded list wins over a failure: after a failed retry the store can
     // still hold the list it had.

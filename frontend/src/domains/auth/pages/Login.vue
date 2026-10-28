@@ -19,11 +19,12 @@ const emailError = computed(() => fieldError('email'));
 const passwordError = computed(() => fieldError('password'));
 
 // The push sits inside the callback: submit() resolves the same way after a
-// 422, so only reaching the push proves the login succeeded.
+// 422, so only reaching the push proves the login succeeded. To home, not a
+// page: the landing page decides where a user with 0, 1 or more businesses goes.
 const onSubmit = () => submit(async () =>
 {
     await store.login(form.value);
-    await router.push({ name: 'dashboard' });
+    await router.push({ name: 'home' });
 });
 
 </script>
