@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Package imports
-import { computed, ref, watch } from 'vue';
+import { computed, ref } from 'vue';
 
 // Project imports
 import AddressFields from '@/components/AddressFields.vue';
@@ -13,7 +13,9 @@ import type { Business, BusinessPayload } from '@/services/businesses';
 //
 // save is a prop, not an emit: an emit throws away the listener's promise,
 // and the form has to await it, so a 422 lands in useForm's errors and the
-// button stays disabled while the request runs.
+// button stays disabled while the request runs. What comes after a save
+// (the create page's navigation) listens to `saved` instead, so its
+// failure is never shown as a failed save.
 const props = defineProps<{
     // null: an empty form, for a new business. Copied once, when the form
     // mounts: a caller that can change it keys the form by the business id.
@@ -21,10 +23,16 @@ const props = defineProps<{
     // The form's accessible name, e.g. "Add a business".
     label: string;
     submitLabel: string;
-    save: (payload: BusinessPayload) => Promise<void>;
+    // Resolves with the business as stored, which the form shows from then on.
+    save: (payload: BusinessPayload) => Promise<Business>;
     // Shown in the status region once save resolves. null for a page that
     // navigates away instead.
     savedMessage: string | null;
+}>();
+
+const emit = defineEmits<{
+    // After a save went through, with the business as stored.
+    saved: [business: Business];
 }>();
 
 // What the form holds: the payload with its address nested, so AddressFields
@@ -97,29 +105,33 @@ const kvkNumberError = computed(() => fieldError('kvk_number'));
 const vatNumberError = computed(() => fieldError('vat_number'));
 const paymentTermDaysError = computed(() => fieldError('payment_term_days'));
 
-// Set only after save resolves. Cleared by the next submit, so it never
-// stands next to an error from a later attempt, and by the next edit, so it
-// never claims values that aren't saved yet.
-const isSaved = ref(false);
+// The form's fields as the last save stored them, as JSON so a deep
+// comparison is one string compare (fieldsFrom always builds the keys in the
+// same order). null until a save went through, and again from the next
+// submit, so "Saved." never stands next to an error from a later attempt.
+const savedFields = ref<string | null>(null);
 
-watch(form, () =>
-{
-    isSaved.value = false;
-}, { deep: true });
+// Saved while the inputs still hold what was stored: an edit hides it, and
+// undoing that edit shows it again, since then it's true again.
+const isSaved = computed(() => savedFields.value !== null && JSON.stringify(form.value) === savedFields.value);
 
 // A failure useForm doesn't show: a 403, a 404, a 500, a response of the
-// wrong shape. Without it the button re-enables and nothing says why.
+// wrong shape. Without it the button re-enables and nothing says why. Kept
+// while the user edits, unlike "Saved.": nothing was saved, and editing
+// doesn't change that. Cleared by the next submit.
 const hasFailed = ref(false);
 
-// isSaved is set inside the callback: submit() resolves the same way after a
-// 422, so only reaching that line proves the save went through. The address
-// is spread back to the flat shape the API takes, and an emptied payment
-// term becomes the payload's null.
+// The stored business is copied in inside the callback: submit() resolves
+// the same way after a 422, so only reaching that line proves the save went
+// through. Refilled from it, not left as typed, so the inputs show what the
+// backend normalised ('1015cj' is stored as '1015 CJ'). The address is
+// spread back to the flat shape the API takes, and an emptied payment term
+// becomes the payload's null.
 // What submit() re-throws is shown, then re-thrown again, so Vue's error
 // handler still sees what went wrong.
 const onSubmit = async (): Promise<void> =>
 {
-    isSaved.value = false;
+    savedFields.value = null;
     hasFailed.value = false;
 
     try
@@ -127,13 +139,17 @@ const onSubmit = async (): Promise<void> =>
         await submit(async () =>
         {
             const { address, payment_term_days: paymentTermDays, ...fields } = form.value;
-            await props.save({
+            const stored = await props.save({
                 ...fields,
                 ...address,
                 country_code: 'NL',
                 payment_term_days: paymentTermDays === '' ? null : paymentTermDays,
             });
-            isSaved.value = true;
+            form.value = fieldsFrom(stored);
+            savedFields.value = JSON.stringify(form.value);
+            // Last, and not awaited: Vue hands a failing listener to its
+            // error handler, so it can't reach the catch below.
+            emit('saved', stored);
         });
     }
     catch (error) // unknown: anything can be thrown

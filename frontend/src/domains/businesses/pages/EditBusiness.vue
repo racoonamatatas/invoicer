@@ -41,10 +41,7 @@ const shown = computed(() => (lastFound.value?.id === businessId.value ? lastFou
 // Through the store, so the list and every page's heading show the new
 // values without a page load. Stays on this page: the form shows its saved
 // message. A 422 is thrown by store.update() and caught by the form.
-const saveTo = (id: number) => async (payload: BusinessPayload): Promise<void> =>
-{
-    await store.update(id, payload);
-};
+const saveTo = (id: number) => (payload: BusinessPayload): Promise<Business> => store.update(id, payload);
 </script>
 
 <template>

@@ -8,7 +8,7 @@ import LogoutButton from '@/components/LogoutButton.vue';
 import BusinessForm from '@/domains/businesses/components/BusinessForm.vue';
 import { useBusinessList } from '@/domains/businesses/composables/useBusinessList';
 import { useBusinessesStore } from '@/domains/businesses/store';
-import type { BusinessPayload } from '@/services/businesses';
+import type { Business, BusinessPayload } from '@/services/businesses';
 
 const store = useBusinessesStore();
 const router = useRouter();
@@ -34,11 +34,14 @@ watch(state, (current) =>
 
 const hasBusinesses = computed(() => state.value.kind === 'loaded' && state.value.businesses.length > 0);
 
+// A 422 is thrown by store.create() and caught by the form.
+const save = (payload: BusinessPayload): Promise<Business> => store.create(payload);
+
 // Creating ends on the new business's dashboard, so there is no saved
-// message to show. A 422 is thrown by store.create() and caught by the form.
-const save = async (payload: BusinessPayload): Promise<void> =>
+// message to show. On the form's saved event, not inside save: a failed
+// navigation isn't a failed save, and the business exists by now.
+const onSaved = async (business: Business): Promise<void> =>
 {
-    const business = await store.create(payload);
     await router.push({ name: 'dashboard', params: { businessId: business.id } });
 };
 
@@ -101,6 +104,7 @@ onUnmounted(() => document.removeEventListener('visibilitychange', onVisibilityC
             submit-label="Add business"
             :save="save"
             :saved-message="null"
+            @saved="onSaved"
         >
             <!-- Only with a list to go back to: with none, the form is the page. -->
             <button v-if="hasBusinesses" type="button" @click="isAdding = false">Cancel</button>
