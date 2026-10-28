@@ -4,7 +4,7 @@ import { beforeEach, describe, it, expect, vi } from 'vitest';
 
 import BankAccounts from '@/domains/businesses/pages/BankAccounts.vue';
 import * as bankAccountsService from '@/services/bankAccounts';
-import type { BankAccount } from '@/services/bankAccounts';
+import { BankAccountNotFoundError, type BankAccount } from '@/services/bankAccounts';
 import * as businessesService from '@/services/businesses';
 import { axiosErrorWith } from '../../../utility/axiosErrorWith';
 import { business, jan, logInAs } from '../../../utility/businesses';
@@ -285,7 +285,7 @@ describe('BankAccounts page', () =>
         expect(errorHandler).toHaveBeenCalledExactlyOnceWith(error, expect.anything(), expect.anything());
     });
 
-    it('should disable Add while createBankAccount is in flight', async () =>
+    it('should disable Add and make both inputs read-only while createBankAccount is in flight', async () =>
     {
         // Arrange: createBankAccount is a stub whose request the test finishes by hand
         const request = createDeferred();
@@ -298,8 +298,10 @@ describe('BankAccounts page', () =>
         // Act
         await addAccount(wrapper, 'NL91ABNA0417164300', 'Main');
 
-        // Assert
+        // Assert: typing now would be wiped when the success clears the form
         expect(add?.attributes('disabled')).toBeDefined();
+        expect(wrapper.find('#bank-account-iban').attributes('readonly')).toBeDefined();
+        expect(wrapper.find('#bank-account-label').attributes('readonly')).toBeDefined();
 
         // Act: let the request finish, so nothing is left pending after the test
         request.resolve();
@@ -562,5 +564,45 @@ describe('BankAccounts page', () =>
         // Assert
         expect(renameForm(wrapper, 'Savings').exists()).toBe(true);
         expect(wrapper.find('[role="group"]').exists()).toBe(false);
+    });
+
+    it('should close the rename form, show the reloaded list and say the account no longer exists when updateBankAccountLabel gets a 404 (not found)', async () =>
+    {
+        // Arrange: another tab deleted Main, so the reload no longer has it
+        vi.mocked(bankAccountsService.listBankAccounts).mockResolvedValueOnce([main, savings]).mockResolvedValueOnce([savings]);
+        vi.mocked(bankAccountsService.updateBankAccountLabel).mockRejectedValue(new BankAccountNotFoundError(axiosErrorWith(404, {})));
+        const errorHandler = vi.fn<(error: unknown) => void>();
+        const { wrapper } = await mountBankAccounts('1', errorHandler);
+        await flushPromises();
+        await clickButton(wrapper, 'Rename Main');
+
+        // Act
+        await renameForm(wrapper, 'Main').trigger('submit');
+        await flushPromises();
+
+        // Assert: an expected outcome, explained, not a fault
+        expect(renameForm(wrapper, 'Main').exists()).toBe(false);
+        expect(listedAccounts(wrapper)).toStrictEqual(['Savings NL02 RABO 0123 4567 89']);
+        expect(wrapper.find('#bank-accounts-status').text()).toBe('That account no longer exists.');
+        expect(errorHandler).not.toHaveBeenCalled();
+    });
+
+    it('should clear the no-longer-exists notice when another row is opened', async () =>
+    {
+        // Arrange
+        vi.mocked(bankAccountsService.listBankAccounts).mockResolvedValueOnce([main, savings]).mockResolvedValueOnce([savings]);
+        vi.mocked(bankAccountsService.updateBankAccountLabel).mockRejectedValue(new BankAccountNotFoundError(axiosErrorWith(404, {})));
+        const { wrapper } = await mountBankAccounts('1');
+        await flushPromises();
+        await clickButton(wrapper, 'Rename Main');
+        await renameForm(wrapper, 'Main').trigger('submit');
+        await flushPromises();
+        expect(wrapper.find('#bank-accounts-status').text()).toBe('That account no longer exists.');
+
+        // Act
+        await clickButton(wrapper, 'Rename Savings');
+
+        // Assert
+        expect(wrapper.find('#bank-accounts-status').text()).toBe('');
     });
 });

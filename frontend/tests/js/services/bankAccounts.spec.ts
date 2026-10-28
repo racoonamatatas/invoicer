@@ -2,6 +2,7 @@ import type { AxiosResponse } from 'axios';
 import { beforeEach, describe, it, expect, vi } from 'vitest';
 
 import {
+    BankAccountNotFoundError,
     createBankAccount,
     deleteBankAccount,
     isBankAccount,
@@ -156,6 +157,25 @@ describe('bank accounts service', () =>
         // Assert
         expect(putRequest).toHaveBeenCalledExactlyOnceWith('/businesses/7/bank-accounts/3', labelPayload);
         expect(result).toStrictEqual(renamed);
+    });
+
+    it('should throw a BankAccountNotFoundError when the rename gets a 404 (not found): the account is gone', async () =>
+    {
+        // Arrange
+        vi.mocked(putRequest).mockRejectedValue(axiosErrorWith(404, { message: 'Not Found' }));
+
+        // Act + Assert
+        await expect(updateBankAccountLabel(7, 3, labelPayload)).rejects.toThrow(BankAccountNotFoundError);
+    });
+
+    it('should throw the original error when the rename fails with a 500 (server error)', async () =>
+    {
+        // Arrange
+        const error = axiosErrorWith(500, { message: 'Server Error' });
+        vi.mocked(putRequest).mockRejectedValue(error);
+
+        // Act + Assert
+        await expect(updateBankAccountLabel(7, 3, labelPayload)).rejects.toBe(error);
     });
 
     it('should delete /businesses/{id}/bank-accounts/{id} and resolve without a value on the 204 (no content) response', async () =>
