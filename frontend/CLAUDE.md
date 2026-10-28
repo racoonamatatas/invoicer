@@ -5,7 +5,7 @@ Commands and commit conventions: the root [`CLAUDE.md`](../CLAUDE.md).
 
 ## Where things live
 
-- `src/domains/<domain>/`: a feature's `pages/`, `components/`, `handlers/` (callbacks the app registers, e.g. for a 401), `routes.ts` and Pinia `store.ts`. Pages are only reached through the router.
+- `src/domains/<domain>/`: a feature's `pages/`, `components/`, `composables/`, `handlers/` (callbacks the app registers, e.g. for a 401), `routes.ts` and Pinia `store.ts`. Pages are only reached through the router.
 - `src/router/`: `AppRoute` and `authGuard`. Every route is an `AppRoute`, protected unless it calls `.public()`, so a route can't forget its access rule.
 - `src/services/`: the only place requests are made. `http/` wraps axios; `auth.ts` and `businesses.ts` hold their endpoints and request/response types.
 - `src/form/formSubmitFailure.ts`: turns whatever a failed submit threw into a `FormSubmitFailure` union. The only file that knows Laravel's 422 and 429 shapes.
