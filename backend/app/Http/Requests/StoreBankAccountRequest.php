@@ -7,8 +7,8 @@ namespace App\Http\Requests;
 use App\DataTransferObjects\Input\BankAccount\BankAccountData;
 use App\Validation\Iban;
 use App\Validation\Normaliser;
+use Closure;
 use Illuminate\Contracts\Validation\ValidationRule;
-use Illuminate\Validation\Rule;
 
 final class StoreBankAccountRequest extends BankAccountRequest
 {
@@ -27,7 +27,22 @@ final class StoreBankAccountRequest extends BankAccountRequest
                 // Once per business, matching the (business_id, iban) index: a double submit is a 422 here rather
                 // than a 500 from the index. A plain "=" is right here, unlike for the label: after the normaliser
                 // every IBAN is uppercase, so there is no case to disagree about.
-                Rule::unique('bank_accounts', 'iban')->where('business_id', $this->business()->id),
+                // Not Rule::unique: the message names the account the IBAN is saved under, so the user can find it.
+                // Only the backend can say which one: it alone normalises IBANs. The label is the user's own, from
+                // a business the binding has proven is theirs.
+                function (string $attribute, mixed $value, Closure $fail): void {
+                    if (! is_string($value))
+                    {
+                        return; // the string rule above has already failed
+                    }
+
+                    $existing = $this->business()->bankAccounts()->where('iban', $value)->first();
+
+                    if ($existing !== null)
+                    {
+                        $fail("This IBAN has previously been saved as \"{$existing->label}\".");
+                    }
+                },
             ],
             'label' => $this->labelRules(),
         ];
