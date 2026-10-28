@@ -4,6 +4,7 @@ import { watch } from 'vue';
 import { useRouter } from 'vue-router';
 
 // Project imports
+import LogoutButton from '@/components/LogoutButton.vue';
 import { useBusinessList } from '@/domains/businesses/composables/useBusinessList';
 
 const router = useRouter();
@@ -37,6 +38,10 @@ watch(state, async (current) =>
             <p v-if="state.kind === 'failed'">Couldn't load your businesses.</p>
             <p v-else>Loading...</p>
         </div>
-        <button v-if="state.kind === 'failed'" type="button" @click="retry">Try again</button>
+        <!-- Log out too: a failed load is the one state this page stays in. -->
+        <template v-if="state.kind === 'failed'">
+            <button type="button" @click="retry">Try again</button>
+            <LogoutButton />
+        </template>
     </div>
 </template>

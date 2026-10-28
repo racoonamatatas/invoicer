@@ -5,6 +5,7 @@ import { RouterLink, useRouter } from 'vue-router';
 
 // Project imports
 import AddressFields from '@/components/AddressFields.vue';
+import LogoutButton from '@/components/LogoutButton.vue';
 import { useBusinessList } from '@/domains/businesses/composables/useBusinessList';
 import { useBusinessesStore } from '@/domains/businesses/store';
 import { useForm } from '@/composables/useForm';
@@ -190,5 +191,10 @@ onUnmounted(() => document.removeEventListener('visibilitychange', onVisibilityC
                 <button v-if="hasBusinesses" type="button" @click="isAdding = false">Cancel</button>
             </form>
         </template>
+
+        <!-- In every state: for a user with no business yet this is the only
+             page there is, so it is the only place to log out. -->
+        <p><RouterLink :to="{ name: 'changePassword' }">Change password</RouterLink></p>
+        <LogoutButton />
     </div>
 </template>
