@@ -166,9 +166,12 @@ onUnmounted(() => document.removeEventListener('visibilitychange', onVisibilityC
 
                 <div>
                     <label for="business-payment_term_days">Payment term (days)</label>
-                    <!-- .number: an input holds text, and the backend's
-                         integer:strict rejects "30". An emptied field stays
-                         "", which the backend turns into null and rejects as
+                    <!-- An input holds text, and the backend's integer:strict
+                         rejects "30". v-model already converts for
+                         type="number" (vModelText in @vue/runtime-dom);
+                         .number says so where it's read, and keeps converting
+                         if the type ever changes. An emptied field stays "",
+                         which the backend turns into null and rejects as
                          required, shown under this input. -->
                     <input
                         id="business-payment_term_days"
