@@ -65,9 +65,10 @@ const paymentTermDaysError = computed(() => fieldError('payment_term_days'));
 // all there is to do. Otherwise it waits behind "Add a business". Never while
 // loading, so it can't flash open for a user who has businesses.
 //
-// Opening sets isAdding rather than reading the list's length each render, so
-// once open only Cancel or a create closes it. Otherwise a reload that brings
-// in a business added elsewhere would unmount the form and lose what was typed.
+// Opening sets isAdding, and the form renders on isAdding alone, not on the
+// list's state: once open, only Cancel or a create closes it. Otherwise a
+// reload that brings in a business added elsewhere, or a list emptied while it
+// loads again, would unmount the form and lose what was typed.
 const isAdding = ref(false);
 
 watch(state, (current) =>
@@ -78,7 +79,6 @@ watch(state, (current) =>
     }
 }, { immediate: true });
 
-const isFormShown = computed(() => state.value.kind === 'loaded' && isAdding.value);
 const hasBusinesses = computed(() => state.value.kind === 'loaded' && state.value.businesses.length > 0);
 
 // The push sits inside the callback: submit() resolves the same way after a
@@ -146,80 +146,83 @@ onUnmounted(() => document.removeEventListener('visibilitychange', onVisibilityC
             </ul>
             <p v-else>You have no businesses yet.</p>
 
-            <button v-if="!isFormShown" type="button" @click="isAdding = true">Add a business</button>
-            <!-- required repeats BusinessRequest's required rules, so an empty
-                 field is caught by the browser instead of costing a request.
-                 The backend stays the judge of every format. -->
-            <form v-else aria-label="Add a business" @submit.prevent="onSubmit">
-                <div>
-                    <label for="business-legal_name">Legal name</label>
-                    <input
-                        id="business-legal_name"
-                        v-model="form.legal_name"
-                        type="text"
-                        required
-                        autocomplete="organization"
-                        :aria-invalid="legalNameError !== null"
-                        :aria-describedby="legalNameError?.id"
-                    />
-                    <p v-if="legalNameError" :id="legalNameError.id">{{ legalNameError.message }}</p>
-                </div>
-                <div>
-                    <label for="business-kvk_number">KvK number</label>
-                    <input
-                        id="business-kvk_number"
-                        v-model="form.kvk_number"
-                        type="text"
-                        required
-                        inputmode="numeric"
-                        :aria-invalid="kvkNumberError !== null"
-                        :aria-describedby="kvkNumberError?.id"
-                    />
-                    <p v-if="kvkNumberError" :id="kvkNumberError.id">{{ kvkNumberError.message }}</p>
-                </div>
-                <div>
-                    <label for="business-vat_number">VAT number (BTW-id)</label>
-                    <input
-                        id="business-vat_number"
-                        v-model="form.vat_number"
-                        type="text"
-                        required
-                        :aria-invalid="vatNumberError !== null"
-                        :aria-describedby="vatNumberError?.id"
-                    />
-                    <p v-if="vatNumberError" :id="vatNumberError.id">{{ vatNumberError.message }}</p>
-                </div>
-
-                <AddressFields v-model="form.address" form-name="business" :field-error="fieldError" />
-
-                <div>
-                    <label for="business-payment_term_days">Payment term (days)</label>
-                    <!-- An input holds text, and the backend's integer:strict
-                         rejects "30". v-model already converts for
-                         type="number" (vModelText in @vue/runtime-dom);
-                         .number says so where it's read, and keeps converting
-                         if the type ever changes. An emptied field stays "".
-                         required stops that in the browser; if it gets past
-                         (an old browser, a script), onSubmit sends null and
-                         the backend's required message shows under this input. -->
-                    <input
-                        id="business-payment_term_days"
-                        v-model.number="form.payment_term_days"
-                        type="number"
-                        required
-                        min="1"
-                        max="365"
-                        :aria-invalid="paymentTermDaysError !== null"
-                        :aria-describedby="paymentTermDaysError?.id"
-                    />
-                    <p v-if="paymentTermDaysError" :id="paymentTermDaysError.id">{{ paymentTermDaysError.message }}</p>
-                </div>
-
-                <button type="submit" :disabled="isPending">Add business</button>
-                <!-- Only with a list to go back to: with none, the form is the page. -->
-                <button v-if="hasBusinesses" type="button" @click="isAdding = false">Cancel</button>
-            </form>
+            <button v-if="!isAdding" type="button" @click="isAdding = true">Add a business</button>
         </template>
+
+        <!-- Outside the loaded branch, so the list leaving it doesn't unmount
+             the form.
+             required repeats BusinessRequest's required rules, so an empty
+             field is caught by the browser instead of costing a request.
+             The backend stays the judge of every format. -->
+        <form v-if="isAdding" aria-label="Add a business" @submit.prevent="onSubmit">
+            <div>
+                <label for="business-legal_name">Legal name</label>
+                <input
+                    id="business-legal_name"
+                    v-model="form.legal_name"
+                    type="text"
+                    required
+                    autocomplete="organization"
+                    :aria-invalid="legalNameError !== null"
+                    :aria-describedby="legalNameError?.id"
+                />
+                <p v-if="legalNameError" :id="legalNameError.id">{{ legalNameError.message }}</p>
+            </div>
+            <div>
+                <label for="business-kvk_number">KvK number</label>
+                <input
+                    id="business-kvk_number"
+                    v-model="form.kvk_number"
+                    type="text"
+                    required
+                    inputmode="numeric"
+                    :aria-invalid="kvkNumberError !== null"
+                    :aria-describedby="kvkNumberError?.id"
+                />
+                <p v-if="kvkNumberError" :id="kvkNumberError.id">{{ kvkNumberError.message }}</p>
+            </div>
+            <div>
+                <label for="business-vat_number">VAT number (BTW-id)</label>
+                <input
+                    id="business-vat_number"
+                    v-model="form.vat_number"
+                    type="text"
+                    required
+                    :aria-invalid="vatNumberError !== null"
+                    :aria-describedby="vatNumberError?.id"
+                />
+                <p v-if="vatNumberError" :id="vatNumberError.id">{{ vatNumberError.message }}</p>
+            </div>
+
+            <AddressFields v-model="form.address" form-name="business" :field-error="fieldError" />
+
+            <div>
+                <label for="business-payment_term_days">Payment term (days)</label>
+                <!-- An input holds text, and the backend's integer:strict
+                     rejects "30". v-model already converts for
+                     type="number" (vModelText in @vue/runtime-dom);
+                     .number says so where it's read, and keeps converting
+                     if the type ever changes. An emptied field stays "".
+                     required stops that in the browser; if it gets past
+                     (an old browser, a script), onSubmit sends null and
+                     the backend's required message shows under this input. -->
+                <input
+                    id="business-payment_term_days"
+                    v-model.number="form.payment_term_days"
+                    type="number"
+                    required
+                    min="1"
+                    max="365"
+                    :aria-invalid="paymentTermDaysError !== null"
+                    :aria-describedby="paymentTermDaysError?.id"
+                />
+                <p v-if="paymentTermDaysError" :id="paymentTermDaysError.id">{{ paymentTermDaysError.message }}</p>
+            </div>
+
+            <button type="submit" :disabled="isPending">Add business</button>
+            <!-- Only with a list to go back to: with none, the form is the page. -->
+            <button v-if="hasBusinesses" type="button" @click="isAdding = false">Cancel</button>
+        </form>
 
         <!-- In every state: for a user with no business yet this is the only
              page there is, so it is the only place to log out. -->
