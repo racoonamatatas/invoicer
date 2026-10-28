@@ -1,6 +1,7 @@
 import { flushPromises, mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, it, expect, vi } from 'vitest';
+import type { NavigationGuardWithThis } from 'vue-router';
 
 import Landing from '@/domains/businesses/pages/Landing.vue';
 import * as service from '@/services/businesses';
@@ -18,8 +19,9 @@ const studio = business(2, 'Studio de Vries');
 
 // Mounts Landing on / with a fresh Pinia, a logged-in user and the app's
 // real routes. replace and push are spies that still navigate, so a test can
-// tell which one the page used.
-const mountLanding = async (errorHandler?: (error: unknown) => void) =>
+// tell which one the page used. guard, when given, runs on every navigation
+// after the one to /, so a test can stop the page's redirect.
+const mountLanding = async (errorHandler?: (error: unknown) => void, guard?: NavigationGuardWithThis<undefined>) =>
 {
     const pinia = createPinia();
     setActivePinia(pinia);
@@ -27,6 +29,11 @@ const mountLanding = async (errorHandler?: (error: unknown) => void) =>
 
     const router = createTestRouter();
     await router.push({ name: 'home' });
+
+    if (guard !== undefined)
+    {
+        router.beforeEach(guard);
+    }
     const replace = vi.spyOn(router, 'replace');
     const push = vi.spyOn(router, 'push');
 
@@ -132,5 +139,46 @@ describe('Landing page', () =>
 
         // Assert
         await vi.waitFor(() => expect(router.currentRoute.value.path).toBe('/businesses/1'));
+    });
+
+    it('should offer the list and Log out instead of Loading... when a guard stops the redirect after listBusinesses gets a 200 (ok)', async () =>
+    {
+        // Arrange: a guard that returns false aborts the navigation, so
+        // replace resolves with a failure instead of throwing
+        vi.mocked(service.listBusinesses).mockResolvedValue([bakery, studio]);
+
+        // Act
+        const { wrapper, router } = await mountLanding(undefined, () => false);
+        await flushPromises();
+
+        // Assert: still on /, with a way on and a way out
+        expect(router.currentRoute.value.path).toBe('/');
+        expect(wrapper.find('[role="status"]').text()).toBe('Couldn\'t open your page.');
+        const link = wrapper.findAll('a').find((anchor) => anchor.text() === 'Your businesses');
+        expect(link?.attributes('href')).toBe('/businesses');
+        expect(wrapper.findAll('button').map((button) => button.text())).toStrictEqual(['Log out']);
+    });
+
+    it('should offer the list and hand the error on when the redirect throws after listBusinesses gets a 200 (ok)', async () =>
+    {
+        // Arrange: a guard that throws stands in for any navigation error,
+        // such as a page chunk that fails to load
+        const error = new Error('Failed to fetch dynamically imported module');
+        vi.mocked(service.listBusinesses).mockResolvedValue([bakery, studio]);
+        const errorHandler = vi.fn<(error: unknown) => void>();
+
+        // Act
+        const { wrapper } = await mountLanding(errorHandler, () =>
+        {
+            throw error;
+        });
+        await flushPromises();
+
+        // Assert (outcome)
+        expect(wrapper.find('[role="status"]').text()).toBe('Couldn\'t open your page.');
+
+        // Assert (interaction): the page didn't swallow the error or wrap it
+        expect(errorHandler).toHaveBeenCalledOnce();
+        expect(errorHandler.mock.calls[0]?.[0]).toBe(error);
     });
 });
