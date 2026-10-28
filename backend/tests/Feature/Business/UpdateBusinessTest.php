@@ -21,7 +21,7 @@ describe('Updating a business', function (): void {
         $response->assertOk();
         $response->assertExactJson([
             'id' => $business->id,
-            'legal_name' => 'Bakkerij de Vries',
+            'registered_name' => 'Bakkerij de Vries',
             'kvk_number' => '12345678',
             'vat_number' => 'NL123456789B01',
             'street' => 'Keizersgracht',
@@ -33,7 +33,7 @@ describe('Updating a business', function (): void {
             'country_code' => 'NL',
             'payment_term_days' => 30,
         ]);
-        expect($business->fresh()->legal_name)->toBe('Bakkerij de Vries');
+        expect($business->fresh()->registered_name)->toBe('Bakkerij de Vries');
     });
 
     it('should clear the house number addition when the body leaves it out', function (): void {
@@ -102,7 +102,7 @@ describe('Updating a business', function (): void {
 
         // Assert
         $response->assertUnprocessable()->assertOnlyJsonValidationErrors([$field => $message]);
-        expect($business->fresh()->legal_name)->toBe($business->legal_name);
+        expect($business->fresh()->registered_name)->toBe($business->registered_name);
     })->with('business field rules');
 
     it('should return 422 (unprocessable) on kvk_number, alongside the other field errors, when another business of the same user has that number', function (): void {
@@ -114,12 +114,12 @@ describe('Updating a business', function (): void {
 
         // Act. A second invalid field: only the unique rule reports the duplicate together with it. The index
         // (the race test below) is never reached while validation fails.
-        $response = $this->putJson("/api/businesses/{$business->id}", businessPayload(['kvk_number' => '12345678', 'legal_name' => null]));
+        $response = $this->putJson("/api/businesses/{$business->id}", businessPayload(['kvk_number' => '12345678', 'registered_name' => null]));
 
         // Assert
         $response->assertUnprocessable()->assertOnlyJsonValidationErrors([
             'kvk_number' => 'The kvk number has already been taken.',
-            'legal_name' => 'The legal name field is required.',
+            'registered_name' => 'The registered name field is required.',
         ]);
     });
 
@@ -185,6 +185,6 @@ describe('Updating a business', function (): void {
 
         // Assert
         $response->assertUnauthorized();
-        expect($business->fresh()->legal_name)->toBe($business->legal_name);
+        expect($business->fresh()->registered_name)->toBe($business->registered_name);
     });
 });

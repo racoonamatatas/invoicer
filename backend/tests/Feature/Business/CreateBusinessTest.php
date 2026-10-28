@@ -21,7 +21,7 @@ describe('Creating a business', function (): void {
         $business = $user->businesses()->sole();
         $response->assertExactJson([
             'id' => $business->id,
-            'legal_name' => 'Bakkerij de Vries',
+            'registered_name' => 'Bakkerij de Vries',
             'kvk_number' => '12345678',
             'vat_number' => 'NL123456789B01',
             'street' => 'Keizersgracht',
@@ -92,7 +92,7 @@ describe('Creating a business', function (): void {
 
         // Act
         $response = $this->postJson('/api/businesses', businessPayload([
-            'legal_name' => '  Bakkerij de Vries ',
+            'registered_name' => '  Bakkerij de Vries ',
             'kvk_number' => ' 12345678 ',
             'postal_code' => ' 1015 CJ ',
             'house_number_addition' => '',
@@ -101,7 +101,7 @@ describe('Creating a business', function (): void {
         // Assert
         $response->assertCreated();
         $business = $user->businesses()->sole();
-        expect($business->legal_name)->toBe('Bakkerij de Vries')
+        expect($business->registered_name)->toBe('Bakkerij de Vries')
             ->and($business->kvk_number)->toBe('12345678')
             ->and($business->postal_code)->toBe('1015 CJ')
             ->and($business->house_number_addition)->toBeNull();
@@ -139,12 +139,12 @@ describe('Creating a business', function (): void {
 
         // Act. A second invalid field: only the unique rule reports the duplicate together with it. The index
         // (the race test below) is never reached while validation fails.
-        $response = $this->postJson('/api/businesses', businessPayload(['kvk_number' => '12345678', 'legal_name' => null]));
+        $response = $this->postJson('/api/businesses', businessPayload(['kvk_number' => '12345678', 'registered_name' => null]));
 
         // Assert
         $response->assertUnprocessable()->assertOnlyJsonValidationErrors([
             'kvk_number' => 'The kvk number has already been taken.',
-            'legal_name' => 'The legal name field is required.',
+            'registered_name' => 'The registered name field is required.',
         ]);
     });
 

@@ -66,7 +66,7 @@ function something()
 function businessPayload(array $changes = []): array
 {
     return array_filter([
-        'legal_name' => 'Bakkerij de Vries',
+        'registered_name' => 'Bakkerij de Vries',
         'kvk_number' => '12345678',
         'vat_number' => 'NL123456789B01',
         'street' => 'Keizersgracht',

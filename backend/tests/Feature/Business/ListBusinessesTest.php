@@ -7,13 +7,13 @@ use App\Models\User;
 
 describe('Listing businesses', function (): void {
 
-    it('should return 200 (ok) with only the logged-in user\'s businesses, ordered by legal name regardless of case', function (): void {
+    it('should return 200 (ok) with only the logged-in user\'s businesses, ordered by registered name regardless of case', function (): void {
         // Arrange
         $user = User::factory()->create();
-        $zebra = Business::factory()->for($user)->create(['legal_name' => 'Zebra Consultancy']);
-        $deVries = Business::factory()->for($user)->create(['legal_name' => 'de Vries Advies']); // lowercase first letter
-        $apple = Business::factory()->for($user)->create(['legal_name' => 'Apple Webdesign']);
-        Business::factory()->create(['legal_name' => 'Another User Holding']); // its own user, so not listed
+        $zebra = Business::factory()->for($user)->create(['registered_name' => 'Zebra Consultancy']);
+        $deVries = Business::factory()->for($user)->create(['registered_name' => 'de Vries Advies']); // lowercase first letter
+        $apple = Business::factory()->for($user)->create(['registered_name' => 'Apple Webdesign']);
+        Business::factory()->create(['registered_name' => 'Another User Holding']); // its own user, so not listed
         $this->actingAs($user, 'web');
 
         // Act
