@@ -571,7 +571,7 @@ describe('Businesses page, create form', () =>
         expect(input.attributes('aria-describedby')).toBe(`business-${field}-error`);
 
         // Assert: shown once, by the field, not again in the status region
-        expect(wrapper.find('[role="status"]').text()).toBe('');
+        expect(wrapper.find(`${addForm} [role="status"]`).text()).toBe('');
 
         // Assert (interaction): no navigation was started
         expect(push).not.toHaveBeenCalled();
@@ -592,6 +592,6 @@ describe('Businesses page, create form', () =>
         await flushPromises();
 
         // Assert: without it the user would see no feedback at all
-        expect(wrapper.find('[role="status"]').text()).toBe(message);
+        expect(wrapper.find(`${addForm} [role="status"]`).text()).toBe(message);
     });
 });
