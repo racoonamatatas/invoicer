@@ -110,6 +110,21 @@ describe('Showing a business', function (): void {
         $this->actingAs($stranger, 'web')->getJson("/api/businesses/{$business->id}/probe")->assertNotFound();
     });
 
+    it('should return 401 (unauthorized) for a guest on a {business} route that lacks auth:sanctum', function (): void {
+        // Arrange: a route that forgot auth:sanctum. Without a user the policy would deny with a 404, which hides
+        // the missing middleware; the binding's 401 makes it visible.
+        Route::middleware('api')->prefix('api/businesses/{business}')->whereNumber('business')->group(function (): void {
+            Route::get('probe', static fn (): string => 'ok');
+        });
+        $business = Business::factory()->create();
+
+        // Act
+        $response = $this->getJson("/api/businesses/{$business->id}/probe");
+
+        // Assert
+        $response->assertUnauthorized();
+    });
+
     it('should return 401 (unauthorized) for a guest, even for an unknown id', function (): void {
         // Guards third-party code: Laravel's middleware priority runs Authenticate before SubstituteBindings, so a
         // guest can't learn from a 404 whether an id exists.
