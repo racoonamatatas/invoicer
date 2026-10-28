@@ -74,4 +74,12 @@ class Business extends Model
     {
         return $this->hasMany(BankAccount::class);
     }
+
+    /**
+     * @return HasMany<Client, $this>
+     */
+    public function clients(): HasMany
+    {
+        return $this->hasMany(Client::class);
+    }
 }
