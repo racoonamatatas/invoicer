@@ -50,12 +50,13 @@ Table bank_accounts
   id integer [pk, increment]
   business_id integer [not null]
   iban varchar(34) [not null]
-  label varchar [note: 'Own name for it, e.g. "Main"']
+  label varchar [not null, note: 'Own name for it, e.g. "Main"']
   created_at timestamp
   updated_at timestamp
 
   indexes {
     (business_id, iban) [unique]
+    (business_id, label) [unique]
   }
 }
 

@@ -38,7 +38,8 @@ class BankAccountFactory extends Factory
             // with an error far from its cause. This way the 6th account in one test throws an OverflowException
             // that names the problem; a test that needs more passes its own iban.
             'iban' => fake()->unique()->randomElement(self::IBANS),
-            'label' => fake()->optional()->word(),
+            // unique() for the same reason: the (business_id, label) index.
+            'label' => fake()->unique()->word(),
         ];
     }
 }

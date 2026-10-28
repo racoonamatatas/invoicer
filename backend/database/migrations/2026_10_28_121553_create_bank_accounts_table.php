@@ -20,12 +20,15 @@ return new class extends Migration
             // 34 is the ISO 13616 maximum; a Dutch IBAN is 18. Stored in canonical form: uppercase, no spaces.
             // Never changed after creation: a new IBAN is a new account (see BankAccount).
             $table->string('iban', 34);
-            $table->string('label')->nullable(); // the user's own name for it, e.g. "Main"
+            // The user's own name for it, e.g. "Main": how an account is picked from a list, so it is required.
+            $table->string('label');
             $table->timestamps();
 
             // One IBAN once per business: a double submit must not add the same account twice. Not unique across
             // businesses: one user with two registrations may be paid into the same account for both.
             $table->unique(['business_id', 'iban']);
+            // One label once per business, so two accounts never look the same in a list.
+            $table->unique(['business_id', 'label']);
         });
     }
 
