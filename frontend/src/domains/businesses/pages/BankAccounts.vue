@@ -4,6 +4,7 @@ import { RouterLink } from 'vue-router';
 
 // Project imports
 import LogoutButton from '@/components/LogoutButton.vue';
+import AddBankAccountForm from '@/domains/businesses/components/AddBankAccountForm.vue';
 import { useBankAccounts } from '@/domains/businesses/composables/useBankAccounts';
 import { useRouteBusiness } from '@/domains/businesses/composables/useRouteBusiness';
 
@@ -45,6 +46,12 @@ const groupIban = (iban: string): string => iban.replace(/(.{4})(?=.)/g, '$1 ');
                 </ul>
                 <p v-else>No bank accounts yet.</p>
             </template>
+
+            <!-- Outside the list's states: adding works even while the list
+                 is loading or failed. Keyed by id, so another business in the
+                 URL gets an empty form. The reload puts the new account in
+                 the server's order. -->
+            <AddBankAccountForm :key="state.business.id" :business-id="state.business.id" @added="reload" />
 
             <p><RouterLink :to="{ name: 'dashboard', params: { businessId: state.business.id } }">Back to the dashboard</RouterLink></p>
         </template>
