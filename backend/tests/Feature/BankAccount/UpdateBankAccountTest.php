@@ -147,6 +147,23 @@ describe('Updating a bank account', function (): void {
         expect($account->fresh()?->label)->toBe('Main');
     });
 
+    it('should return the same 404 (not found) for an existing and an unknown account id on a business of another user', function (): void {
+        // Arrange. If {bankAccount} were looked up before the owner check, the existing id would answer differently
+        // and reveal that it belongs to this business.
+        $business = Business::factory()->create();
+        $account = BankAccount::factory()->for($business)->create();
+        $this->actingAs(Business::factory()->create()->user, 'web');
+
+        // Act
+        $existing = $this->putJson("/api/businesses/{$business->id}/bank-accounts/{$account->id}", ['label' => 'Renamed']);
+        $unknown = $this->putJson("/api/businesses/{$business->id}/bank-accounts/".($account->id + 1000), ['label' => 'Renamed']);
+
+        // Assert. The message too, not only the status: a different body would leak the same way.
+        $existing->assertNotFound();
+        $unknown->assertNotFound();
+        expect($existing->json('message'))->toBe($unknown->json('message'));
+    });
+
     it('should return 401 (unauthorized) for a guest, and change nothing', function (): void {
         // Arrange
         $account = BankAccount::factory()->create(['label' => 'Main']);
