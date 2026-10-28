@@ -37,14 +37,17 @@ interface Row
     label: string;
     // undefined: no autocomplete token matches a split street or house number.
     autocomplete: string | undefined;
+    // Mirrors AddressRules for a Dutch address, the only kind this renders
+    // so far. A foreign one needs no postcode, so that would become a prop.
+    required: boolean;
 }
 
 const ROWS: readonly Row[] = [
-    { key: 'street', label: 'Street', autocomplete: undefined },
-    { key: 'house_number', label: 'House number', autocomplete: undefined },
-    { key: 'house_number_addition', label: 'Addition', autocomplete: undefined },
-    { key: 'postal_code', label: 'Postcode', autocomplete: 'postal-code' },
-    { key: 'city', label: 'City', autocomplete: 'address-level2' },
+    { key: 'street', label: 'Street', autocomplete: undefined, required: true },
+    { key: 'house_number', label: 'House number', autocomplete: undefined, required: true },
+    { key: 'house_number_addition', label: 'Addition', autocomplete: undefined, required: false },
+    { key: 'postal_code', label: 'Postcode', autocomplete: 'postal-code', required: true },
+    { key: 'city', label: 'City', autocomplete: 'address-level2', required: true },
 ];
 
 // One error per row, so its text and both aria attributes read from the same
@@ -60,6 +63,7 @@ const rows = computed(() => ROWS.map((row) => ({ ...row, id: `${props.formName}-
             :id="row.id"
             :value="address[row.key] ?? ''"
             type="text"
+            :required="row.required"
             :autocomplete="row.autocomplete"
             :aria-invalid="row.error !== null"
             :aria-describedby="row.error?.id"

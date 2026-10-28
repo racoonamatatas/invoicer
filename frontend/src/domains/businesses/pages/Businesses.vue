@@ -147,6 +147,9 @@ onUnmounted(() => document.removeEventListener('visibilitychange', onVisibilityC
             <p v-else>You have no businesses yet.</p>
 
             <button v-if="!isFormShown" type="button" @click="isAdding = true">Add a business</button>
+            <!-- required repeats BusinessRequest's required rules, so an empty
+                 field is caught by the browser instead of costing a request.
+                 The backend stays the judge of every format. -->
             <form v-else aria-label="Add a business" @submit.prevent="onSubmit">
                 <div>
                     <label for="business-legal_name">Legal name</label>
@@ -154,6 +157,7 @@ onUnmounted(() => document.removeEventListener('visibilitychange', onVisibilityC
                         id="business-legal_name"
                         v-model="form.legal_name"
                         type="text"
+                        required
                         autocomplete="organization"
                         :aria-invalid="legalNameError !== null"
                         :aria-describedby="legalNameError?.id"
@@ -166,6 +170,7 @@ onUnmounted(() => document.removeEventListener('visibilitychange', onVisibilityC
                         id="business-kvk_number"
                         v-model="form.kvk_number"
                         type="text"
+                        required
                         inputmode="numeric"
                         :aria-invalid="kvkNumberError !== null"
                         :aria-describedby="kvkNumberError?.id"
@@ -178,6 +183,7 @@ onUnmounted(() => document.removeEventListener('visibilitychange', onVisibilityC
                         id="business-vat_number"
                         v-model="form.vat_number"
                         type="text"
+                        required
                         :aria-invalid="vatNumberError !== null"
                         :aria-describedby="vatNumberError?.id"
                     />
@@ -192,13 +198,15 @@ onUnmounted(() => document.removeEventListener('visibilitychange', onVisibilityC
                          rejects "30". v-model already converts for
                          type="number" (vModelText in @vue/runtime-dom);
                          .number says so where it's read, and keeps converting
-                         if the type ever changes. An emptied field stays "",
-                         which onSubmit sends as null for the backend to
-                         reject as required, shown under this input. -->
+                         if the type ever changes. An emptied field stays "".
+                         required stops that in the browser; if it gets past
+                         (an old browser, a script), onSubmit sends null and
+                         the backend's required message shows under this input. -->
                     <input
                         id="business-payment_term_days"
                         v-model.number="form.payment_term_days"
                         type="number"
+                        required
                         min="1"
                         max="365"
                         :aria-invalid="paymentTermDaysError !== null"
