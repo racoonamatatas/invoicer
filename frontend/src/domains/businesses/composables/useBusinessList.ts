@@ -54,23 +54,12 @@ export const useBusinessList = (isNeeded: () => boolean = () => true) =>
     //
     // It watches the list too, not only isNeeded: a failed reload after a
     // write empties the store while the page is open, and without a new
-    // load() the page would show "Loading..." with nothing in flight. Not
-    // after a failure: that waits for retry(), so a backend that is down
-    // isn't asked again in a loop.
+    // load() the page would show "Loading..." with nothing in flight. That
+    // load() also clears a failure from before. A failed load can't start a
+    // loop: it leaves the list null, unchanged, so nothing fires again until
+    // retry().
     watch([isNeeded, () => store.businesses], ([needed, businesses]) =>
-        (needed && businesses === null && !hasFailed.value ? load() : undefined), { immediate: true });
-
-    // A list from anywhere ends a failure, not only one from load(): a page
-    // can also fill the store with store.reload(). Left set, a later
-    // invalidation (a failed reload after a create) would show the old
-    // failure instead of loading.
-    watch(() => store.businesses, (businesses) =>
-    {
-        if (businesses !== null)
-        {
-            hasFailed.value = false;
-        }
-    });
+        (needed && businesses === null ? load() : undefined), { immediate: true });
 
     // A loaded list wins over a failure: after a failed retry the store can
     // still hold the list it had.
