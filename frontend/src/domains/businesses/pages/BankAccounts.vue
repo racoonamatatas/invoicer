@@ -1,10 +1,12 @@
 <script setup lang="ts">
 // Package imports
+import { ref, watch } from 'vue';
 import { RouterLink } from 'vue-router';
 
 // Project imports
 import LogoutButton from '@/components/LogoutButton.vue';
 import AddBankAccountForm from '@/domains/businesses/components/AddBankAccountForm.vue';
+import RenameBankAccountForm from '@/domains/businesses/components/RenameBankAccountForm.vue';
 import { useBankAccounts } from '@/domains/businesses/composables/useBankAccounts';
 import { useRouteBusiness } from '@/domains/businesses/composables/useRouteBusiness';
 
@@ -13,6 +15,32 @@ const { state, retry } = useRouteBusiness();
 // Accounts load once the business is found, never for an id that isn't the
 // user's: the list already answered that, so a request would only be a 404.
 const { state: accounts, reload } = useBankAccounts(() => (state.value.kind === 'found' ? state.value.business.id : null));
+
+// The row the user has opened. One value for the whole list, so two rows
+// can't be open at once.
+type OpenRow =
+    | { kind: 'none' }
+    | { kind: 'renaming'; accountId: number };
+
+const openRow = ref<OpenRow>({ kind: 'none' });
+
+const isRenaming = (accountId: number): boolean => openRow.value.kind === 'renaming' && openRow.value.accountId === accountId;
+
+const closeRow = (): void =>
+{
+    openRow.value = { kind: 'none' };
+};
+
+// Another business's list has other ids; nothing of the old one stays open.
+watch(() => (state.value.kind === 'found' ? state.value.business.id : null), closeRow);
+
+// Closed first, so the row shows its label again while the list reloads.
+const onRenamed = (): Promise<void> =>
+{
+    closeRow();
+
+    return reload();
+};
 
 // For reading only: 'NL91ABNA0417164300' shows as 'NL91 ABNA 0417 1643 00'.
 // The stored value is never changed, and nothing sends this form back.
@@ -43,7 +71,17 @@ const groupIban = (iban: string): string => iban.replace(/(.{4})(?=.)/g, '$1 ');
                     <!-- Label and IBAN in their own span, apart from the row's
                          buttons. -->
                     <li v-for="account in accounts.accounts" :key="account.id">
-                        <span>{{ account.label }} {{ groupIban(account.iban) }}</span>
+                        <RenameBankAccountForm
+                            v-if="isRenaming(account.id)"
+                            :business-id="state.business.id"
+                            :account="account"
+                            @saved="onRenamed"
+                            @cancel="closeRow"
+                        />
+                        <template v-else>
+                            <span>{{ account.label }} {{ groupIban(account.iban) }}</span>
+                            <button type="button" :aria-label="`Rename ${account.label}`" @click="openRow = { kind: 'renaming', accountId: account.id }">Rename</button>
+                        </template>
                     </li>
                 </ul>
                 <p v-else>No bank accounts yet.</p>
