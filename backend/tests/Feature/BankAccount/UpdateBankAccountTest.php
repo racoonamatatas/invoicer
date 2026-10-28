@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 use App\Models\BankAccount;
 use App\Models\Business;
+use Illuminate\Support\Facades\DB;
 
 describe('Updating a bank account', function (): void {
 
@@ -95,6 +96,26 @@ describe('Updating a bank account', function (): void {
         $response->assertUnprocessable()
             ->assertOnlyJsonValidationErrors(['label' => 'The label has already been taken.']);
         expect($account->fresh()?->label)->toBe('Zakelijk');
+    });
+
+    it('should return 500 (server error) when another account takes the label between validation and update', function (): void {
+        // Arrange. Two renames to one label at the same instant, played in order: the listener runs after this
+        // request has passed its label rule, and renames the other account the way the other request would.
+        // Unmapped on purpose (see UpdateBankAccountAction); this pins that, so a change to it is a decision.
+        $business = Business::factory()->create();
+        $account = BankAccount::factory()->for($business)->create(['label' => 'Main']);
+        $other = BankAccount::factory()->for($business)->create(['label' => 'Spaar']);
+        $this->actingAs($business->user, 'web');
+        BankAccount::updating(static function () use ($other): void {
+            DB::table('bank_accounts')->where('id', $other->id)->update(['label' => 'Zakelijk']);
+        });
+
+        // Act
+        $response = $this->putJson("/api/businesses/{$business->id}/bank-accounts/{$account->id}", ['label' => 'Zakelijk']);
+
+        // Assert
+        $response->assertInternalServerError();
+        expect($account->fresh()?->label)->toBe('Main');
     });
 
     it('should return 404 (not found) for an account of the user\'s other business, and change nothing', function (): void {
