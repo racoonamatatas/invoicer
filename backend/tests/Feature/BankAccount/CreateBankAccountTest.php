@@ -168,6 +168,27 @@ describe('Creating a bank account', function (): void {
         expect($business->bankAccounts()->count())->toBe(1);
     });
 
+    it('should return 422 (unprocessable) on iban, not 500, for an identical double submit that breaks both unique indexes', function (): void {
+        // Arrange. The real double submit: the same IBAN and the same label, so both indexes break at once and the
+        // driver reports only one of them (SQLite: the label one).
+        $business = Business::factory()->create();
+        $this->actingAs($business->user, 'web');
+        BankAccount::creating(static function (BankAccount $account): void {
+            DB::table('bank_accounts')->insert($account->getAttributes());
+        });
+
+        // Act
+        $response = $this->postJson("/api/businesses/{$business->id}/bank-accounts", [
+            'iban' => 'NL91ABNA0417164300',
+            'label' => 'Main',
+        ]);
+
+        // Assert
+        $response->assertUnprocessable()
+            ->assertOnlyJsonValidationErrors(['iban' => 'The iban has already been taken.']);
+        expect($business->bankAccounts()->count())->toBe(1);
+    });
+
     it('should return 500 (server error) when the same label, not the IBAN, is added between validation and insert', function (): void {
         // Arrange. The same race on the label index, which is left unmapped on purpose: only iban is a 422.
         $business = Business::factory()->create();
