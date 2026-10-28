@@ -32,8 +32,8 @@ const parseBusinessId = (param: string | string[] | undefined): number | null =>
 
 // The business in the URL, for every page under a business. Read from the
 // user's own list, not fetched by id: one request serves every page under a
-// business. Another user's business (a 403 from the API) and an unknown one
-// (a 404) both aren't in the list, so both are not-found. The backend still
+// business. Another user's business and an unknown one are both a 404 from
+// the API, and neither is in the list, so both are not-found. The backend still
 // checks ownership on every request.
 export const useRouteBusiness = () =>
 {

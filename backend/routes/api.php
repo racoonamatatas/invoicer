@@ -22,23 +22,19 @@ Route::prefix('auth')->group(function (): void {
     });
 });
 
-// {business} is bound explicitly in AppServiceProvider::configureRouteBindings(), not implicitly from an action's
-// type-hint, so every route in the group below gets a Business whatever its action's signature.
+// {business} is bound, and checked for ownership, in AppServiceProvider::configureRouteBindings().
 Route::middleware('auth:sanctum')->prefix('businesses')->group(function (): void {
     Route::get('/', [BusinessController::class, 'index']);
     Route::post('/', [BusinessController::class, 'store']);
 
-    // Everything about one business lives in this group. Its ->can() runs BusinessPolicy::access() on the bound
-    // {business} before any controller: a business of another user is a 403 here, an unknown id a 404 from the
-    // binding, and a guest a 401 from auth:sanctum, which Laravel's middleware priority runs first. whereNumber()
-    // makes "abc" a 404 from the router, before any query.
-    Route::prefix('{business}')->whereNumber('business')->can('access', 'business')->group(function (): void {
+    // Another user's business is a 404 from the binding, a guest a 401 from auth:sanctum. whereNumber() makes "abc"
+    // a 404 before any query.
+    Route::prefix('{business}')->whereNumber('business')->group(function (): void {
         Route::get('/', [BusinessController::class, 'show']);
         Route::put('/', [BusinessController::class, 'update']);
 
-        // scopeBindings(): {bankAccount} will resolve through $business->bankAccounts(), so an account of another
-        // business is a 404 even under the user's own business. That only works through implicit binding: an
-        // explicit Route::model('bankAccount') would look the id up on its own and skip the scope.
+        // scopeBindings(): {bankAccount} resolves through $business->bankAccounts(), so another business's account is
+        // a 404. Only implicit binding scopes; an explicit Route::model('bankAccount') would skip it.
         Route::prefix('bank-accounts')->scopeBindings()->group(function (): void {
             Route::get('/', [BankAccountController::class, 'index']);
             Route::post('/', [BankAccountController::class, 'store']);

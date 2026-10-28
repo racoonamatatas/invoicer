@@ -119,7 +119,7 @@ describe('Updating a bank account', function (): void {
     });
 
     it('should return 404 (not found) for an account of the user\'s other business, and change nothing', function (): void {
-        // Arrange. Both businesses are the user's, so ->can() passes: only the scoped binding stands between this
+        // Arrange. Both businesses are the user's, so the business binding passes: only the scoped binding stands between this
         // request and the other business's account.
         $business = Business::factory()->create();
         $sibling = BankAccount::factory()->for(Business::factory()->for($business->user))->create(['label' => 'Main']);
@@ -133,7 +133,7 @@ describe('Updating a bank account', function (): void {
         expect($sibling->fresh()?->label)->toBe('Main');
     });
 
-    it('should return 403 (forbidden) for a business of another user, and change nothing', function (): void {
+    it('should return 404 (not found) for a business of another user, and change nothing', function (): void {
         // Arrange
         $business = Business::factory()->create();
         $account = BankAccount::factory()->for($business)->create(['label' => 'Main']);
@@ -143,8 +143,26 @@ describe('Updating a bank account', function (): void {
         $response = $this->putJson("/api/businesses/{$business->id}/bank-accounts/{$account->id}", ['label' => 'Renamed']);
 
         // Assert
-        $response->assertForbidden();
+        $response->assertNotFound();
         expect($account->fresh()?->label)->toBe('Main');
+    });
+
+    it('should return the same 404 (not found) for an existing and an unknown account id on a business of another user', function (): void {
+        // Arrange. If {bankAccount} were looked up before the owner check, the existing id would answer differently
+        // and reveal that it belongs to this business.
+        config(['app.debug' => false]); // production's body; debug adds a trace with this file's line numbers
+        $business = Business::factory()->create();
+        $account = BankAccount::factory()->for($business)->create();
+        $this->actingAs(Business::factory()->create()->user, 'web');
+
+        // Act
+        $existing = $this->putJson("/api/businesses/{$business->id}/bank-accounts/{$account->id}", ['label' => 'Renamed']);
+        $unknown = $this->putJson("/api/businesses/{$business->id}/bank-accounts/".($account->id + 1000), ['label' => 'Renamed']);
+
+        // Assert. The whole body too, not only the status: a different body would leak the same way.
+        $existing->assertNotFound();
+        $unknown->assertNotFound();
+        expect($existing->json())->toBe($unknown->json());
     });
 
     it('should return 401 (unauthorized) for a guest, and change nothing', function (): void {

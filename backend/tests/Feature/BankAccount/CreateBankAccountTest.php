@@ -44,7 +44,7 @@ describe('Creating a bank account', function (): void {
             ->and($other->bankAccounts()->count())->toBe(0);
     });
 
-    it('should return 403 (forbidden) for a business of another user, and store nothing', function (): void {
+    it('should return 404 (not found) for a business of another user, and store nothing', function (): void {
         // Arrange
         $business = Business::factory()->create();
         $this->actingAs(Business::factory()->create()->user, 'web');
@@ -56,7 +56,7 @@ describe('Creating a bank account', function (): void {
         ]);
 
         // Assert
-        $response->assertForbidden();
+        $response->assertNotFound();
         expect(BankAccount::query()->count())->toBe(0);
     });
 

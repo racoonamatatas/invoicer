@@ -163,8 +163,8 @@ describe('Updating a business', function (): void {
         expect($business->fresh()->kvk_number)->toBe('87654321');
     });
 
-    it('should return 403 (forbidden) for a business of another user, before validating the body', function (): void {
-        // Arrange. An empty body would be a 422 if validation ran first; the 403 proves ->can() runs before
+    it('should return 404 (not found) for a business of another user, before validating the body', function (): void {
+        // Arrange. An empty body would be a 422 if validation ran first; the 404 proves the binding runs before
         // UpdateBusinessRequest, so another user's business can't be probed through validation errors.
         $business = Business::factory()->create(); // its own user
         $this->actingAs(User::factory()->create(), 'web');
@@ -173,7 +173,7 @@ describe('Updating a business', function (): void {
         $response = $this->putJson("/api/businesses/{$business->id}", []);
 
         // Assert
-        $response->assertForbidden();
+        $response->assertNotFound();
     });
 
     it('should return 401 (unauthorized) for a guest, and change nothing', function (): void {

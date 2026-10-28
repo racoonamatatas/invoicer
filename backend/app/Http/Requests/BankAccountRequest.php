@@ -54,8 +54,7 @@ abstract class BankAccountRequest extends FormRequest
     }
 
     /**
-     * The bound {business}. The route's ->can('access', 'business') has already proven it belongs to the user
-     * before this request is validated.
+     * The bound {business}. The binding has already proven it belongs to the user before this request is validated.
      */
     protected function business(): Business
     {

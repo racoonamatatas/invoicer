@@ -19,7 +19,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  *
  * The policy is named here rather than left to Laravel's auto-discovery (App\Models\X -> App\Policies\XPolicy).
  * The attribute only holds a class name, so a renamed or moved policy is not caught at boot; but the first
- * ->can() check then throws, because the container can't build the class, instead of silently denying, which
+ * Gate::allows() check then throws, because the container can't build the class, instead of silently denying, which
  * is what auto-discovery does once the policy is no longer where the convention looks.
  */
 #[UsePolicy(BusinessPolicy::class)]
@@ -47,7 +47,7 @@ class Business extends Model
      * Get the attributes that should be cast.
      *
      * Explicit integer casts: the policy compares user_id with === to the user's id, and a database driver that
-     * returns integers as strings must not turn that into a 403 for everyone.
+     * returns integers as strings must not turn that into a 404 for every owner.
      *
      * @return array<string, string>
      */
