@@ -1,4 +1,4 @@
-import { flushPromises, mount } from '@vue/test-utils';
+import { flushPromises, mount, type VueWrapper } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, it, expect, vi } from 'vitest';
 
@@ -38,6 +38,16 @@ const mountBankAccounts = async (businessId: string, errorHandler?: (error: unkn
 
     return { wrapper, router };
 };
+
+// Fills the add form the way a user types, and submits it.
+const addAccount = async (wrapper: VueWrapper, iban: string, label: string): Promise<void> =>
+{
+    await wrapper.find('#bank-account-iban').setValue(iban);
+    await wrapper.find('#bank-account-label').setValue(label);
+    await wrapper.find('form[aria-label="Add a bank account"]').trigger('submit');
+};
+
+const addFormStatus = (wrapper: VueWrapper): string => wrapper.find('form[aria-label="Add a bank account"] [role="status"]').text();
 
 describe('BankAccounts page', () =>
 {
@@ -184,5 +194,111 @@ describe('BankAccounts page', () =>
         const hrefOf = (text: string) => wrapper.findAll('a').find((anchor) => anchor.text() === text)?.attributes('href');
         expect(hrefOf('Back to the dashboard')).toBe('/businesses/1');
         expect(hrefOf('Your businesses')).toBe('/businesses');
+    });
+
+    it('should send the IBAN as typed, show the reloaded list, clear the form and say Added. when createBankAccount gets a 201 (created)', async () =>
+    {
+        // Arrange: the first list is empty, the reload after the add has the account
+        vi.mocked(bankAccountsService.listBankAccounts).mockResolvedValueOnce([]).mockResolvedValueOnce([main]);
+        vi.mocked(bankAccountsService.createBankAccount).mockResolvedValue(main);
+        const { wrapper } = await mountBankAccounts('1');
+        await flushPromises();
+
+        // Act
+        await addAccount(wrapper, 'nl91 abna 0417 1643 00', 'Main');
+        await flushPromises();
+
+        // Assert: spaces and lowercase are the backend's to normalise
+        expect(bankAccountsService.createBankAccount).toHaveBeenCalledExactlyOnceWith(1, { iban: 'nl91 abna 0417 1643 00', label: 'Main' });
+        expect(wrapper.findAll('ul[aria-label="Bank accounts"] li').map((row) => row.text())).toStrictEqual(['Main NL91 ABNA 0417 1643 00']);
+        expect((wrapper.find('#bank-account-iban').element as HTMLInputElement).value).toBe('');
+        expect((wrapper.find('#bank-account-label').element as HTMLInputElement).value).toBe('');
+        expect(addFormStatus(wrapper)).toBe('Added.');
+    });
+
+    it('should show a 422 (unprocessable content) on iban next to the IBAN input, keep what was typed and not reload the list', async () =>
+    {
+        // Arrange
+        vi.mocked(bankAccountsService.listBankAccounts).mockResolvedValue([main]);
+        vi.mocked(bankAccountsService.createBankAccount).mockRejectedValue(axiosErrorWith(422, {
+            message: 'The iban has already been taken.',
+            errors: { iban: ['The iban has already been taken.'] },
+        }));
+        const { wrapper } = await mountBankAccounts('1');
+        await flushPromises();
+
+        // Act
+        await addAccount(wrapper, 'NL91ABNA0417164300', 'Second');
+        await flushPromises();
+
+        // Assert: the message is linked to its input, for a screen reader
+        const input = wrapper.find('#bank-account-iban');
+        expect(input.attributes('aria-invalid')).toBe('true');
+        const describedBy = input.attributes('aria-describedby');
+        expect(describedBy).toBeDefined();
+        expect(wrapper.find(`#${describedBy}`).text()).toBe('The iban has already been taken.');
+
+        expect((input.element as HTMLInputElement).value).toBe('NL91ABNA0417164300');
+        expect((wrapper.find('#bank-account-label').element as HTMLInputElement).value).toBe('Second');
+        expect(bankAccountsService.listBankAccounts).toHaveBeenCalledOnce();
+        expect(addFormStatus(wrapper)).toBe('');
+    });
+
+    it('should say Couldn\'t add. and hand the error on when createBankAccount fails with a 500 (server error)', async () =>
+    {
+        // Arrange: errorHandler is a spy standing in for app.config.errorHandler
+        const error = axiosErrorWith(500, { message: 'Server Error' });
+        vi.mocked(bankAccountsService.listBankAccounts).mockResolvedValue([]);
+        vi.mocked(bankAccountsService.createBankAccount).mockRejectedValue(error);
+        const errorHandler = vi.fn<(error: unknown) => void>();
+        const { wrapper } = await mountBankAccounts('1', errorHandler);
+        await flushPromises();
+
+        // Act
+        await addAccount(wrapper, 'NL91ABNA0417164300', 'Main');
+        await flushPromises();
+
+        // Assert
+        expect(addFormStatus(wrapper)).toBe('Couldn\'t add.');
+        expect(errorHandler).toHaveBeenCalledExactlyOnceWith(error, expect.anything(), expect.anything());
+    });
+
+    it('should disable Add while createBankAccount is in flight', async () =>
+    {
+        // Arrange: createBankAccount is a stub whose request the test finishes by hand
+        const request = createDeferred();
+        vi.mocked(bankAccountsService.listBankAccounts).mockResolvedValue([]);
+        vi.mocked(bankAccountsService.createBankAccount).mockReturnValue(request.promise.then(() => main));
+        const { wrapper } = await mountBankAccounts('1');
+        await flushPromises();
+        const add = wrapper.findAll('button').find((button) => button.text() === 'Add');
+
+        // Act
+        await addAccount(wrapper, 'NL91ABNA0417164300', 'Main');
+
+        // Assert
+        expect(add?.attributes('disabled')).toBeDefined();
+
+        // Act: let the request finish, so nothing is left pending after the test
+        request.resolve();
+        await flushPromises();
+        expect(add?.attributes('disabled')).toBeUndefined();
+    });
+
+    it('should empty the add form when the URL changes to another business', async () =>
+    {
+        // Arrange
+        vi.mocked(bankAccountsService.listBankAccounts).mockResolvedValue([]);
+        const { wrapper, router } = await mountBankAccounts('1');
+        await flushPromises();
+        await wrapper.find('#bank-account-iban').setValue('NL91ABNA0417164300');
+
+        // Act: the page stays mounted while only the param changes
+        await router.push('/businesses/2/bank-accounts');
+        await flushPromises();
+
+        // Assert: the switch rendered, and what was typed for business 1 is gone
+        expect(wrapper.find('h1').text()).toBe('Bank accounts · Studio de Vries');
+        expect((wrapper.find('#bank-account-iban').element as HTMLInputElement).value).toBe('');
     });
 });
