@@ -5,6 +5,7 @@ declare(strict_types = 1);
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BankAccountController;
 use App\Http\Controllers\BusinessController;
+use App\Http\Controllers\ClientController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('auth')->group(function (): void {
@@ -40,6 +41,13 @@ Route::middleware('auth:sanctum')->prefix('businesses')->group(function (): void
             Route::post('/', [BankAccountController::class, 'store']);
             Route::put('{bankAccount}', [BankAccountController::class, 'update'])->whereNumber('bankAccount');
             Route::delete('{bankAccount}', [BankAccountController::class, 'destroy'])->whereNumber('bankAccount');
+        });
+
+        // scopeBindings(): {client} resolves through $business->clients(), so the id of a client record under another
+        // business is a 404, even when that business is the user's own.
+        Route::prefix('clients')->scopeBindings()->group(function (): void {
+            Route::get('/', [ClientController::class, 'index']);
+            Route::get('{client}', [ClientController::class, 'show'])->whereNumber('client');
         });
     });
 });

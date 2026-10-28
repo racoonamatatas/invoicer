@@ -66,6 +66,7 @@ Table clients
   business_id integer [not null]
   name varchar [not null]
   email varchar
+  vat_number varchar(14) [note: 'EU VAT id, e.g. DE123456789; only for an EU country (INV-0058), required on a reverse-charge invoice']
   street varchar [not null]
   house_number varchar(10) [not null]
   house_number_addition varchar(10)
@@ -75,6 +76,10 @@ Table clients
   country_code char(2) [not null, note: 'ISO 3166-1 alpha-2; the rules tighten for NL']
   created_at timestamp
   updated_at timestamp
+
+  indexes {
+    business_id [note: 'no unique index leads with it, and SQLite does not index a foreign key by itself']
+  }
 }
 
 Table invoices
