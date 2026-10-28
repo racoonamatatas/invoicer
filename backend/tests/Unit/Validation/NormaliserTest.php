@@ -157,7 +157,7 @@ describe('Normaliser::dutchPostcode', function (): void {
 
 describe('Normaliser::iban', function (): void {
 
-    it('should drop spaces and uppercase the rest', function (string $value): void {
+    it('should drop spaces of any kind and uppercase the rest', function (string $value): void {
         // Act
         $normalised = Normaliser::iban($value);
 
@@ -168,7 +168,18 @@ describe('Normaliser::iban', function (): void {
         'lowercase' => 'nl91abna0417164300',
         'lowercase and grouped' => 'nl91 abna 0417 1643 00',
         'already canonical' => 'NL91ABNA0417164300',
+        // What an IBAN copied from a banking app or a PDF often has between the groups.
+        'non-breaking spaces' => "NL91\u{00A0}ABNA\u{00A0}0417\u{00A0}1643\u{00A0}00",
+        'narrow no-break spaces' => "NL91\u{202F}ABNA\u{202F}0417\u{202F}1643\u{202F}00",
     ]);
+
+    it('should hand back invalid UTF-8 unchanged, for the Iban rule to reject', function (): void {
+        // Act. preg_replace() returns null on a broken byte sequence; that must not reach the uppercase step.
+        $normalised = Normaliser::iban("NL91 ABNA\xC3");
+
+        // Assert
+        expect($normalised)->toBe("NL91 ABNA\xC3");
+    });
 
     it('should leave any other separator, for the Iban rule to reject', function (): void {
         // Act
