@@ -25,7 +25,9 @@ interface BusinessForm
     kvk_number: string;
     vat_number: string;
     address: Address;
-    payment_term_days: number;
+    // '': the input was emptied. v-model.number hands back the raw text when
+    // it isn't a number, and an empty number input's text is ''.
+    payment_term_days: number | '';
 }
 
 const form = ref<BusinessForm>({
@@ -81,11 +83,17 @@ const hasBusinesses = computed(() => state.value.kind === 'loaded' && state.valu
 
 // The push sits inside the callback: submit() resolves the same way after a
 // 422, so only reaching the push proves the business was created. The
-// address is spread back to the flat shape the API takes.
+// address is spread back to the flat shape the API takes, and an emptied
+// payment term becomes the payload's null.
 const onSubmit = () => submit(async () =>
 {
-    const { address, ...fields } = form.value;
-    const business = await store.create({ ...fields, ...address, country_code: 'NL' });
+    const { address, payment_term_days: paymentTermDays, ...fields } = form.value;
+    const business = await store.create({
+        ...fields,
+        ...address,
+        country_code: 'NL',
+        payment_term_days: paymentTermDays === '' ? null : paymentTermDays,
+    });
     await router.push({ name: 'dashboard', params: { businessId: business.id } });
 });
 
@@ -185,8 +193,8 @@ onUnmounted(() => document.removeEventListener('visibilitychange', onVisibilityC
                          type="number" (vModelText in @vue/runtime-dom);
                          .number says so where it's read, and keeps converting
                          if the type ever changes. An emptied field stays "",
-                         which the backend turns into null and rejects as
-                         required, shown under this input. -->
+                         which onSubmit sends as null for the backend to
+                         reject as required, shown under this input. -->
                     <input
                         id="business-payment_term_days"
                         v-model.number="form.payment_term_days"

@@ -36,7 +36,9 @@ export interface BusinessPayload extends Address
     kvk_number: string;
     vat_number: string;
     country_code: BusinessCountryCode;
-    payment_term_days: number;
+    // null: left empty in the form. Sent anyway, so the backend's required
+    // rule answers with its own message.
+    payment_term_days: number | null;
 }
 
 const isNullableString = (value: unknown): value is string | null =>
