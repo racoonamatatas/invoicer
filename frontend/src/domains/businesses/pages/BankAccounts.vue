@@ -6,6 +6,7 @@ import { RouterLink } from 'vue-router';
 // Project imports
 import LogoutButton from '@/components/LogoutButton.vue';
 import AddBankAccountForm from '@/domains/businesses/components/AddBankAccountForm.vue';
+import DeleteBankAccountConfirm from '@/domains/businesses/components/DeleteBankAccountConfirm.vue';
 import RenameBankAccountForm from '@/domains/businesses/components/RenameBankAccountForm.vue';
 import { useBankAccounts } from '@/domains/businesses/composables/useBankAccounts';
 import { useRouteBusiness } from '@/domains/businesses/composables/useRouteBusiness';
@@ -16,15 +17,17 @@ const { state, retry } = useRouteBusiness();
 // user's: the list already answered that, so a request would only be a 404.
 const { state: accounts, reload } = useBankAccounts(() => (state.value.kind === 'found' ? state.value.business.id : null));
 
-// The row the user has opened. One value for the whole list, so two rows
-// can't be open at once.
+// The row the user has opened, and for what. One value for the whole list,
+// so two rows can't be open at once, nor one row for both.
 type OpenRow =
     | { kind: 'none' }
-    | { kind: 'renaming'; accountId: number };
+    | { kind: 'renaming'; accountId: number }
+    | { kind: 'confirmingDelete'; accountId: number };
 
 const openRow = ref<OpenRow>({ kind: 'none' });
 
-const isRenaming = (accountId: number): boolean => openRow.value.kind === 'renaming' && openRow.value.accountId === accountId;
+const isOpen = (kind: OpenRow['kind'], accountId: number): boolean =>
+    openRow.value.kind === kind && 'accountId' in openRow.value && openRow.value.accountId === accountId;
 
 const closeRow = (): void =>
 {
@@ -35,7 +38,8 @@ const closeRow = (): void =>
 watch(() => (state.value.kind === 'found' ? state.value.business.id : null), closeRow);
 
 // Closed first, so the row shows its label again while the list reloads.
-const onRenamed = (): Promise<void> =>
+// After a delete, the reload is what removes the row.
+const closeAndReload = (): Promise<void> =>
 {
     closeRow();
 
@@ -72,15 +76,25 @@ const groupIban = (iban: string): string => iban.replace(/(.{4})(?=.)/g, '$1 ');
                          buttons. -->
                     <li v-for="account in accounts.accounts" :key="account.id">
                         <RenameBankAccountForm
-                            v-if="isRenaming(account.id)"
+                            v-if="isOpen('renaming', account.id)"
                             :business-id="state.business.id"
                             :account="account"
-                            @saved="onRenamed"
+                            @saved="closeAndReload"
                             @cancel="closeRow"
                         />
                         <template v-else>
                             <span>{{ account.label }} {{ groupIban(account.iban) }}</span>
-                            <button type="button" :aria-label="`Rename ${account.label}`" @click="openRow = { kind: 'renaming', accountId: account.id }">Rename</button>
+                            <DeleteBankAccountConfirm
+                                v-if="isOpen('confirmingDelete', account.id)"
+                                :business-id="state.business.id"
+                                :account="account"
+                                @deleted="closeAndReload"
+                                @cancel="closeRow"
+                            />
+                            <template v-else>
+                                <button type="button" :aria-label="`Rename ${account.label}`" @click="openRow = { kind: 'renaming', accountId: account.id }">Rename</button>
+                                <button type="button" :aria-label="`Delete ${account.label}`" @click="openRow = { kind: 'confirmingDelete', accountId: account.id }">Delete</button>
+                            </template>
                         </template>
                     </li>
                 </ul>

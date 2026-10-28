@@ -1,3 +1,5 @@
+import { isAxiosError } from 'axios';
+
 import { checkResponse, deleteRequest, getRequest, postRequest, putRequest } from '@/services/http';
 
 // A bank account as the backend sends it (BankAccountResourceData).
@@ -71,8 +73,23 @@ export const updateBankAccountLabel = async (businessId: number, accountId: numb
     return checkResponse(endpoint, response.data, isBankAccount);
 };
 
-// 204 (no content): nothing to check. A 404 is thrown, as for an update.
+// 204 (no content): nothing to check. A 404 counts as deleted too: the
+// account is already gone (deleted in another tab, say), which is what the
+// user asked for. Unlike a rename, where a 404 means the new label was not
+// saved. Anything else is thrown.
 export const deleteBankAccount = async (businessId: number, accountId: number): Promise<void> =>
 {
-    await deleteRequest<unknown>(`${endpointFor(businessId)}/${accountId}`);
+    try
+    {
+        await deleteRequest<unknown>(`${endpointFor(businessId)}/${accountId}`);
+    }
+    catch (error) // unknown: anything can be thrown
+    {
+        if (isAxiosError(error) && error.response?.status === 404)
+        {
+            return;
+        }
+
+        throw error;
+    }
 };
