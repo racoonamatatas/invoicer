@@ -89,8 +89,8 @@ export const listBusinesses = async (): Promise<Business[]> =>
     return checkResponse('/businesses', response.data, isBusinessList);
 };
 
-// One business of the logged-in user. A business of another user is a 403
-// (forbidden) and an unknown id a 404 (not found), both thrown.
+// One business of the logged-in user. A business of another user and an
+// unknown id are both a 404 (not found), thrown.
 export const fetchBusiness = async (id: number): Promise<Business> =>
 {
     const endpoint = `/businesses/${id}`;
@@ -110,7 +110,7 @@ export const createBusiness = async (payload: BusinessPayload): Promise<Business
 };
 
 // Replaces every field of a business: 200 (ok) with the result. A 422 is
-// thrown for useForm, a 403 (another user's business) for the page.
+// thrown for useForm, a 404 (another user's business) for the page.
 export const updateBusiness = async (id: number, payload: BusinessPayload): Promise<Business> =>
 {
     const endpoint = `/businesses/${id}`;
