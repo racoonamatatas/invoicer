@@ -3,6 +3,7 @@ import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 
 import Businesses from '@/domains/businesses/pages/Businesses.vue';
+import { useBusinessesStore } from '@/domains/businesses/store';
 import * as service from '@/services/businesses';
 import { SessionEndedError } from '@/services/http';
 import { axiosErrorWith } from '../../../utility/axiosErrorWith';
@@ -377,6 +378,36 @@ describe('Businesses page, create form', () =>
 
         // Assert: with a list to go back to, Cancel is there now
         expect(buttonNamed(wrapper, 'Cancel')).toBeDefined();
+    });
+
+    it('should keep the open form, and what was typed in it, while the list loads again after a write elsewhere empties it', async () =>
+    {
+        // Arrange: loaded with a business, form opened and typed in. Another
+        // write's reload fails, which empties the store; the page's own load
+        // after that is held in flight by the test
+        const request = createDeferred();
+        vi.mocked(service.listBusinesses)
+            .mockResolvedValueOnce([bakery])
+            .mockRejectedValueOnce(axiosErrorWith(500, { message: 'Server Error' }))
+            .mockReturnValueOnce(request.promise.then(() => [bakery, shop]));
+        vi.mocked(service.createBusiness).mockResolvedValue(shop);
+        const wrapper = await mountBusinesses();
+        await flushPromises();
+        await buttonNamed(wrapper, 'Add a business')?.trigger('click');
+        await wrapper.find('#business-legal_name').setValue('Studio de Vries');
+
+        // Act: a write from outside this form, the way a later page will
+        await useBusinessesStore().create(expectedPayload);
+        await flushPromises();
+
+        // Assert: the list is loading again, and the form outlived it
+        expect(wrapper.find('[role="status"]').text()).toBe('Loading...');
+        expect(wrapper.find(addForm).exists()).toBe(true);
+        expect(wrapper.find<HTMLInputElement>('#business-legal_name').element.value).toBe('Studio de Vries');
+
+        // Act: let the request finish, so nothing is left pending after the test
+        request.resolve();
+        await flushPromises();
     });
 
     it('should keep the form behind Add a business when listBusinesses gets a 200 (ok) with businesses, and close it again on Cancel', async () =>
