@@ -44,7 +44,7 @@ const onSubmit = () => submit(async () =>
         <div role="status">
             <p v-if="isChanged">
                 Your password is changed. You are logged out on every other device.
-                <RouterLink :to="{ name: 'home' }">Back to the dashboard</RouterLink>
+                <RouterLink :to="{ name: 'home' }">Continue</RouterLink>
             </p>
             <p v-else-if="throttleMessage">{{ throttleMessage }}</p>
             <p v-else-if="generalMessage">{{ generalMessage }}</p>
