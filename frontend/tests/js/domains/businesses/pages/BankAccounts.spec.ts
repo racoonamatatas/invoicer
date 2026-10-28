@@ -93,6 +93,7 @@ describe('BankAccounts page', () =>
             'Savings NL02 RABO 0123 4567 89',
         ]);
         expect(wrapper.find('[role="status"]').text()).toBe('');
+        expect(wrapper.find('#bank-accounts-status').text()).toBe('');
     });
 
     it('should say there are no bank accounts yet when listBankAccounts gets a 200 (ok) with an empty list', async () =>
@@ -109,7 +110,7 @@ describe('BankAccounts page', () =>
         expect(wrapper.find('ul[aria-label="Bank accounts"]').exists()).toBe(false);
     });
 
-    it('should show Loading bank accounts... in the status region while listBankAccounts is in flight', async () =>
+    it('should show Loading bank accounts... in the accounts\' status region while listBankAccounts is in flight', async () =>
     {
         // Arrange: listBankAccounts is a stub whose request the test finishes by hand
         const request = createDeferred();
@@ -121,7 +122,7 @@ describe('BankAccounts page', () =>
 
         // Assert: the business is found, its accounts aren't in yet
         expect(wrapper.find('h1').text()).toBe('Bank accounts · Bakkerij de Vries');
-        expect(wrapper.find('[role="status"]').text()).toBe('Loading bank accounts...');
+        expect(wrapper.find('#bank-accounts-status').text()).toBe('Loading bank accounts...');
         expect(wrapper.find('ul[aria-label="Bank accounts"]').exists()).toBe(false);
 
         // Act: let the request finish, so nothing is left pending after the test
@@ -129,7 +130,7 @@ describe('BankAccounts page', () =>
         await flushPromises();
     });
 
-    it('should show the failure with a Try again button and hand the error on when listBankAccounts fails with a 500 (server error)', async () =>
+    it('should show the failure with a Try again button beside it and hand the error on when listBankAccounts fails with a 500 (server error)', async () =>
     {
         // Arrange: errorHandler is a spy standing in for app.config.errorHandler
         const error = axiosErrorWith(500, { message: 'Server Error' });
@@ -140,9 +141,11 @@ describe('BankAccounts page', () =>
         const { wrapper } = await mountBankAccounts('1', errorHandler);
         await flushPromises();
 
-        // Assert (outcome): the user is told, and can retry
-        expect(wrapper.find('[role="status"]').text()).toBe('Couldn\'t load the bank accounts.');
-        expect(wrapper.findAll('button').some((button) => button.text() === 'Try again')).toBe(true);
+        // Assert (outcome): the user is told, and can retry from right there: the button shares the message's line
+        const status = wrapper.find('#bank-accounts-status');
+        expect(status.text()).toBe('Couldn\'t load the bank accounts.');
+        const retry = wrapper.findAll('button').find((button) => button.text() === 'Try again');
+        expect(retry?.element.parentElement).toBe(status.element.parentElement);
 
         // Assert (interaction): the page didn't swallow the error or wrap it
         expect(errorHandler).toHaveBeenCalledExactlyOnceWith(error, expect.anything(), expect.anything());
@@ -165,7 +168,7 @@ describe('BankAccounts page', () =>
         // Assert
         expect(bankAccountsService.listBankAccounts).toHaveBeenCalledTimes(2);
         expect(listedAccounts(wrapper)).toStrictEqual(['Main NL91 ABNA 0417 1643 00']);
-        expect(wrapper.find('[role="status"]').text()).toBe('');
+        expect(wrapper.find('#bank-accounts-status').text()).toBe('');
     });
 
     it('should show not found without calling listBankAccounts when listBusinesses gets a 200 (ok) without the id in the URL', async () =>
