@@ -339,6 +339,30 @@ describe('Businesses page, create form', () =>
         expect(buttonNamed(wrapper, 'Cancel')).toBeUndefined();
     });
 
+    it('should keep the form that opened for an empty list, and what was typed in it, when the reload on a visible tab gets a 200 (ok) with a business', async () =>
+    {
+        // Arrange: empty at first; a business is added in another tab while
+        // the user is away from this one
+        vi.mocked(service.listBusinesses)
+            .mockResolvedValueOnce([])
+            .mockResolvedValueOnce([bakery]);
+        const wrapper = await mountBusinesses();
+        await flushPromises();
+        await wrapper.find('#business-legal_name').setValue('Winkel de Vries');
+
+        // Act
+        setVisibility('visible');
+        await flushPromises();
+
+        // Assert: the reload arrived, so the form outlived it
+        expect(wrapper.findAll('li').map((item) => item.text())).toStrictEqual(['Bakkerij de Vries (KvK 12345671)']);
+        expect(wrapper.find(addForm).exists()).toBe(true);
+        expect(wrapper.find<HTMLInputElement>('#business-legal_name').element.value).toBe('Winkel de Vries');
+
+        // Assert: with a list to go back to, Cancel is there now
+        expect(buttonNamed(wrapper, 'Cancel')).toBeDefined();
+    });
+
     it('should keep the form behind Add a business when listBusinesses gets a 200 (ok) with businesses, and close it again on Cancel', async () =>
     {
         // Arrange
