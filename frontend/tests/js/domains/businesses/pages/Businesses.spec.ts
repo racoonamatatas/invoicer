@@ -88,6 +88,22 @@ describe('Businesses page', () =>
         expect(wrapper.find('[role="status"]').text()).toBe('');
     });
 
+    it('should link each legal name to its business\'s dashboard', async () =>
+    {
+        // Arrange
+        vi.mocked(service.listBusinesses).mockResolvedValue([bakery, studio]);
+
+        // Act
+        const wrapper = await mountBusinesses();
+        await flushPromises();
+
+        // Assert: each id in its own link, so no row opens the other business
+        expect(wrapper.findAll('li a').map((anchor) => [anchor.text(), anchor.attributes('href')])).toStrictEqual([
+            ['Bakkerij de Vries', '/businesses/1'],
+            ['Studio de Vries', '/businesses/2'],
+        ]);
+    });
+
     it('should say there are no businesses yet when listBusinesses gets a 200 (ok) with an empty list', async () =>
     {
         // Arrange
