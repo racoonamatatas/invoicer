@@ -47,6 +47,10 @@ const addAccount = async (wrapper: VueWrapper, iban: string, label: string): Pro
     await wrapper.find('form[aria-label="Add a bank account"]').trigger('submit');
 };
 
+// Each listed account as "<label> <grouped IBAN>", without the row's buttons.
+const listedAccounts = (wrapper: VueWrapper): string[] =>
+    wrapper.findAll('ul[aria-label="Bank accounts"] li').map((row) => row.find('span').text());
+
 const addFormStatus = (wrapper: VueWrapper): string => wrapper.find('form[aria-label="Add a bank account"] [role="status"]').text();
 
 describe('BankAccounts page', () =>
@@ -69,7 +73,7 @@ describe('BankAccounts page', () =>
         // Assert
         expect(bankAccountsService.listBankAccounts).toHaveBeenCalledExactlyOnceWith(1);
         expect(wrapper.find('h1').text()).toBe('Bank accounts · Bakkerij de Vries');
-        expect(wrapper.findAll('ul[aria-label="Bank accounts"] li').map((row) => row.text())).toStrictEqual([
+        expect(listedAccounts(wrapper)).toStrictEqual([
             'Main NL91 ABNA 0417 1643 00',
             'Savings NL02 RABO 0123 4567 89',
         ]);
@@ -145,7 +149,7 @@ describe('BankAccounts page', () =>
 
         // Assert
         expect(bankAccountsService.listBankAccounts).toHaveBeenCalledTimes(2);
-        expect(wrapper.findAll('ul[aria-label="Bank accounts"] li').map((row) => row.text())).toStrictEqual(['Main NL91 ABNA 0417 1643 00']);
+        expect(listedAccounts(wrapper)).toStrictEqual(['Main NL91 ABNA 0417 1643 00']);
         expect(wrapper.find('[role="status"]').text()).toBe('');
     });
 
@@ -178,7 +182,7 @@ describe('BankAccounts page', () =>
 
         // Assert
         expect(wrapper.find('h1').text()).toBe('Bank accounts · Studio de Vries');
-        expect(wrapper.findAll('ul[aria-label="Bank accounts"] li').map((row) => row.text())).toStrictEqual(['Savings NL02 RABO 0123 4567 89']);
+        expect(listedAccounts(wrapper)).toStrictEqual(['Savings NL02 RABO 0123 4567 89']);
     });
 
     it('should link back to its dashboard and to /businesses when the business is found', async () =>
@@ -210,7 +214,7 @@ describe('BankAccounts page', () =>
 
         // Assert: spaces and lowercase are the backend's to normalise
         expect(bankAccountsService.createBankAccount).toHaveBeenCalledExactlyOnceWith(1, { iban: 'nl91 abna 0417 1643 00', label: 'Main' });
-        expect(wrapper.findAll('ul[aria-label="Bank accounts"] li').map((row) => row.text())).toStrictEqual(['Main NL91 ABNA 0417 1643 00']);
+        expect(listedAccounts(wrapper)).toStrictEqual(['Main NL91 ABNA 0417 1643 00']);
         expect((wrapper.find('#bank-account-iban').element as HTMLInputElement).value).toBe('');
         expect((wrapper.find('#bank-account-label').element as HTMLInputElement).value).toBe('');
         expect(addFormStatus(wrapper)).toBe('Added.');
