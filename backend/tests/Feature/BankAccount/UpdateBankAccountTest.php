@@ -119,7 +119,7 @@ describe('Updating a bank account', function (): void {
     });
 
     it('should return 404 (not found) for an account of the user\'s other business, and change nothing', function (): void {
-        // Arrange. Both businesses are the user's, so ->can() passes: only the scoped binding stands between this
+        // Arrange. Both businesses are the user's, so the business binding passes: only the scoped binding stands between this
         // request and the other business's account.
         $business = Business::factory()->create();
         $sibling = BankAccount::factory()->for(Business::factory()->for($business->user))->create(['label' => 'Main']);
@@ -133,7 +133,7 @@ describe('Updating a bank account', function (): void {
         expect($sibling->fresh()?->label)->toBe('Main');
     });
 
-    it('should return 403 (forbidden) for a business of another user, and change nothing', function (): void {
+    it('should return 404 (not found) for a business of another user, and change nothing', function (): void {
         // Arrange
         $business = Business::factory()->create();
         $account = BankAccount::factory()->for($business)->create(['label' => 'Main']);
@@ -143,7 +143,7 @@ describe('Updating a bank account', function (): void {
         $response = $this->putJson("/api/businesses/{$business->id}/bank-accounts/{$account->id}", ['label' => 'Renamed']);
 
         // Assert
-        $response->assertForbidden();
+        $response->assertNotFound();
         expect($account->fresh()?->label)->toBe('Main');
     });
 

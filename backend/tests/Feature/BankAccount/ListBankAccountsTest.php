@@ -43,7 +43,7 @@ describe('Listing bank accounts', function (): void {
         ]);
     });
 
-    it('should return 403 (forbidden) for a business of another user', function (): void {
+    it('should return 404 (not found) for a business of another user', function (): void {
         // Arrange
         $business = Business::factory()->create();
         BankAccount::factory()->for($business)->create();
@@ -53,7 +53,7 @@ describe('Listing bank accounts', function (): void {
         $response = $this->getJson("/api/businesses/{$business->id}/bank-accounts");
 
         // Assert
-        $response->assertForbidden();
+        $response->assertNotFound();
     });
 
     it('should return 401 (unauthorized) for a guest', function (): void {

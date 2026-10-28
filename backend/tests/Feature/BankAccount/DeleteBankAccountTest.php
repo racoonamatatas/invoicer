@@ -35,7 +35,7 @@ describe('Deleting a bank account', function (): void {
         expect(BankAccount::query()->whereKey($sibling->id)->exists())->toBeTrue();
     });
 
-    it('should return 403 (forbidden) for a business of another user, and keep the account', function (): void {
+    it('should return 404 (not found) for a business of another user, and keep the account', function (): void {
         // Arrange
         $business = Business::factory()->create();
         $account = BankAccount::factory()->for($business)->create();
@@ -45,7 +45,7 @@ describe('Deleting a bank account', function (): void {
         $response = $this->deleteJson("/api/businesses/{$business->id}/bank-accounts/{$account->id}");
 
         // Assert
-        $response->assertForbidden();
+        $response->assertNotFound();
         expect(BankAccount::query()->whereKey($account->id)->exists())->toBeTrue();
     });
 

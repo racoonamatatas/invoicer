@@ -36,7 +36,7 @@ describe('Showing a business', function (): void {
         ]);
     });
 
-    it('should return 403 (forbidden) for a business of another user', function (): void {
+    it('should return 404 (not found) for a business of another user', function (): void {
         // Arrange
         $user = User::factory()->create();
         $business = Business::factory()->create(); // its own user
@@ -46,7 +46,7 @@ describe('Showing a business', function (): void {
         $response = $this->getJson("/api/businesses/{$business->id}");
 
         // Assert
-        $response->assertForbidden();
+        $response->assertNotFound();
     });
 
     it('should return 404 (not found) for an unknown id', function (): void {
@@ -71,15 +71,14 @@ describe('Showing a business', function (): void {
         $this->getJson('/api/businesses/abc')->assertNotFound();
     });
 
-    it('should return 200 (ok) for the owner and 403 (forbidden) for another user on a {business} route whose action does not type-hint Business', function (): void {
+    it('should return 200 (ok) for the owner and 404 (not found) for another user on a {business} route whose action does not type-hint Business', function (): void {
         // Guards third-party code: Laravel's ImplicitRouteBinding reads the model type from the action's signature,
-        // so without the explicit Route::model() in AppServiceProvider this route would hand the policy a string
-        // and deny the owner. The route is registered here because no real route has that shape yet.
+        // so without the explicit Route::bind() in AppServiceProvider this route would never bind {business} or
+        // check its owner. The route is registered here because no real route has that shape yet.
 
         // Arrange: the same group shape as routes/api.php, plus the api middleware group that file gets for free
-        // (it holds SubstituteBindings, which does the binding). A group, not ->get() on the chain: the
-        // registrar only turns ->can() into middleware when it opens a group.
-        Route::middleware(['api', 'auth:sanctum'])->prefix('api/businesses/{business}')->whereNumber('business')->can('access', 'business')->group(function (): void {
+        // (it holds SubstituteBindings, which does the binding).
+        Route::middleware(['api', 'auth:sanctum'])->prefix('api/businesses/{business}')->whereNumber('business')->group(function (): void {
             Route::get('probe', static fn (): string => 'ok');
         });
         $owner = User::factory()->create();
@@ -91,7 +90,7 @@ describe('Showing a business', function (): void {
         // Sanctum's RequestGuard remembers the user it resolved for the first request; forget it so the
         // second request is really the stranger's.
         auth()->forgetGuards();
-        $this->actingAs($stranger, 'web')->getJson("/api/businesses/{$business->id}/probe")->assertForbidden();
+        $this->actingAs($stranger, 'web')->getJson("/api/businesses/{$business->id}/probe")->assertNotFound();
     });
 
     it('should return 401 (unauthorized) for a guest, even for an unknown id', function (): void {
