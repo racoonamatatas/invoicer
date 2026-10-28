@@ -40,8 +40,10 @@ const groupIban = (iban: string): string => iban.replace(/(.{4})(?=.)/g, '$1 ');
             <button v-if="accounts.kind === 'failed'" type="button" @click="reload">Try again</button>
             <template v-else-if="accounts.kind === 'loaded'">
                 <ul v-if="accounts.accounts.length > 0" aria-label="Bank accounts">
+                    <!-- Label and IBAN in their own span, apart from the row's
+                         buttons. -->
                     <li v-for="account in accounts.accounts" :key="account.id">
-                        {{ account.label }} {{ groupIban(account.iban) }}
+                        <span>{{ account.label }} {{ groupIban(account.iban) }}</span>
                     </li>
                 </ul>
                 <p v-else>No bank accounts yet.</p>
