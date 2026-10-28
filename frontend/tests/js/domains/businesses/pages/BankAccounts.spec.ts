@@ -25,7 +25,8 @@ const savings: BankAccount = { id: 4, iban: 'NL02RABO0123456789', label: 'Saving
 // Mounts BankAccounts on /businesses/<businessId>/bank-accounts with a fresh
 // Pinia, a logged-in user (the store loads nothing without one) and the app's
 // real routes, so its RouterLinks resolve.
-const mountBankAccounts = async (businessId: string, errorHandler?: (error: unknown) => void) =>
+// attachTo puts the page in the document, which a focus test needs.
+const mountBankAccounts = async (businessId: string, errorHandler?: (error: unknown) => void, attachTo?: HTMLElement) =>
 {
     const pinia = createPinia();
     setActivePinia(pinia);
@@ -34,7 +35,7 @@ const mountBankAccounts = async (businessId: string, errorHandler?: (error: unkn
     const router = createTestRouter();
     await router.push(`/businesses/${businessId}/bank-accounts`);
 
-    const wrapper = mount(BankAccounts, { global: { plugins: [pinia, router], config: { errorHandler } } });
+    const wrapper = mount(BankAccounts, { attachTo, global: { plugins: [pinia, router], config: { errorHandler } } });
 
     return { wrapper, router };
 };
@@ -50,6 +51,13 @@ const addAccount = async (wrapper: VueWrapper, iban: string, label: string): Pro
 // Each listed account as "<label> <grouped IBAN>", without the row's buttons.
 const listedAccounts = (wrapper: VueWrapper): string[] =>
     wrapper.findAll('ul[aria-label="Bank accounts"] li').map((row) => row.find('span').text());
+
+const clickButton = async (wrapper: VueWrapper, name: string): Promise<void> =>
+{
+    await wrapper.find(`button[aria-label="${name}"]`).trigger('click');
+};
+
+const renameForm = (wrapper: VueWrapper, label: string) => wrapper.find(`form[aria-label="Rename ${label}"]`);
 
 const addFormStatus = (wrapper: VueWrapper): string => wrapper.find('form[aria-label="Add a bank account"] [role="status"]').text();
 
@@ -304,5 +312,129 @@ describe('BankAccounts page', () =>
         // Assert: the switch rendered, and what was typed for business 1 is gone
         expect(wrapper.find('h1').text()).toBe('Bank accounts · Studio de Vries');
         expect((wrapper.find('#bank-account-iban').element as HTMLInputElement).value).toBe('');
+    });
+
+    it('should open a rename form holding the current label, with the input focused, when Rename is clicked', async () =>
+    {
+        // Arrange: attached to the document, where focus exists
+        vi.mocked(bankAccountsService.listBankAccounts).mockResolvedValue([main, savings]);
+        const { wrapper } = await mountBankAccounts('1', undefined, document.body);
+        await flushPromises();
+
+        // Act
+        await clickButton(wrapper, 'Rename Main');
+
+        // Assert
+        const input = renameForm(wrapper, 'Main').find('input');
+        expect((input.element as HTMLInputElement).value).toBe('Main');
+        expect(document.activeElement).toBe(input.element);
+
+        wrapper.unmount();
+    });
+
+    it('should send the new label, close the form and show the reloaded list when updateBankAccountLabel gets a 200 (ok)', async () =>
+    {
+        // Arrange: the reload after the save has the new label
+        const renamed = { ...main, label: 'Business' };
+        vi.mocked(bankAccountsService.listBankAccounts).mockResolvedValueOnce([main]).mockResolvedValueOnce([renamed]);
+        vi.mocked(bankAccountsService.updateBankAccountLabel).mockResolvedValue(renamed);
+        const { wrapper } = await mountBankAccounts('1');
+        await flushPromises();
+        await clickButton(wrapper, 'Rename Main');
+
+        // Act
+        await renameForm(wrapper, 'Main').find('input').setValue('Business');
+        await renameForm(wrapper, 'Main').trigger('submit');
+        await flushPromises();
+
+        // Assert
+        expect(bankAccountsService.updateBankAccountLabel).toHaveBeenCalledExactlyOnceWith(1, 3, { label: 'Business' });
+        expect(wrapper.find('form[aria-label^="Rename"]').exists()).toBe(false);
+        expect(listedAccounts(wrapper)).toStrictEqual(['Business NL91 ABNA 0417 1643 00']);
+    });
+
+    it('should show a 422 (unprocessable content) on label under the rename input, apart from an add form error on label, and keep the form open', async () =>
+    {
+        // Arrange: both forms answer with an error on label, so both show one at once
+        vi.mocked(bankAccountsService.listBankAccounts).mockResolvedValue([main, savings]);
+        vi.mocked(bankAccountsService.createBankAccount).mockRejectedValue(axiosErrorWith(422, {
+            message: 'The label field is required.',
+            errors: { label: ['The label field is required.'] },
+        }));
+        vi.mocked(bankAccountsService.updateBankAccountLabel).mockRejectedValue(axiosErrorWith(422, {
+            message: 'The label has already been taken.',
+            errors: { label: ['The label has already been taken.'] },
+        }));
+        const { wrapper } = await mountBankAccounts('1');
+        await flushPromises();
+        await addAccount(wrapper, 'NL91ABNA0417164300', ' ');
+        await flushPromises();
+        await clickButton(wrapper, 'Rename Main');
+
+        // Act
+        await renameForm(wrapper, 'Main').find('input').setValue('Savings');
+        await renameForm(wrapper, 'Main').trigger('submit');
+        await flushPromises();
+
+        // Assert: each input points at its own message; a shared id would point both at the first
+        const describedBy = renameForm(wrapper, 'Main').find('input').attributes('aria-describedby');
+        expect(describedBy).toBeDefined();
+        expect(wrapper.findAll(`#${describedBy}`).map((element) => element.text())).toStrictEqual(['The label has already been taken.']);
+        const addDescribedBy = wrapper.find('#bank-account-label').attributes('aria-describedby');
+        expect(wrapper.findAll(`#${addDescribedBy}`).map((element) => element.text())).toStrictEqual(['The label field is required.']);
+        expect((renameForm(wrapper, 'Main').find('input').element as HTMLInputElement).value).toBe('Savings');
+    });
+
+    it('should say Couldn\'t save. and hand the error on when updateBankAccountLabel fails with a 500 (server error)', async () =>
+    {
+        // Arrange: errorHandler is a spy standing in for app.config.errorHandler
+        const error = axiosErrorWith(500, { message: 'Server Error' });
+        vi.mocked(bankAccountsService.listBankAccounts).mockResolvedValue([main]);
+        vi.mocked(bankAccountsService.updateBankAccountLabel).mockRejectedValue(error);
+        const errorHandler = vi.fn<(error: unknown) => void>();
+        const { wrapper } = await mountBankAccounts('1', errorHandler);
+        await flushPromises();
+        await clickButton(wrapper, 'Rename Main');
+
+        // Act
+        await renameForm(wrapper, 'Main').trigger('submit');
+        await flushPromises();
+
+        // Assert
+        expect(renameForm(wrapper, 'Main').find('[role="status"]').text()).toBe('Couldn\'t save.');
+        expect(errorHandler).toHaveBeenCalledExactlyOnceWith(error, expect.anything(), expect.anything());
+    });
+
+    it('should close the rename form without a request and show the label again when Cancel is clicked', async () =>
+    {
+        // Arrange
+        vi.mocked(bankAccountsService.listBankAccounts).mockResolvedValue([main]);
+        const { wrapper } = await mountBankAccounts('1');
+        await flushPromises();
+        await clickButton(wrapper, 'Rename Main');
+        await renameForm(wrapper, 'Main').find('input').setValue('Business');
+
+        // Act
+        await renameForm(wrapper, 'Main').findAll('button').find((button) => button.text() === 'Cancel')?.trigger('click');
+
+        // Assert
+        expect(renameForm(wrapper, 'Main').exists()).toBe(false);
+        expect(listedAccounts(wrapper)).toStrictEqual(['Main NL91 ABNA 0417 1643 00']);
+        expect(bankAccountsService.updateBankAccountLabel).not.toHaveBeenCalled();
+    });
+
+    it('should keep one rename form open at a time: Rename on another row closes the first', async () =>
+    {
+        // Arrange
+        vi.mocked(bankAccountsService.listBankAccounts).mockResolvedValue([main, savings]);
+        const { wrapper } = await mountBankAccounts('1');
+        await flushPromises();
+        await clickButton(wrapper, 'Rename Main');
+
+        // Act
+        await clickButton(wrapper, 'Rename Savings');
+
+        // Assert
+        expect(wrapper.findAll('form[aria-label^="Rename"]').map((form) => form.attributes('aria-label'))).toStrictEqual(['Rename Savings']);
     });
 });
