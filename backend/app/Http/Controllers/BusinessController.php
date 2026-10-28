@@ -40,8 +40,7 @@ final class BusinessController extends Controller
     }
 
     /**
-     * The route's ->can('access', 'business') has already proven the business is the user's; the controller only
-     * ever reads from the bound model.
+     * The binding has already proven the business is the user's; the controller only reads from the bound model.
      */
     public function show(Business $business): BusinessResourceData
     {
@@ -49,8 +48,8 @@ final class BusinessController extends Controller
     }
 
     /**
-     * Replaces the whole business. The route's ->can() has run before UpdateBusinessRequest validates, so another
-     * user's business is a 403 whatever the body holds.
+     * Replaces the whole business. The binding runs before UpdateBusinessRequest validates, so another user's
+     * business is a 404 whatever the body holds.
      */
     public function update(UpdateBusinessRequest $request, UpdateBusinessAction $action, Business $business): BusinessResourceData
     {

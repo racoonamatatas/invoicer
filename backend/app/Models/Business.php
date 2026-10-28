@@ -19,7 +19,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  *
  * The policy is named here rather than left to Laravel's auto-discovery (App\Models\X -> App\Policies\XPolicy).
  * The attribute only holds a class name, so a renamed or moved policy is not caught at boot; but the first
- * ->can() check then throws, because the container can't build the class, instead of silently denying, which
+ * Gate::allows() check then throws, because the container can't build the class, instead of silently denying, which
  * is what auto-discovery does once the policy is no longer where the convention looks.
  */
 #[UsePolicy(BusinessPolicy::class)]

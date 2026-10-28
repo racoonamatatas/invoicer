@@ -17,11 +17,8 @@ use App\Models\Business;
 use Illuminate\Http\JsonResponse;
 
 /**
- * Every action runs inside the {business} route group, whose ->can('access', 'business') has already proven the
- * business is the user's. Every query starts from that business, so another business's accounts can't appear.
- *
- * Known gap, planned to be fixed: {bankAccount} is bound before that check runs, so on another user's business
- * the status code differs with the account id. No account is read or changed either way.
+ * The {business} binding has already proven the business is the user's. Every query starts from that business, so
+ * another business's accounts can't appear.
  */
 final class BankAccountController extends Controller
 {

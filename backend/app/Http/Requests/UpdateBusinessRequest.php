@@ -10,8 +10,8 @@ use LogicException;
 final class UpdateBusinessRequest extends BusinessRequest
 {
     /**
-     * The bound {business}, left out of the kvk_number check so a business keeps its own number. The route's
-     * ->can('access', 'business') has already proven it belongs to the user before this request is validated.
+     * The bound {business}, left out of the kvk_number check so a business keeps its own number. The binding
+     * has already proven it belongs to the user before this request is validated.
      */
     protected function existingBusiness(): Business
     {

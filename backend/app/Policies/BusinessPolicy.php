@@ -13,7 +13,7 @@ use App\Models\User;
 final class BusinessPolicy
 {
     /**
-     * The one check every business-scoped route makes, as ->can('access', 'business') on its route group: the
+     * The one check every business-scoped route makes, in the {business} binding (AppServiceProvider): the
      * business belongs to the logged-in user. There is no finer-grained view/update split, because an owner may
      * do everything with their own business and nobody else may do anything with it.
      */
