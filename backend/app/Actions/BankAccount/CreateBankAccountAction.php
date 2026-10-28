@@ -24,7 +24,10 @@ final readonly class CreateBankAccountAction
         }
         catch (UniqueConstraintViolationException $exception)
         {
-            if (DuplicateIbanException::isCausedBy($exception))
+            // The query as well as isCausedBy(): an identical double submit breaks both unique indexes at once,
+            // and which one the driver reports is up to the driver (SQLite names the label). If the IBAN is in
+            // the business now, the IBAN was the duplicate, whatever the message says.
+            if (DuplicateIbanException::isCausedBy($exception) || $business->bankAccounts()->where('iban', $data->iban)->exists())
             {
                 throw new DuplicateIbanException($exception);
             }

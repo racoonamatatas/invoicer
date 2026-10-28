@@ -27,6 +27,9 @@ final class DuplicateIbanException extends Exception
      * Only a violation on iban is this exception. The (business_id, label) index can also be hit by a race, and
      * that one is rethrown as it is: a 500 for two identical labels saved at the same instant is rare and harmless.
      *
+     * When a write breaks both indexes, a driver reports one of them, so this can say no to a real IBAN duplicate.
+     * CreateBankAccountAction asks the database as well for that reason.
+     *
      * Laravel parses what it can out of the driver's error message, and drivers differ: SQLite names the columns
      * only, MySQL and MariaDB the index only, PostgreSQL both. Either one is enough.
      */
