@@ -8,5 +8,5 @@ export const businessesRoutes: AppRoute[] = [
     // The business is in the URL, the same way the API nests under it, so a
     // refresh, a bookmark or a second tab always shows the same business.
     new AppRoute('/businesses/:businessId', 'dashboard', () => import('./pages/Dashboard.vue')),
-    new AppRoute('/businesses/:businessId/settings', 'businessSettings', () => import('./pages/BusinessSettings.vue')),
+    new AppRoute('/businesses/:businessId/edit', 'editBusiness', () => import('./pages/EditBusiness.vue')),
 ];

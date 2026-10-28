@@ -35,11 +35,11 @@ const saveTo = (id: number) => async (payload: BusinessPayload): Promise<void> =
              and then fill. Keyed by id: BusinessForm copies its initial
              business once, so another business in the URL needs a new form. -->
         <template v-else-if="state.kind === 'found'">
-            <h1>Settings for {{ state.business.registered_name }}</h1>
+            <h1>Edit {{ state.business.registered_name }}</h1>
             <BusinessForm
                 :key="state.business.id"
                 :initial="state.business"
-                label="Business settings"
+                label="Business details"
                 submit-label="Save"
                 :save="saveTo(state.business.id)"
                 saved-message="Saved."
