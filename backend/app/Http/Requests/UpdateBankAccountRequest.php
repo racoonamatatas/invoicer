@@ -5,6 +5,8 @@ declare(strict_types = 1);
 namespace App\Http\Requests;
 
 use App\Models\BankAccount;
+use App\Validation\Normaliser;
+use Closure;
 use Illuminate\Contracts\Validation\ValidationRule;
 use LogicException;
 
@@ -18,10 +20,19 @@ final class UpdateBankAccountRequest extends BankAccountRequest
     public function rules(): array
     {
         return [
-            // The IBAN never changes after creation (see BankAccount). prohibited rather than left out of the
-            // rules: a left-out field is dropped without a word, and a client that thinks it changed the IBAN
-            // must hear that it didn't.
-            'iban' => ['prohibited'],
+            // The IBAN never changes after creation (see BankAccount). Optional, so a body with the label alone is
+            // fine; but when sent it must be the stored one, so a client that PUTs back the whole account it got
+            // from GET passes, and one that thinks it changed the IBAN hears that it didn't. Not left out of the
+            // rules: a left-out field is dropped without a word. null is a different value, and fails too.
+            'iban' => [
+                'sometimes',
+                function (string $attribute, mixed $value, Closure $fail): void {
+                    if ($value !== $this->existingBankAccount()->iban)
+                    {
+                        $fail('The :attribute can\'t be changed.');
+                    }
+                },
+            ],
             'label' => $this->labelRules(),
         ];
     }
@@ -48,5 +59,17 @@ final class UpdateBankAccountRequest extends BankAccountRequest
         }
 
         return $bankAccount;
+    }
+
+    /**
+     * The same canonical form as on create, so "nl91 abna 0417 1643 00" counts as the stored NL91ABNA0417164300.
+     * Only when sent: merging a null for a missing iban would turn "label only" into "iban changed to null".
+     */
+    protected function prepareForValidation(): void
+    {
+        if ($this->has('iban'))
+        {
+            $this->merge(['iban' => Normaliser::iban($this->input('iban'))]);
+        }
     }
 }
