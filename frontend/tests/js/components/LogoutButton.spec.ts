@@ -55,6 +55,23 @@ describe('LogoutButton', () =>
         expect(assign).toHaveBeenCalledExactlyOnceWith('/login');
     });
 
+    it('should keep the button disabled after logout gets a 204 (no content), since the page is still there until /login has loaded', async () =>
+    {
+        // Arrange
+        vi.mocked(auth.logout).mockResolvedValue();
+        const wrapper = await mountLogoutButton();
+
+        // Act
+        await wrapper.find('button').trigger('click');
+        await flushPromises();
+
+        // Assert (interaction): proves the logout finished, so isPending is false again
+        expect(assign).toHaveBeenCalledOnce();
+
+        // Assert (outcome): no second logout for a session that has ended
+        expect(wrapper.find('button').attributes('disabled')).toBeDefined();
+    });
+
     it('should hand the original error to the app error handler and not reload when logout fails with a 500 (server error)', async () =>
     {
         // Arrange: auth.logout is a stub that fails, so the session still exists.
