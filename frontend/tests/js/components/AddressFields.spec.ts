@@ -13,8 +13,9 @@ const emptyAddress = (): Address => ({
     city: '',
 });
 
-// Mounts AddressFields the way a parent form does: an address object bound
-// with v-model, the parent's form name, and its fieldError.
+// Mounts AddressFields the way a parent form does: an address bound with
+// v-model, the parent's form name, and its fieldError. The address is
+// returned so a test can check it was left alone.
 const mountAddressFields = (fieldError: (field: AddressField) => FieldError | null = () => null) =>
 {
     const address = emptyAddress();
@@ -34,7 +35,7 @@ describe('AddressFields', () =>
         { field: 'house_number_addition', value: 'A' },
         { field: 'postal_code', value: '1015 CJ' },
         { field: 'city', value: 'Amsterdam' },
-    ] satisfies { field: AddressField; value: string }[])('should write what is typed into its key of the bound address: $field', async ({ field, value }) =>
+    ] satisfies { field: AddressField; value: string }[])('should emit update:modelValue with a new address that differs only at its key, and leave the bound one untouched: $field', async ({ field, value }) =>
     {
         // Arrange
         const { wrapper, address } = mountAddressFields();
@@ -42,8 +43,12 @@ describe('AddressFields', () =>
         // Act
         await wrapper.find(`#business-${field}`).setValue(value);
 
-        // Assert: the parent's own object changed, only at this key
-        expect(address).toStrictEqual({ ...emptyAddress(), [field]: value });
+        // Assert (interaction): one event, carrying the whole new address
+        expect(wrapper.emitted('update:modelValue')).toStrictEqual([[{ ...emptyAddress(), [field]: value }]]);
+
+        // Assert (outcome): a new object, not an in-place write, so a parent
+        // that doesn't listen for the event keeps its own value
+        expect(address).toStrictEqual(emptyAddress());
     });
 
     it('should prefix every input id with the form name and point each label at its input', () =>
