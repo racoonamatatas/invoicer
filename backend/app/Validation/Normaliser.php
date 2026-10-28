@@ -36,6 +36,25 @@ final class Normaliser
     }
 
     /**
+     * An IBAN as people write it, "nl91 abna 0417 1643 00", becomes "NL91ABNA0417164300": spaces removed, then
+     * uppercased. Spaces only: ISO 13616 prints an IBAN in groups of four separated by spaces, so a dot or a dash
+     * is not a separator anyone was given, and it stays for the Iban rule to reject.
+     *
+     * Any whitespace, not just " ": an IBAN copied from a banking app or a PDF often has non-breaking spaces
+     * between the groups. /u makes \s match those too.
+     */
+    public static function iban(mixed $value): mixed
+    {
+        if (! is_string($value))
+        {
+            return $value;
+        }
+
+        // null on invalid UTF-8: handed back as given, for the Iban rule to reject.
+        return self::uppercase(preg_replace('/\s+/u', '', $value) ?? $value);
+    }
+
+    /**
      * A KvK number as people write it, "1234 5678" or "12.34.56.78", becomes "12345678". Only spaces and dots:
      * anything else stays, for the KvkNumber rule to reject.
      */

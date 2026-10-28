@@ -3,6 +3,7 @@
 declare(strict_types = 1);
 
 use App\Exceptions\Auth\InvalidCredentialsException;
+use App\Exceptions\BankAccount\DuplicateIbanException;
 use App\Exceptions\Business\DuplicateKvkNumberException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -38,6 +39,11 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->map(
             fn (DuplicateKvkNumberException $exception) => ValidationException::withMessages([
                 'kvk_number' => __('validation.unique', ['attribute' => 'kvk number']),
+            ]),
+        );
+        $exceptions->map(
+            fn (DuplicateIbanException $exception) => ValidationException::withMessages([
+                'iban' => __('validation.unique', ['attribute' => 'iban']),
             ]),
         );
     })->create();
