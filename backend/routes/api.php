@@ -42,6 +42,8 @@ Route::middleware('auth:sanctum')->prefix('businesses')->group(function (): void
         Route::prefix('bank-accounts')->scopeBindings()->group(function (): void {
             Route::get('/', [BankAccountController::class, 'index']);
             Route::post('/', [BankAccountController::class, 'store']);
+            Route::put('{bankAccount}', [BankAccountController::class, 'update'])->whereNumber('bankAccount');
+            Route::delete('{bankAccount}', [BankAccountController::class, 'destroy'])->whereNumber('bankAccount');
         });
     });
 });
