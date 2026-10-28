@@ -19,6 +19,13 @@ vi.mock('@/services/businesses');
 // outlives a test, so a page left mounted would answer the next test's events.
 enableAutoUnmount(afterEach);
 
+// Top level, so it runs after the tests of both describes: setVisibility's
+// spy on document.visibilityState would otherwise outlive its test.
+afterEach(() =>
+{
+    vi.restoreAllMocks();
+});
+
 const bakery = business(1, 'Bakkerij de Vries');
 const studio = business(2, 'Studio de Vries');
 
@@ -58,11 +65,6 @@ describe('Businesses page', () =>
     beforeEach(() =>
     {
         vi.resetAllMocks();
-    });
-
-    afterEach(() =>
-    {
-        vi.restoreAllMocks();
     });
 
     it('should show Loading... in the status region while listBusinesses is in flight', async () =>
