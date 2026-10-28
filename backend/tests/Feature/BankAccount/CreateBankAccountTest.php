@@ -80,7 +80,7 @@ describe('Creating a bank account', function (): void {
         'label not a string' => [['iban' => 'NL91ABNA0417164300', 'label' => 12], 'label', 'The label field must be a string.'],
     ]);
 
-    it('should return 422 (unprocessable) on iban for an IBAN the business already has, written differently', function (): void {
+    it('should return 422 (unprocessable) on iban naming the label it is saved under, for an IBAN the business already has, written differently', function (): void {
         // Arrange
         $business = Business::factory()->create();
         BankAccount::factory()->for($business)->create(['iban' => 'NL91ABNA0417164300', 'label' => 'Main']); // another label, so only the IBAN clashes
@@ -94,7 +94,7 @@ describe('Creating a bank account', function (): void {
 
         // Assert
         $response->assertUnprocessable()
-            ->assertOnlyJsonValidationErrors(['iban' => 'The iban has already been taken.']);
+            ->assertOnlyJsonValidationErrors(['iban' => 'This IBAN has previously been saved as "Main".']);
     });
 
     it('should return 201 (created) for an IBAN another business already has', function (): void {
