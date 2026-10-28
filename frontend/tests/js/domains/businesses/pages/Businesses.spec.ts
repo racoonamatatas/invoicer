@@ -22,8 +22,9 @@ const bakery = business(1, 'Bakkerij de Vries');
 const studio = business(2, 'Studio de Vries');
 
 // Mounts Businesses on /businesses with a fresh Pinia, a logged-in user (the
-// store loads nothing without one) and the app's real routes.
-const mountBusinesses = async (errorHandler?: (error: unknown) => void) =>
+// store loads nothing without one) and the app's real routes. Returns the
+// router too, for the tests that follow a navigation.
+const mountBusinessesWithRouter = async (errorHandler?: (error: unknown) => void) =>
 {
     const pinia = createPinia();
     setActivePinia(pinia);
@@ -32,8 +33,17 @@ const mountBusinesses = async (errorHandler?: (error: unknown) => void) =>
     const router = createTestRouter();
     await router.push({ name: 'businesses' });
 
-    return mount(Businesses, { global: { plugins: [pinia, router], config: { errorHandler } } });
+    const wrapper = mount(Businesses, { global: { plugins: [pinia, router], config: { errorHandler } } });
+
+    return { wrapper, router };
 };
+
+const mountBusinesses = async (errorHandler?: (error: unknown) => void) => (await mountBusinessesWithRouter(errorHandler)).wrapper;
+
+type Wrapper = Awaited<ReturnType<typeof mountBusinesses>>;
+
+// A button found by its text, the way a user finds it. undefined when absent.
+const buttonNamed = (wrapper: Wrapper, text: string) => wrapper.findAll('button').find((button) => button.text() === text);
 
 // Tells the page the tab was shown or hidden, the way the browser does.
 const setVisibility = (state: DocumentVisibilityState): void =>
@@ -132,7 +142,7 @@ describe('Businesses page', () =>
 
         // Assert (outcome): the user is told, and can retry
         expect(wrapper.find('[role="status"]').text()).toBe('Couldn\'t load your businesses.');
-        expect(wrapper.find('button').text()).toBe('Try again');
+        expect(buttonNamed(wrapper, 'Try again')).toBeDefined();
 
         // Assert (interaction): the page didn't swallow the error or wrap it
         expect(errorHandler).toHaveBeenCalledOnce();
@@ -166,13 +176,13 @@ describe('Businesses page', () =>
         await flushPromises();
 
         // Act
-        await wrapper.find('button').trigger('click');
+        await buttonNamed(wrapper, 'Try again')?.trigger('click');
         await flushPromises();
 
         // Assert: the list replaced the failure, button included
         expect(wrapper.findAll('li').map((item) => item.text())).toStrictEqual(['Bakkerij de Vries (KvK 12345671)']);
         expect(wrapper.find('[role="status"]').text()).toBe('');
-        expect(wrapper.find('button').exists()).toBe(false);
+        expect(buttonNamed(wrapper, 'Try again')).toBeUndefined();
     });
 
     it('should ask listBusinesses again and show the new list when the tab becomes visible', async () =>
@@ -242,5 +252,191 @@ describe('Businesses page', () =>
         expect(service.listBusinesses).toHaveBeenCalledTimes(2);
         expect(wrapper.findAll('li').map((item) => item.text())).toStrictEqual(['Bakkerij de Vries (KvK 12345671)']);
         expect(errorHandler).not.toHaveBeenCalled();
+    });
+});
+
+describe('Businesses page, create form', () =>
+{
+    const addForm = 'form[aria-label="Add a business"]';
+
+    // What the user types, and the payload the backend must receive for it:
+    // the address flat again, country_code added, the default payment term
+    // sent as the number 30.
+    const typed = {
+        legal_name: 'Winkel de Vries',
+        kvk_number: '12345673',
+        vat_number: 'NL123456789B01',
+        street: 'Keizersgracht',
+        house_number: '123',
+        house_number_addition: 'A',
+        postal_code: '1015 CJ',
+        city: 'Amsterdam',
+    };
+    const expectedPayload: service.BusinessPayload = { ...typed, country_code: 'NL', payment_term_days: 30 };
+    const shop = business(3, 'Winkel de Vries');
+
+    // Types every text field the way a user does; the payment term keeps its default.
+    const fillForm = async (wrapper: Wrapper) =>
+    {
+        for (const [field, value] of Object.entries(typed))
+        {
+            await wrapper.find(`#business-${field}`).setValue(value);
+        }
+    };
+
+    beforeEach(() =>
+    {
+        vi.resetAllMocks();
+    });
+
+    it('should not show the form while listBusinesses is in flight, so it can\'t flash open for a user with businesses', async () =>
+    {
+        // Arrange
+        const request = createDeferred();
+        vi.mocked(service.listBusinesses).mockReturnValue(request.promise.then(() => [bakery]));
+
+        // Act
+        const wrapper = await mountBusinesses();
+
+        // Assert: the page is loading, and neither the form nor its button is there
+        expect(wrapper.find('[role="status"]').text()).toBe('Loading...');
+        expect(wrapper.find(addForm).exists()).toBe(false);
+        expect(buttonNamed(wrapper, 'Add a business')).toBeUndefined();
+
+        // Act: let the request finish, so nothing is left pending after the test
+        request.resolve();
+        await flushPromises();
+    });
+
+    it('should open the form, without Add a business or Cancel, when listBusinesses gets a 200 (ok) with an empty list', async () =>
+    {
+        // Arrange
+        vi.mocked(service.listBusinesses).mockResolvedValue([]);
+
+        // Act
+        const wrapper = await mountBusinesses();
+        await flushPromises();
+
+        // Assert: adding a business is all there is to do
+        expect(wrapper.find(addForm).exists()).toBe(true);
+        expect(buttonNamed(wrapper, 'Add a business')).toBeUndefined();
+        expect(buttonNamed(wrapper, 'Cancel')).toBeUndefined();
+    });
+
+    it('should keep the form behind Add a business when listBusinesses gets a 200 (ok) with businesses, and close it again on Cancel', async () =>
+    {
+        // Arrange
+        vi.mocked(service.listBusinesses).mockResolvedValue([bakery]);
+        const wrapper = await mountBusinesses();
+        await flushPromises();
+
+        // Assert: closed at first
+        expect(wrapper.find(addForm).exists()).toBe(false);
+
+        // Act
+        await buttonNamed(wrapper, 'Add a business')?.trigger('click');
+
+        // Assert: open, with a way back, and the list stays above it
+        expect(wrapper.find(addForm).exists()).toBe(true);
+        expect(wrapper.findAll('li')).toHaveLength(1);
+
+        // Act
+        await buttonNamed(wrapper, 'Cancel')?.trigger('click');
+
+        // Assert
+        expect(wrapper.find(addForm).exists()).toBe(false);
+        expect(buttonNamed(wrapper, 'Add a business')).toBeDefined();
+    });
+
+    it('should create the business from the typed fields with country_code NL and open its dashboard when createBusiness gets a 201 (created)', async () =>
+    {
+        // Arrange: the store reloads the list after the write, so a second answer holds the new business
+        vi.mocked(service.listBusinesses)
+            .mockResolvedValueOnce([])
+            .mockResolvedValueOnce([shop]);
+        vi.mocked(service.createBusiness).mockResolvedValue(shop);
+        const { wrapper, router } = await mountBusinessesWithRouter();
+        await flushPromises();
+        await fillForm(wrapper);
+
+        // Act
+        await wrapper.find(addForm).trigger('submit');
+
+        // Assert (outcome): on the new business's dashboard. waitFor retries,
+        // because the dashboard route lazy-loads its page before the push resolves
+        await vi.waitFor(() => expect(router.currentRoute.value.path).toBe('/businesses/3'));
+
+        // Assert (interaction): the flat payload, toStrictEqual so 30 must be
+        // a number: the backend's integer:strict rejects "30"
+        expect(service.createBusiness).toHaveBeenCalledOnce();
+        expect(vi.mocked(service.createBusiness).mock.calls[0]?.[0]).toStrictEqual(expectedPayload);
+    });
+
+    it('should send a typed payment term as a number, not the input\'s text', async () =>
+    {
+        // Arrange
+        vi.mocked(service.listBusinesses).mockResolvedValue([]);
+        vi.mocked(service.createBusiness).mockResolvedValue(shop);
+        const wrapper = await mountBusinesses();
+        await flushPromises();
+        await fillForm(wrapper);
+
+        // Act: an input always holds text, so this is "14" until v-model converts it
+        await wrapper.find('#business-payment_term_days').setValue('14');
+        await wrapper.find(addForm).trigger('submit');
+        await flushPromises();
+
+        // Assert
+        expect(vi.mocked(service.createBusiness).mock.calls[0]?.[0].payment_term_days).toBe(14);
+    });
+
+    // One row for a field of the page, one for a field inside AddressFields:
+    // both read the same useForm errors.
+    it.for([
+        { name: 'kvk_number', field: 'kvk_number', message: 'The kvk number field must be 8 digits.' },
+        { name: 'postal_code', field: 'postal_code', message: 'The postal code field format is invalid.' },
+    ])('should show the error under its input, link it and stay on the page when createBusiness fails with a 422 (unprocessable): $name', async ({ field, message }) =>
+    {
+        // Arrange
+        vi.mocked(service.listBusinesses).mockResolvedValue([]);
+        vi.mocked(service.createBusiness).mockRejectedValue(axiosErrorWith(422, { message, errors: { [field]: [message] } }));
+        const { wrapper, router } = await mountBusinessesWithRouter();
+        await flushPromises();
+        const push = vi.spyOn(router, 'push');
+        await fillForm(wrapper);
+
+        // Act
+        await wrapper.find(addForm).trigger('submit');
+        await flushPromises();
+
+        // Assert: the error is shown, and its input points at it
+        const input = wrapper.find(`#business-${field}`);
+        expect(wrapper.find(`#business-${field}-error`).text()).toBe(message);
+        expect(input.attributes('aria-invalid')).toBe('true');
+        expect(input.attributes('aria-describedby')).toBe(`business-${field}-error`);
+
+        // Assert: shown once, by the field, not again in the status region
+        expect(wrapper.find('[role="status"]').text()).toBe('');
+
+        // Assert (interaction): no navigation was started
+        expect(push).not.toHaveBeenCalled();
+    });
+
+    it('should show the message in the status region when createBusiness fails with a 422 (unprocessable) on country_code, which has no input', async () =>
+    {
+        // Arrange
+        const message = 'A business must be registered in the Netherlands.';
+        vi.mocked(service.listBusinesses).mockResolvedValue([]);
+        vi.mocked(service.createBusiness).mockRejectedValue(axiosErrorWith(422, { message, errors: { country_code: [message] } }));
+        const wrapper = await mountBusinesses();
+        await flushPromises();
+        await fillForm(wrapper);
+
+        // Act
+        await wrapper.find(addForm).trigger('submit');
+        await flushPromises();
+
+        // Assert: without it the user would see no feedback at all
+        expect(wrapper.find('[role="status"]').text()).toBe(message);
     });
 });
