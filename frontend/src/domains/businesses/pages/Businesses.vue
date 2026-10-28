@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Package imports
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { RouterLink, useRouter } from 'vue-router';
 
 // Project imports
@@ -62,8 +62,21 @@ const paymentTermDaysError = computed(() => fieldError('payment_term_days'));
 // The form opens itself for a user with no business yet, since adding one is
 // all there is to do. Otherwise it waits behind "Add a business". Never while
 // loading, so it can't flash open for a user who has businesses.
+//
+// Opening sets isAdding rather than reading the list's length each render, so
+// once open only Cancel or a create closes it. Otherwise a reload that brings
+// in a business added elsewhere would unmount the form and lose what was typed.
 const isAdding = ref(false);
-const isFormShown = computed(() => state.value.kind === 'loaded' && (state.value.businesses.length === 0 || isAdding.value));
+
+watch(state, (current) =>
+{
+    if (current.kind === 'loaded' && current.businesses.length === 0)
+    {
+        isAdding.value = true;
+    }
+}, { immediate: true });
+
+const isFormShown = computed(() => state.value.kind === 'loaded' && isAdding.value);
 const hasBusinesses = computed(() => state.value.kind === 'loaded' && state.value.businesses.length > 0);
 
 // The push sits inside the callback: submit() resolves the same way after a
