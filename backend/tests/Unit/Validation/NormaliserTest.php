@@ -154,3 +154,39 @@ describe('Normaliser::dutchPostcode', function (): void {
         'array' => [['1234ab']],
     ]);
 });
+
+describe('Normaliser::iban', function (): void {
+
+    it('should drop spaces and uppercase the rest', function (string $value): void {
+        // Act
+        $normalised = Normaliser::iban($value);
+
+        // Assert
+        expect($normalised)->toBe('NL91ABNA0417164300');
+    })->with([
+        'grouped with spaces, as banks print it' => 'NL91 ABNA 0417 1643 00',
+        'lowercase' => 'nl91abna0417164300',
+        'lowercase and grouped' => 'nl91 abna 0417 1643 00',
+        'already canonical' => 'NL91ABNA0417164300',
+    ]);
+
+    it('should leave any other separator, for the Iban rule to reject', function (): void {
+        // Act
+        $normalised = Normaliser::iban('NL91-ABNA-0417-1643-00');
+
+        // Assert
+        expect($normalised)->toBe('NL91-ABNA-0417-1643-00');
+    });
+
+    it('should hand back a non-string unchanged, for the string rule to reject', function (mixed $value): void {
+        // Act
+        $normalised = Normaliser::iban($value);
+
+        // Assert
+        expect($normalised)->toBe($value);
+    })->with([
+        'integer' => 1234,
+        'null' => null,
+        'array' => [['nl91 abna']],
+    ]);
+});
