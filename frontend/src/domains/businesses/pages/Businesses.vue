@@ -21,7 +21,7 @@ const { state, retry } = useBusinessList();
 // is nothing to ask, and onSubmit adds it.
 interface BusinessForm
 {
-    legal_name: string;
+    registered_name: string;
     kvk_number: string;
     vat_number: string;
     address: Address;
@@ -31,7 +31,7 @@ interface BusinessForm
 }
 
 const form = ref<BusinessForm>({
-    legal_name: '',
+    registered_name: '',
     kvk_number: '',
     vat_number: '',
     address: { street: '', house_number: '', house_number_addition: '', postal_code: '', city: '' },
@@ -42,7 +42,7 @@ const form = ref<BusinessForm>({
 // be shown by generalMessage. true would hide that message with nowhere else
 // to show the error.
 const { submit, isPending, fieldError, throttleMessage, generalMessage } = useForm<keyof BusinessPayload>('business', {
-    legal_name: true,
+    registered_name: true,
     kvk_number: true,
     vat_number: true,
     street: true,
@@ -56,7 +56,7 @@ const { submit, isPending, fieldError, throttleMessage, generalMessage } = useFo
 
 // One value per field, so the error text and both aria attributes read
 // from the same source. The address fields get theirs inside AddressFields.
-const legalNameError = computed(() => fieldError('legal_name'));
+const registeredNameError = computed(() => fieldError('registered_name'));
 const kvkNumberError = computed(() => fieldError('kvk_number'));
 const vatNumberError = computed(() => fieldError('vat_number'));
 const paymentTermDaysError = computed(() => fieldError('payment_term_days'));
@@ -140,7 +140,7 @@ onUnmounted(() => document.removeEventListener('visibilitychange', onVisibilityC
         <template v-else-if="state.kind === 'loaded'">
             <ul v-if="hasBusinesses">
                 <li v-for="business in state.businesses" :key="business.id">
-                    <RouterLink :to="{ name: 'dashboard', params: { businessId: business.id } }">{{ business.legal_name }}</RouterLink>
+                    <RouterLink :to="{ name: 'dashboard', params: { businessId: business.id } }">{{ business.registered_name }}</RouterLink>
                     (KvK {{ business.kvk_number }})
                 </li>
             </ul>
@@ -156,17 +156,17 @@ onUnmounted(() => document.removeEventListener('visibilitychange', onVisibilityC
              The backend stays the judge of every format. -->
         <form v-if="isAdding" aria-label="Add a business" @submit.prevent="onSubmit">
             <div>
-                <label for="business-legal_name">Legal name</label>
+                <label for="business-registered_name">Registered name</label>
                 <input
-                    id="business-legal_name"
-                    v-model="form.legal_name"
+                    id="business-registered_name"
+                    v-model="form.registered_name"
                     type="text"
                     required
                     autocomplete="organization"
-                    :aria-invalid="legalNameError !== null"
-                    :aria-describedby="legalNameError?.id"
+                    :aria-invalid="registeredNameError !== null"
+                    :aria-describedby="registeredNameError?.id"
                 />
-                <p v-if="legalNameError" :id="legalNameError.id">{{ legalNameError.message }}</p>
+                <p v-if="registeredNameError" :id="registeredNameError.id">{{ registeredNameError.message }}</p>
             </div>
             <div>
                 <label for="business-kvk_number">KvK number</label>

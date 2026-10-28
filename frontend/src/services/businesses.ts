@@ -13,7 +13,7 @@ export type BusinessCountryCode = (typeof BUSINESS_COUNTRY_CODES)[number];
 export interface Business
 {
     id: number;
-    legal_name: string;
+    registered_name: string;
     kvk_number: string;
     vat_number: string;
     street: string;
@@ -32,7 +32,7 @@ export interface Business
 // nothing to show or send for it. Extends Address, so AddressFields fits it.
 export interface BusinessPayload extends Address
 {
-    legal_name: string;
+    registered_name: string;
     kvk_number: string;
     vat_number: string;
     country_code: BusinessCountryCode;
@@ -63,7 +63,7 @@ export const isBusiness = (value: unknown): value is Business =>
     return typeof value === 'object'
            && value !== null // typeof null is 'object'
            && 'id' in value && Number.isInteger(value.id)
-           && 'legal_name' in value && typeof value.legal_name === 'string'
+           && 'registered_name' in value && typeof value.registered_name === 'string'
            && 'kvk_number' in value && typeof value.kvk_number === 'string'
            && 'vat_number' in value && typeof value.vat_number === 'string'
            && 'street' in value && typeof value.street === 'string'
