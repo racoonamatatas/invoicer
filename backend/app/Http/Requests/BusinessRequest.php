@@ -35,7 +35,7 @@ abstract class BusinessRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'legal_name' => ['required', 'string', 'max:255'],
+            'registered_name' => ['required', 'string', 'max:255'],
             'kvk_number' => [
                 'required',
                 'string',
@@ -74,7 +74,7 @@ abstract class BusinessRequest extends FormRequest
         $safe = $this->safe();
 
         return new BusinessData(
-            legalName: $safe->string('legal_name')->toString(),
+            registeredName: $safe->string('registered_name')->toString(),
             kvkNumber: $safe->string('kvk_number')->toString(),
             vatNumber: $safe->string('vat_number')->toString(),
             street: $safe->string('street')->toString(),

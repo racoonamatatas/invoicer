@@ -24,7 +24,7 @@ final readonly class ListBusinessesAction
             // "de Vries" would sort after "Zebra" (MySQL's default collation is already case-insensitive). SQLite's
             // lower() folds ASCII only, so an accented first letter still sorts last there; fine for a list of a
             // handful of businesses.
-            ->orderByRaw('lower(legal_name)')
+            ->orderByRaw('lower(registered_name)')
             ->orderBy('id') // two businesses with one name still list in a fixed order
             ->get();
     }

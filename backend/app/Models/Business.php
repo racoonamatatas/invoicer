@@ -25,7 +25,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 // user_id is left out on purpose: the owner is set by the relation ($user->businesses()->create()), never from
 // input, so no create or update request can hand a business to another user. Factories ignore the list.
 #[Fillable([
-    'legal_name',
+    'registered_name',
     'kvk_number',
     'vat_number',
     'street',
