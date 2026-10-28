@@ -430,6 +430,24 @@ describe('Businesses page, create form', () =>
         expect(vi.mocked(service.createBusiness).mock.calls[0]?.[0].payment_term_days).toBe(14);
     });
 
+    it('should send an emptied payment term as null, not the input\'s empty text', async () =>
+    {
+        // Arrange
+        vi.mocked(service.listBusinesses).mockResolvedValue([]);
+        vi.mocked(service.createBusiness).mockResolvedValue(shop);
+        const wrapper = await mountBusinesses();
+        await flushPromises();
+        await fillForm(wrapper);
+
+        // Act: the user clears the default 30
+        await wrapper.find('#business-payment_term_days').setValue('');
+        await wrapper.find(addForm).trigger('submit');
+        await flushPromises();
+
+        // Assert: null, so the backend's required rule answers it
+        expect(vi.mocked(service.createBusiness).mock.calls[0]?.[0].payment_term_days).toBeNull();
+    });
+
     // One row for a field of the page, one for a field inside AddressFields:
     // both read the same useForm errors.
     it.for([
