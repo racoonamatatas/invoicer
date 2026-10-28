@@ -80,12 +80,16 @@ const onSubmit = async (): Promise<void> =>
             <label for="bank-account-iban">IBAN</label>
             <!-- No pattern or maxlength: spaces and lowercase are fine, and
                  the backend is the only judge of an IBAN. autocapitalize
-                 only helps a phone keyboard. -->
+                 only helps a phone keyboard. readonly while the request runs
+                 (on both inputs): a success clears the form, which would
+                 wipe anything typed meanwhile. Not disabled: that drops
+                 focus. -->
             <input
                 id="bank-account-iban"
                 v-model="form.iban"
                 type="text"
                 required
+                :readonly="isPending"
                 autocomplete="off"
                 spellcheck="false"
                 autocapitalize="characters"
@@ -101,6 +105,7 @@ const onSubmit = async (): Promise<void> =>
                 v-model="form.label"
                 type="text"
                 required
+                :readonly="isPending"
                 :aria-invalid="labelError !== null"
                 :aria-describedby="labelError?.id"
             />
