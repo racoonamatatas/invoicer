@@ -2,7 +2,7 @@ import { flushPromises, mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, it, expect, vi } from 'vitest';
 
-import BusinessSettings from '@/domains/businesses/pages/BusinessSettings.vue';
+import EditBusiness from '@/domains/businesses/pages/EditBusiness.vue';
 import * as service from '@/services/businesses';
 import { axiosErrorWith } from '../../../utility/axiosErrorWith';
 import { business, jan, logInAs } from '../../../utility/businesses';
@@ -16,31 +16,31 @@ vi.mock('@/services/businesses');
 const bakery = business(1, 'Bakkerij de Vries');
 const studio = business(2, 'Studio de Vries');
 
-const settingsForm = 'form[aria-label="Business settings"]';
+const detailsForm = 'form[aria-label="Business details"]';
 
-// Mounts BusinessSettings on /businesses/<businessId>/settings with a fresh
+// Mounts EditBusiness on /businesses/<businessId>/edit with a fresh
 // Pinia, a logged-in user (the store loads nothing without one) and the app's
 // real routes. An empty store, the way a direct page load starts.
-const mountBusinessSettings = async (businessId: string) =>
+const mountEditBusiness = async (businessId: string) =>
 {
     const pinia = createPinia();
     setActivePinia(pinia);
     await logInAs(jan);
 
     const router = createTestRouter();
-    await router.push(`/businesses/${businessId}/settings`);
+    await router.push(`/businesses/${businessId}/edit`);
 
-    const wrapper = mount(BusinessSettings, { global: { plugins: [pinia, router] } });
+    const wrapper = mount(EditBusiness, { global: { plugins: [pinia, router] } });
 
     return { wrapper, router };
 };
 
-type Wrapper = Awaited<ReturnType<typeof mountBusinessSettings>>['wrapper'];
+type Wrapper = Awaited<ReturnType<typeof mountEditBusiness>>['wrapper'];
 
 // The value of the input with this id, read the way the user sees it.
 const valueOf = (wrapper: Wrapper, id: string) => wrapper.get<HTMLInputElement>(`#${id}`).element.value;
 
-describe('BusinessSettings page', () =>
+describe('EditBusiness page', () =>
 {
     beforeEach(() =>
     {
@@ -53,11 +53,11 @@ describe('BusinessSettings page', () =>
         vi.mocked(service.listBusinesses).mockResolvedValue([bakery, studio]);
 
         // Act
-        const { wrapper } = await mountBusinessSettings('2');
+        const { wrapper } = await mountEditBusiness('2');
         await flushPromises();
 
         // Assert: this business, not the first in the list
-        expect(wrapper.find('h1').text()).toBe('Settings for Studio de Vries');
+        expect(wrapper.find('h1').text()).toBe('Edit Studio de Vries');
         expect(valueOf(wrapper, 'business-registered_name')).toBe('Studio de Vries');
         expect(valueOf(wrapper, 'business-kvk_number')).toBe('12345672');
         expect(valueOf(wrapper, 'business-vat_number')).toBe('NL123456789B01');
@@ -76,11 +76,11 @@ describe('BusinessSettings page', () =>
         vi.mocked(service.listBusinesses).mockReturnValue(request.promise.then(() => [bakery]));
 
         // Act
-        const { wrapper } = await mountBusinessSettings('1');
+        const { wrapper } = await mountEditBusiness('1');
 
         // Assert
         expect(wrapper.find('[role="status"]').text()).toBe('Loading...');
-        expect(wrapper.find(settingsForm).exists()).toBe(false);
+        expect(wrapper.find(detailsForm).exists()).toBe(false);
 
         // Act: let the request finish, so nothing is left pending after the test
         request.resolve();
@@ -93,11 +93,11 @@ describe('BusinessSettings page', () =>
         vi.mocked(service.listBusinesses).mockResolvedValue([bakery]);
 
         // Act
-        const { wrapper } = await mountBusinessSettings('1');
+        const { wrapper } = await mountEditBusiness('1');
         await flushPromises();
 
         // Assert: the form proves the answer was rendered before counting calls
-        expect(wrapper.find(settingsForm).exists()).toBe(true);
+        expect(wrapper.find(detailsForm).exists()).toBe(true);
         expect(service.listBusinesses).toHaveBeenCalledOnce();
         expect(service.fetchBusiness).not.toHaveBeenCalled();
     });
@@ -108,13 +108,13 @@ describe('BusinessSettings page', () =>
         const renamed = { ...bakery, registered_name: 'Bakkerij Jansen' };
         vi.mocked(service.listBusinesses).mockResolvedValueOnce([bakery]).mockResolvedValueOnce([renamed]);
         vi.mocked(service.updateBusiness).mockResolvedValue(renamed);
-        const { wrapper, router } = await mountBusinessSettings('1');
+        const { wrapper, router } = await mountEditBusiness('1');
         await flushPromises();
         const push = vi.spyOn(router, 'push');
         await wrapper.find('#business-registered_name').setValue('Bakkerij Jansen');
 
         // Act
-        await wrapper.find(settingsForm).trigger('submit');
+        await wrapper.find(detailsForm).trigger('submit');
         await flushPromises();
 
         // Assert (interaction): every field is sent, the unchanged ones too,
@@ -133,9 +133,9 @@ describe('BusinessSettings page', () =>
         });
 
         // Assert (outcome): confirmed, still here, and the heading reads the store
-        expect(wrapper.find(`${settingsForm} [role="status"]`).text()).toBe('Saved.');
+        expect(wrapper.find(`${detailsForm} [role="status"]`).text()).toBe('Saved.');
         expect(push).not.toHaveBeenCalled();
-        expect(wrapper.find('h1').text()).toBe('Settings for Bakkerij Jansen');
+        expect(wrapper.find('h1').text()).toBe('Edit Bakkerij Jansen');
     });
 
     it('should show the error under the KvK number input and no Saved. when updateBusiness fails with a 422 (unprocessable) on kvk_number', async () =>
@@ -144,11 +144,11 @@ describe('BusinessSettings page', () =>
         const message = 'The kvk number field must be 8 digits.';
         vi.mocked(service.listBusinesses).mockResolvedValue([bakery]);
         vi.mocked(service.updateBusiness).mockRejectedValue(axiosErrorWith(422, { message, errors: { kvk_number: [message] } }));
-        const { wrapper } = await mountBusinessSettings('1');
+        const { wrapper } = await mountEditBusiness('1');
         await flushPromises();
 
         // Act
-        await wrapper.find(settingsForm).trigger('submit');
+        await wrapper.find(detailsForm).trigger('submit');
         await flushPromises();
 
         // Assert: the error is shown, and its input points at it
@@ -158,7 +158,7 @@ describe('BusinessSettings page', () =>
         expect(input.attributes('aria-describedby')).toBe('business-kvk_number-error');
 
         // Assert: shown by the field, and the save isn't claimed
-        expect(wrapper.find(`${settingsForm} [role="status"]`).text()).toBe('');
+        expect(wrapper.find(`${detailsForm} [role="status"]`).text()).toBe('');
     });
 
     it('should show not found and no form when listBusinesses gets a 200 (ok) without the id in the URL', async () =>
@@ -167,11 +167,11 @@ describe('BusinessSettings page', () =>
         vi.mocked(service.listBusinesses).mockResolvedValue([bakery]);
 
         // Act
-        const { wrapper } = await mountBusinessSettings('99');
+        const { wrapper } = await mountEditBusiness('99');
         await flushPromises();
 
         // Assert
         expect(wrapper.find('h1').text()).toBe('Business not found');
-        expect(wrapper.find(settingsForm).exists()).toBe(false);
+        expect(wrapper.find(detailsForm).exists()).toBe(false);
     });
 });
