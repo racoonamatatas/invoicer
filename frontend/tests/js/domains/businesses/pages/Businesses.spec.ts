@@ -339,6 +339,22 @@ describe('Businesses page, create form', () =>
         expect(buttonNamed(wrapper, 'Cancel')).toBeUndefined();
     });
 
+    it('should mark the page\'s own fields required, as the backend does', async () =>
+    {
+        // Arrange
+        vi.mocked(service.listBusinesses).mockResolvedValue([]);
+
+        // Act
+        const wrapper = await mountBusinesses();
+        await flushPromises();
+
+        // Assert: the address fields are AddressFields' own, checked in its spec
+        for (const field of ['legal_name', 'kvk_number', 'vat_number', 'payment_term_days'])
+        {
+            expect(wrapper.find(`#business-${field}`).attributes('required'), field).toBeDefined();
+        }
+    });
+
     it('should keep the form that opened for an empty list, and what was typed in it, when the reload on a visible tab gets a 200 (ok) with a business', async () =>
     {
         // Arrange: empty at first; a business is added in another tab while

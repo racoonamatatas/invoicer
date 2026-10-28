@@ -66,6 +66,16 @@ describe('AddressFields', () =>
         }
     });
 
+    it('should mark every input required except the house number addition, as the backend does for a Dutch address', () =>
+    {
+        // Act
+        const { wrapper } = mountAddressFields();
+
+        // Assert: the attribute's presence is what the browser checks
+        const required = wrapper.findAll('input').map((input) => input.attributes('required') !== undefined);
+        expect(required).toStrictEqual([true, true, false, true, true]);
+    });
+
     it('should show the error under its input and link it with aria-invalid and aria-describedby, leaving the other inputs clean', () =>
     {
         // Arrange: a fieldError stub with one error, the shape useForm builds after a 422
