@@ -61,6 +61,23 @@ describe('Showing a business', function (): void {
         $response->assertNotFound();
     });
 
+    it('should return the same 404 (not found) message for a business of another user as for an unknown id', function (): void {
+        // Arrange. The two cases throw from different places in the binding (findOrFail() and the policy check),
+        // so this pins that they render alike. Only the id in the message differs.
+        config(['app.debug' => false]); // production's body; debug adds a trace with this file's line numbers
+        $business = Business::factory()->create(); // its own user
+        $this->actingAs(User::factory()->create(), 'web');
+        $unknownId = $business->id + 1000;
+
+        // Act
+        $foreign = $this->getJson("/api/businesses/{$business->id}");
+        $unknown = $this->getJson("/api/businesses/{$unknownId}");
+
+        // Assert
+        $foreign->assertNotFound()->assertExactJson(['message' => "No query results for model [App\\Models\\Business] {$business->id}"]);
+        $unknown->assertNotFound()->assertExactJson(['message' => "No query results for model [App\\Models\\Business] {$unknownId}"]);
+    });
+
     it('should return 404 (not found) for a non-numeric id without querying the database', function (): void {
         // Arrange
         $user = User::factory()->create();

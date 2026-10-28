@@ -52,6 +52,7 @@ describe('Deleting a bank account', function (): void {
     it('should return the same 404 (not found) for an existing and an unknown account id on a business of another user', function (): void {
         // Arrange. If {bankAccount} were looked up before the owner check, the existing id would answer differently
         // and reveal that it belongs to this business.
+        config(['app.debug' => false]); // production's body; debug adds a trace with this file's line numbers
         $business = Business::factory()->create();
         $account = BankAccount::factory()->for($business)->create();
         $this->actingAs(Business::factory()->create()->user, 'web');
@@ -60,10 +61,10 @@ describe('Deleting a bank account', function (): void {
         $existing = $this->deleteJson("/api/businesses/{$business->id}/bank-accounts/{$account->id}");
         $unknown = $this->deleteJson("/api/businesses/{$business->id}/bank-accounts/".($account->id + 1000));
 
-        // Assert. The message too, not only the status: a different body would leak the same way.
+        // Assert. The whole body too, not only the status: a different body would leak the same way.
         $existing->assertNotFound();
         $unknown->assertNotFound();
-        expect($existing->json('message'))->toBe($unknown->json('message'));
+        expect($existing->json())->toBe($unknown->json());
     });
 
     it('should return 401 (unauthorized) for a guest, and keep the account', function (): void {
