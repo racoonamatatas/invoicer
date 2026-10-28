@@ -348,11 +348,11 @@ describe('Businesses page, create form', () =>
         const wrapper = await mountBusinesses();
         await flushPromises();
 
-        // Assert: the address fields are AddressFields' own, checked in its spec
-        for (const field of ['legal_name', 'kvk_number', 'vat_number', 'payment_term_days'])
-        {
-            expect(wrapper.find(`#business-${field}`).attributes('required'), field).toBeDefined();
-        }
+        // Assert: none left without it, so a failure names the field. The
+        // address fields are AddressFields' own, checked in its spec
+        const fields = ['legal_name', 'kvk_number', 'vat_number', 'payment_term_days'];
+        const notRequired = fields.filter((field) => wrapper.find(`#business-${field}`).attributes('required') === undefined);
+        expect(notRequired).toStrictEqual([]);
     });
 
     it('should keep the form that opened for an empty list, and what was typed in it, when the reload on a visible tab gets a 200 (ok) with a business', async () =>
