@@ -6,7 +6,7 @@ import { computed } from 'vue';
 import type { FieldError } from '@/composables/useForm';
 import { withCountry, withText } from '@/form/addressEdits';
 import { ADDRESS_TEXT_FIELDS, addressFormatFor, type AddressTextField } from '@/form/addressFormats';
-import { isCountryCode, type Address, type AddressField, type CountryCode } from '@/services/address';
+import { countryName, isCountryCode, type Address, type AddressField, type CountryCode } from '@/services/address';
 
 // The parent owns the form and its useForm: this component only renders the
 // address part of it. fieldError is the parent's own; it takes every field
@@ -15,6 +15,9 @@ const props = defineProps<{
     formName: string;
     fieldError: (field: AddressField) => FieldError | null;
     countryCodes: readonly CountryCode[]; // one code hides the select, as for a business (always NL)
+    // True while the parent's save runs, so nothing typed then is wiped when
+    // the save refills the form. Required: every parent has to decide.
+    readonly: boolean;
 }>();
 
 // The parent's address. Never changed in place: each keystroke assigns a new
@@ -44,7 +47,9 @@ const onCountryChange = (event: Event): void =>
 
     // Put back by hand: Vue patches :value only when the address changes, and
     // a rejected value changes nothing, so the select would keep showing it.
-    if (!isCountryCode(event.target.value))
+    // A select has no readonly attribute, so a read-only one is undone here;
+    // disabled would take the focus away.
+    if (props.readonly || !isCountryCode(event.target.value))
     {
         event.target.value = address.value.country_code;
 
@@ -54,14 +59,10 @@ const onCountryChange = (event: Event): void =>
     address.value = withCountry(address.value, event.target.value);
 };
 
-// Names in English, like the rest of the UI. Intl knows every ISO code, so
-// no list of names is kept here. Sorted by name, not code: people look for
-// "Germany", not "DE".
-const regionNames = new Intl.DisplayNames(['en'], { type: 'region' });
-
+// Sorted by name, not code: people look for "Germany", not "DE".
 const countryOption = (code: CountryCode): { code: CountryCode; name: string } =>
 {
-    return { code, name: regionNames.of(code) ?? code }; // `??` for the type only: the default fallback already returns the code
+    return { code, name: countryName(code) };
 };
 
 const byName = (first: { name: string }, second: { name: string }): number => first.name.localeCompare(second.name, 'en');
@@ -131,6 +132,7 @@ const rows = computed(() => ADDRESS_TEXT_FIELDS
             :value="address[row.key] ?? ''"
             type="text"
             :required="row.isRequired"
+            :readonly="readonly"
             :autocomplete="row.autocomplete"
             :aria-invalid="row.error !== null"
             :aria-describedby="row.error?.id"

@@ -24,12 +24,13 @@ interface MountOptions
     fieldError?: (field: AddressField) => FieldError | null;
     countryCodes?: readonly CountryCode[]; // default NL only, as on the business form
     address?: Address;
+    readonly?: boolean; // default false, as while no save runs
 }
 
 // Mounts AddressFields the way a parent form does: an address bound with
 // v-model, the parent's form name, and its fieldError. The address is
 // returned so a test can check it was left alone.
-const mountAddressFields = ({ fieldError = () => null, countryCodes = ['NL'], address = emptyAddress() }: MountOptions = {}) =>
+const mountAddressFields = ({ fieldError = () => null, countryCodes = ['NL'], address = emptyAddress(), readonly = false }: MountOptions = {}) =>
 {
     const wrapper = mount(AddressFields, {
         props: {
@@ -41,6 +42,7 @@ const mountAddressFields = ({ fieldError = () => null, countryCodes = ['NL'], ad
             formName: 'client',
             fieldError,
             countryCodes,
+            readonly,
         },
     });
 
@@ -241,6 +243,34 @@ describe('AddressFields', () =>
 
         // Assert: nothing emitted, and the select shows the address's country
         // again instead of the value it rejected
+        expect(wrapper.emitted('update:modelValue')).toBeUndefined();
+        expect(select.element.value).toBe('NL');
+    });
+
+    it('should make every text input read-only when readonly is true, Region included', () =>
+    {
+        // Act: a German address, so Region is shown too
+        const { wrapper } = mountAddressFields({ countryCodes: COUNTRY_CODES, address: emptyGermanAddress(), readonly: true });
+
+        // Assert: readonly, not disabled, so the focus stays where it was. As
+        // lists of field names, so a failure says which input is wrong.
+        const fields: readonly AddressField[] = [...FIELDS, 'region'];
+        expect(wrapper.find('#client-region').exists()).toBe(true);
+        const inputs = fields.map((field) => ({ field, input: wrapper.find(`#client-${field}`) }));
+        expect(inputs.filter(({ input }) => input.attributes('readonly') === undefined).map(({ field }) => field)).toStrictEqual([]);
+        expect(inputs.filter(({ input }) => input.attributes('disabled') !== undefined).map(({ field }) => field)).toStrictEqual([]);
+    });
+
+    it('should emit nothing and put the select back when the country changes while readonly is true', async () =>
+    {
+        // Arrange: a select has no readonly attribute, so the browser lets the user pick
+        const { wrapper } = mountAddressFields({ countryCodes: COUNTRY_CODES, readonly: true });
+        const select = wrapper.find<HTMLSelectElement>('#client-country_code');
+
+        // Act
+        await select.setValue('DE');
+
+        // Assert: nothing emitted, and the select shows the address's country again
         expect(wrapper.emitted('update:modelValue')).toBeUndefined();
         expect(select.element.value).toBe('NL');
     });

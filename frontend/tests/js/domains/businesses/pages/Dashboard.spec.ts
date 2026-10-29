@@ -144,7 +144,7 @@ describe('Dashboard page', () =>
         expect(errorHandler).toHaveBeenCalledExactlyOnceWith(error, expect.anything(), expect.anything());
     });
 
-    it('should link to its edit page, its bank accounts page, /businesses and /change-password and offer Log out when the business is found', async () =>
+    it('should link to its edit page, its bank accounts page, its clients page, /businesses and /change-password and offer Log out when the business is found', async () =>
     {
         // Arrange
         vi.mocked(service.listBusinesses).mockResolvedValue([bakery]);
@@ -157,6 +157,7 @@ describe('Dashboard page', () =>
         const hrefOf = (text: string) => wrapper.findAll('a').find((anchor) => anchor.text() === text)?.attributes('href');
         expect(hrefOf('Edit details')).toBe('/businesses/1/edit');
         expect(hrefOf('Bank accounts')).toBe('/businesses/1/bank-accounts');
+        expect(hrefOf('Clients')).toBe('/businesses/1/clients');
         expect(hrefOf('Your businesses')).toBe('/businesses');
         expect(hrefOf('Change password')).toBe('/change-password');
         expect(wrapper.findAll('button').map((button) => button.text())).toContain('Log out');
