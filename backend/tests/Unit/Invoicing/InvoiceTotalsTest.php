@@ -100,4 +100,30 @@ describe('InvoiceTotals', function (): void {
         'ReverseCharge' => [VatTreatment::ReverseCharge],
         'OutsideScope' => [VatTreatment::OutsideScope],
     ]);
+
+    it('should refuse a line without a VAT option on a Domestic invoice', function (): void {
+        // Arrange
+        // The bad line is the second, so "Line 2" in the message proves the count starts at 1.
+        $lines = [invoiceLine(100, 1000, VatOption::High), invoiceLine(100, 1000)];
+
+        // Act
+        $build = static fn (): InvoiceTotals => InvoiceTotals::fromLines(VatTreatment::Domestic, $lines);
+
+        // Assert
+        expect($build)->toThrow(InvalidArgumentException::class, "Line 2 needs a VAT option, because the invoice's treatment is Domestic.");
+    });
+
+    it('should refuse a line with a VAT option on a ReverseCharge or OutsideScope invoice', function (VatTreatment $treatment, string $message): void {
+        // Arrange
+        $lines = [invoiceLine(100, 1000, VatOption::High)];
+
+        // Act
+        $build = static fn (): InvoiceTotals => InvoiceTotals::fromLines($treatment, $lines);
+
+        // Assert
+        expect($build)->toThrow(InvalidArgumentException::class, $message);
+    })->with([
+        'ReverseCharge' => [VatTreatment::ReverseCharge, "Line 1 can't have a VAT option, because the invoice's treatment is ReverseCharge."],
+        'OutsideScope' => [VatTreatment::OutsideScope, "Line 1 can't have a VAT option, because the invoice's treatment is OutsideScope."],
+    ]);
 });
