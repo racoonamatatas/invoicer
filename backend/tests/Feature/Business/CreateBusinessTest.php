@@ -24,11 +24,11 @@ describe('Creating a business', function (): void {
             'registered_name' => 'Bakkerij de Vries',
             'kvk_number' => '12345678',
             'vat_number' => 'NL123456789B01',
-            'street' => 'Keizersgracht',
+            'street' => 'Oosterstraat',
             'house_number' => '123',
             'house_number_addition' => 'A',
-            'postal_code' => '1015 CJ',
-            'city' => 'Amsterdam',
+            'postal_code' => '9711 LM',
+            'city' => 'Groningen',
             'region' => null,
             'country_code' => 'NL',
             'payment_term_days' => 30,
@@ -68,7 +68,7 @@ describe('Creating a business', function (): void {
         // Act
         $response = $this->postJson('/api/businesses', businessPayload([
             'kvk_number' => '1234 5678',
-            'postal_code' => '1015cj',
+            'postal_code' => '9711lm',
             'vat_number' => 'nl 1234.56.789.b01',
             'country_code' => 'nl',
         ]));
@@ -77,7 +77,7 @@ describe('Creating a business', function (): void {
         $response->assertCreated();
         $business = $user->businesses()->sole();
         expect($business->kvk_number)->toBe('12345678')
-            ->and($business->postal_code)->toBe('1015 CJ')
+            ->and($business->postal_code)->toBe('9711 LM')
             ->and($business->vat_number)->toBe('NL123456789B01')
             ->and($business->country_code)->toBe('NL');
     });
@@ -94,7 +94,7 @@ describe('Creating a business', function (): void {
         $response = $this->postJson('/api/businesses', businessPayload([
             'registered_name' => '  Bakkerij de Vries ',
             'kvk_number' => ' 12345678 ',
-            'postal_code' => ' 1015 CJ ',
+            'postal_code' => ' 9711 LM ',
             'house_number_addition' => '',
         ]));
 
@@ -103,7 +103,7 @@ describe('Creating a business', function (): void {
         $business = $user->businesses()->sole();
         expect($business->registered_name)->toBe('Bakkerij de Vries')
             ->and($business->kvk_number)->toBe('12345678')
-            ->and($business->postal_code)->toBe('1015 CJ')
+            ->and($business->postal_code)->toBe('9711 LM')
             ->and($business->house_number_addition)->toBeNull();
     });
 

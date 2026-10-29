@@ -65,11 +65,11 @@ describe('EditBusiness page', () =>
         expect(valueOf(wrapper, 'business-registered_name')).toBe('Studio de Vries');
         expect(valueOf(wrapper, 'business-kvk_number')).toBe('12345672');
         expect(valueOf(wrapper, 'business-vat_number')).toBe('NL123456789B01');
-        expect(valueOf(wrapper, 'business-street')).toBe('Keizersgracht');
+        expect(valueOf(wrapper, 'business-street')).toBe('Oosterstraat');
         expect(valueOf(wrapper, 'business-house_number')).toBe('123');
         expect(valueOf(wrapper, 'business-house_number_addition')).toBe('');
-        expect(valueOf(wrapper, 'business-postal_code')).toBe('1015 CJ');
-        expect(valueOf(wrapper, 'business-city')).toBe('Amsterdam');
+        expect(valueOf(wrapper, 'business-postal_code')).toBe('9711 LM');
+        expect(valueOf(wrapper, 'business-city')).toBe('Groningen');
         expect(valueOf(wrapper, 'business-payment_term_days')).toBe('30');
     });
 
@@ -127,11 +127,11 @@ describe('EditBusiness page', () =>
             registered_name: 'Bakkerij Jansen',
             kvk_number: '12345671',
             vat_number: 'NL123456789B01',
-            street: 'Keizersgracht',
+            street: 'Oosterstraat',
             house_number: '123',
             house_number_addition: '',
-            postal_code: '1015 CJ',
-            city: 'Amsterdam',
+            postal_code: '9711 LM',
+            city: 'Groningen',
             country_code: 'NL',
             payment_term_days: 30,
         });
@@ -180,7 +180,7 @@ describe('EditBusiness page', () =>
         // Act: the save and its failed reload settle before the user types on
         await wrapper.find(detailsForm).trigger('submit');
         await flushPromises();
-        await wrapper.find('#business-city').setValue('Utrecht');
+        await wrapper.find('#business-city').setValue('Assen');
 
         // Assert: the failure is shown, as the page's own load error
         expect(wrapper.find('[role="status"]').text()).toBe('Couldn\'t load your businesses.');
@@ -188,7 +188,7 @@ describe('EditBusiness page', () =>
 
         // Assert: the form is still there, with what was typed after the save
         expect(wrapper.find(detailsForm).exists()).toBe(true);
-        expect(valueOf(wrapper, 'business-city')).toBe('Utrecht');
+        expect(valueOf(wrapper, 'business-city')).toBe('Assen');
     });
 
     it('should keep Saved. in the form when the list reload after the save fails with a 500 (server error), since the save itself went through', async () =>
@@ -220,7 +220,7 @@ describe('EditBusiness page', () =>
         expect(wrapper.find(`${detailsForm} [role="status"]`).text()).toBe('Saved.');
 
         // Act
-        await wrapper.find('#business-city').setValue('Utrecht');
+        await wrapper.find('#business-city').setValue('Assen');
 
         // Assert
         expect(wrapper.find(`${detailsForm} [role="status"]`).text()).toBe('');
@@ -249,18 +249,18 @@ describe('EditBusiness page', () =>
     {
         // Arrange: the backend stores the postcode in its canonical form
         vi.mocked(service.listBusinesses).mockResolvedValue([bakery]);
-        vi.mocked(service.updateBusiness).mockResolvedValue({ ...bakery, postal_code: '1015 CJ' });
+        vi.mocked(service.updateBusiness).mockResolvedValue({ ...bakery, postal_code: '9711 LM' });
         const { wrapper } = await mountEditBusiness('1');
         await flushPromises();
-        await wrapper.find('#business-postal_code').setValue('1015cj');
+        await wrapper.find('#business-postal_code').setValue('9711lm');
 
         // Act
         await wrapper.find(detailsForm).trigger('submit');
         await flushPromises();
 
         // Assert: what was sent, and what the input shows now
-        expect(vi.mocked(service.updateBusiness).mock.calls[0]?.[1].postal_code).toBe('1015cj');
-        expect(valueOf(wrapper, 'business-postal_code')).toBe('1015 CJ');
+        expect(vi.mocked(service.updateBusiness).mock.calls[0]?.[1].postal_code).toBe('9711lm');
+        expect(valueOf(wrapper, 'business-postal_code')).toBe('9711 LM');
         expect(wrapper.find(`${detailsForm} [role="status"]`).text()).toBe('Saved.');
     });
 
@@ -273,10 +273,10 @@ describe('EditBusiness page', () =>
         await flushPromises();
         await wrapper.find(detailsForm).trigger('submit');
         await flushPromises();
-        await wrapper.find('#business-city').setValue('Utrecht');
+        await wrapper.find('#business-city').setValue('Assen');
 
         // Act
-        await wrapper.find('#business-city').setValue('Amsterdam');
+        await wrapper.find('#business-city').setValue('Groningen');
 
         // Assert
         expect(wrapper.find(`${detailsForm} [role="status"]`).text()).toBe('Saved.');

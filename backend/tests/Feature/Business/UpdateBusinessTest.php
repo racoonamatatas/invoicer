@@ -24,11 +24,11 @@ describe('Updating a business', function (): void {
             'registered_name' => 'Bakkerij de Vries',
             'kvk_number' => '12345678',
             'vat_number' => 'NL123456789B01',
-            'street' => 'Keizersgracht',
+            'street' => 'Oosterstraat',
             'house_number' => '123',
             'house_number_addition' => 'A',
-            'postal_code' => '1015 CJ',
-            'city' => 'Amsterdam',
+            'postal_code' => '9711 LM',
+            'city' => 'Groningen',
             'region' => null,
             'country_code' => 'NL',
             'payment_term_days' => 30,
@@ -71,11 +71,11 @@ describe('Updating a business', function (): void {
         $this->actingAs($user, 'web');
 
         // Act
-        $response = $this->putJson("/api/businesses/{$business->id}", businessPayload(['postal_code' => '1015cj']));
+        $response = $this->putJson("/api/businesses/{$business->id}", businessPayload(['postal_code' => '9711lm']));
 
         // Assert
         $response->assertOk();
-        expect($business->fresh()->postal_code)->toBe('1015 CJ');
+        expect($business->fresh()->postal_code)->toBe('9711 LM');
     });
 
     it('should return 200 (ok) when the business keeps its own kvk_number', function (): void {

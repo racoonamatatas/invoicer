@@ -285,11 +285,11 @@ describe('Businesses page, create form', () =>
         registered_name: 'Winkel de Vries',
         kvk_number: '12345673',
         vat_number: 'NL123456789B01',
-        street: 'Keizersgracht',
+        street: 'Oosterstraat',
         house_number: '123',
         house_number_addition: 'A',
-        postal_code: '1015 CJ',
-        city: 'Amsterdam',
+        postal_code: '9711 LM',
+        city: 'Groningen',
     };
     const expectedPayload: service.BusinessPayload = { ...typed, country_code: 'NL', payment_term_days: 30 };
     const shop = business(3, 'Winkel de Vries');

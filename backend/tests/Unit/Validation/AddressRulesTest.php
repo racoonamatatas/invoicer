@@ -15,11 +15,11 @@ use Illuminate\Validation\Validator as ValidatorInstance;
 function validateAddress(array $changes = []): ValidatorInstance
 {
     $address = array_filter([
-        'street' => 'Keizersgracht',
+        'street' => 'Oosterstraat',
         'house_number' => '123',
         'house_number_addition' => 'A',
-        'postal_code' => '1015 CJ',
-        'city' => 'Amsterdam',
+        'postal_code' => '9711 LM',
+        'city' => 'Groningen',
         'region' => null,
         'country_code' => 'NL',
         ...$changes,

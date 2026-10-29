@@ -30,11 +30,11 @@ describe('AddressFields', () =>
 {
     // One row per field, so each input's binding is checked on its own.
     it.for([
-        { field: 'street', value: 'Keizersgracht' },
+        { field: 'street', value: 'Oosterstraat' },
         { field: 'house_number', value: '123' },
         { field: 'house_number_addition', value: 'A' },
-        { field: 'postal_code', value: '1015 CJ' },
-        { field: 'city', value: 'Amsterdam' },
+        { field: 'postal_code', value: '9711 LM' },
+        { field: 'city', value: 'Groningen' },
     ] satisfies { field: AddressField; value: string }[])('should emit update:modelValue with a new address that differs only at its key, and leave the bound one untouched: $field', async ({ field, value }) =>
     {
         // Arrange
