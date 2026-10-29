@@ -12,6 +12,7 @@ use App\Validation\Normaliser;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Fluent;
+use Illuminate\Validation\ConditionalRules;
 use Illuminate\Validation\Rule;
 
 /**
@@ -23,29 +24,17 @@ final class ClientRequest extends FormRequest
     /**
      * Get the validation rules that apply to the request.
      *
+     * - email is kept as typed, unlike a login email: nothing looks a client up by it.
+     * - The address rules are used unchanged: a client's address can be in any country, tightened for NL.
+     *
      * @return array<string, ValidationRule|array<mixed>|string>
      */
     public function rules(): array
     {
-        $isEu = static fn (Fluent $input): bool => is_string($input->get('country_code'))
-            && EuMemberStates::contains($input->get('country_code'));
-
         return [
             'name' => ['required', 'string', 'max:255'],
-            // Kept as typed, unlike a login email: nothing looks a client up by it, it is only printed and mailed to.
             'email' => ['nullable', 'email', 'max:255'],
-            'vat_number' => [
-                'nullable',
-                'string',
-                // A closure, not a rule list: Laravel calls it with the input (ConditionalRules::rules()), so the
-                // rule is built for the submitted country, and only for an EU one, where forCountry() can't throw.
-                Rule::when(
-                    $isEu,
-                    static fn (Fluent $input): array => [EuVatNumber::forCountry($input->string('country_code')->toString())],
-                    ['prohibited'],
-                ),
-            ],
-            // Unchanged: a client's address can be in any country, with the rules tightened for NL.
+            'vat_number' => $this->vatNumberRules(),
             ...AddressRules::forAddress(),
         ];
     }
@@ -79,22 +68,44 @@ final class ClientRequest extends FormRequest
     }
 
     /**
-     * Canonical form before any rule runs. Step by step rather than a map of normalisers, as in BusinessRequest:
-     * the postcode step reads the country code the first step has just uppercased.
+     * Canonical form before any rule runs, step by step rather than a map of normalisers as in BusinessRequest,
+     * because the postcode step reads the country code the first step has just uppercased.
+     *
+     * - vat_number: spaces and dots out, then uppercase, so "de 123.456.789" is DE123456789. Normaliser::btwId() is
+     *   named for the Dutch number, but nothing in it is Dutch.
+     * - postal_code: only a Dutch postcode has a known shape; a German "10115" or a British "SW1A 1AA" stays as typed.
      */
     protected function prepareForValidation(): void
     {
         $this->merge(['country_code' => Normaliser::uppercase($this->input('country_code'))]);
-
-        // Spaces and dots out, then uppercase: "de 123.456.789" is the number DE123456789. Named for the btw-id,
-        // but nothing in it is Dutch.
         $this->merge(['vat_number' => Normaliser::btwId($this->input('vat_number'))]);
 
-        // Only a Dutch postcode has a known shape; a German "10115" or a British "SW1A 1AA" is kept as typed.
         if ($this->input('country_code') === 'NL')
         {
             $this->merge(['postal_code' => Normaliser::dutchPostcode($this->input('postal_code'))]);
         }
+    }
+
+    /**
+     * A VAT number is optional for every client, checked against the client's country when it is an EU member state,
+     * and prohibited for any other country.
+     *
+     * The rules for the EU case are a closure, not a list: Laravel calls it with the input wrapped in a Fluent
+     * (ConditionalRules::rules()), so the rule is built for the submitted country. It only runs for a member state,
+     * which is why EuVatNumber::forCountry() can't throw here.
+     *
+     * @return list<string|ConditionalRules>
+     */
+    private function vatNumberRules(): array
+    {
+        $isEu = static fn (Fluent $input): bool => is_string($input->get('country_code'))
+            && EuMemberStates::contains($input->get('country_code'));
+
+        $euRules = static fn (Fluent $input): array => [
+            EuVatNumber::forCountry($input->string('country_code')->toString()),
+        ];
+
+        return ['nullable', 'string', Rule::when($isEu, $euRules, ['prohibited'])];
     }
 
     /**
