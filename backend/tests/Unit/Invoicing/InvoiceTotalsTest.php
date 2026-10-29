@@ -39,6 +39,28 @@ describe('InvoiceTotals', function (): void {
             ->and($totals->totalCents)->toBe(17550);
     });
 
+    it('should list the groups in High, Low, Zero, Exempt order, whatever the order of the lines', function (): void {
+        // Arrange
+        // All four options in reverse, so every group has to move: a pair can't catch, say, Zero and Exempt swapped.
+        $lines = [
+            invoiceLine(100, 400, VatOption::Exempt),
+            invoiceLine(100, 300, VatOption::Zero),
+            invoiceLine(100, 200, VatOption::Low),
+            invoiceLine(100, 100, VatOption::High),
+        ];
+
+        // Act
+        $totals = InvoiceTotals::fromLines(VatTreatment::Domestic, $lines);
+
+        // Assert
+        expect(vatGroupRows($totals))->toBe([
+            [VatOption::High, 100, 21],
+            [VatOption::Low, 200, 18],
+            [VatOption::Zero, 300, 0],
+            [VatOption::Exempt, 400, 0],
+        ]);
+    });
+
     it('should give Zero and Exempt lines a group with no VAT', function (): void {
         // Arrange
         $lines = [invoiceLine(100, 4000, VatOption::Zero), invoiceLine(100, 6000, VatOption::Exempt)];
@@ -106,4 +128,5 @@ describe('InvoiceTotals', function (): void {
         'ReverseCharge' => [VatTreatment::ReverseCharge, "Line 1 can't have a VAT option, because the invoice's treatment is ReverseCharge."],
         'OutsideScope' => [VatTreatment::OutsideScope, "Line 1 can't have a VAT option, because the invoice's treatment is OutsideScope."],
     ]);
+
 });
