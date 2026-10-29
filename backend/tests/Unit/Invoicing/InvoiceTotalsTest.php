@@ -78,6 +78,19 @@ describe('InvoiceTotals', function (): void {
         expect($build)->toThrow(InvalidArgumentException::class, "Line 2 needs a VAT option, because the invoice's treatment is Domestic.");
     });
 
+    it('should name a refused line by its position, whatever the keys of the array it came in', function (array $lines): void {
+        // Act
+        // The keys break the list<> the docblock asks for, which PHP doesn't check: an array_filter() result keeps
+        // its old keys, and a caller can pass string keys.
+        $build = static fn (): InvoiceTotals => InvoiceTotals::fromLines(VatTreatment::Domestic, $lines);
+
+        // Assert
+        expect($build)->toThrow(InvalidArgumentException::class, "Line 2 needs a VAT option, because the invoice's treatment is Domestic.");
+    })->with([
+        'keys left by array_filter()' => [[3 => invoiceLine(100, 1000, VatOption::High), 7 => invoiceLine(100, 1000)]],
+        'string keys' => [['first' => invoiceLine(100, 1000, VatOption::High), 'second' => invoiceLine(100, 1000)]],
+    ]);
+
     it('should refuse a line with a VAT option on a ReverseCharge or OutsideScope invoice', function (VatTreatment $treatment, string $message): void {
         // Arrange
         $lines = [invoiceLine(100, 1000, VatOption::High)];
