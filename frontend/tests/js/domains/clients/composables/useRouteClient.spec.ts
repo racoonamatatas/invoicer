@@ -4,17 +4,18 @@ import { defineComponent, ref } from 'vue';
 import { createMemoryHistory, createRouter } from 'vue-router';
 
 import { useRouteClient } from '@/domains/clients/composables/useRouteClient';
-import { ClientNotFoundError, fetchClient, type Client } from '@/services/clients';
+import { ClientNotFoundError, fetchClient, updateClient, type Client, type ClientPayload } from '@/services/clients';
 import { axiosErrorWith } from '../../../utility/axiosErrorWith';
 import { dutchClient } from '../../../utility/clients';
 import { createDeferred } from '../../../utility/createDeferred';
 
-// Only fetchClient becomes a vi.fn(), so no request leaves the test.
+// Only the request functions become vi.fn()s, so no request leaves the test.
 // ClientNotFoundError stays real: the composable tells it apart with
 // instanceof.
 vi.mock('@/services/clients', async (importOriginal) => ({
     ...await importOriginal<typeof import('@/services/clients')>(),
     fetchClient: vi.fn<typeof fetchClient>(),
+    updateClient: vi.fn<typeof updateClient>(),
 }));
 
 // Unmounted after each test, so a host's watchers stop with it.
@@ -22,6 +23,10 @@ enableAutoUnmount(afterEach);
 
 const acme = dutchClient(3, 'Acme');
 const bolt = dutchClient(4, 'Bolt');
+
+// Acme renamed: what the form sends, and what the backend stores from it.
+const renamed: Client = { ...acme, name: 'Acme Groningen' };
+const { id: _id, ...renamedPayload }: { id: number } & ClientPayload = renamed;
 
 // A composable's watchers only run inside a component's setup, so a host
 // component that renders nothing calls it, the way a page does. A router of
@@ -181,6 +186,57 @@ describe('useRouteClient', () =>
         await flushPromises();
 
         // Assert
+        expect(state.value).toStrictEqual({ kind: 'found', client: bolt });
+    });
+
+    it('should put the payload for the client shown, then show and return what the backend stored, when updateClient gets a 200 (ok)', async () =>
+    {
+        // Arrange
+        vi.mocked(fetchClient).mockResolvedValue(acme);
+        vi.mocked(updateClient).mockResolvedValue(renamed);
+        const { state, save } = await mountRouteClient('/businesses/7/clients/3');
+        await flushPromises();
+
+        // Act
+        const result = await save(renamedPayload);
+
+        // Assert
+        expect(updateClient).toHaveBeenCalledExactlyOnceWith(7, 3, renamedPayload);
+        expect(result).toStrictEqual(renamed);
+        expect(state.value).toStrictEqual({ kind: 'found', client: renamed });
+    });
+
+    it('should rethrow a 422 (unprocessable content) from updateClient unchanged and keep the client it had', async () =>
+    {
+        // Arrange
+        const error = axiosErrorWith(422, { message: 'The email field must be a valid email address.' });
+        vi.mocked(fetchClient).mockResolvedValue(acme);
+        vi.mocked(updateClient).mockRejectedValue(error);
+        const { state, save } = await mountRouteClient('/businesses/7/clients/3');
+        await flushPromises();
+
+        // Act + Assert: toBe, so the very error the form's useForm reads
+        await expect(save(renamedPayload)).rejects.toBe(error);
+        expect(state.value).toStrictEqual({ kind: 'found', client: acme });
+    });
+
+    it('should leave the client in the URL shown when a save for the client left behind arrives after navigating away', async () =>
+    {
+        // Arrange: the save is finished by hand, after the move to Bolt
+        const saveRequest = createDeferred();
+        vi.mocked(fetchClient).mockImplementation(async (_businessId, clientId): Promise<Client> => (clientId === acme.id ? acme : bolt));
+        vi.mocked(updateClient).mockReturnValue(saveRequest.promise.then(() => renamed));
+        const { state, save, router } = await mountRouteClient('/businesses/7/clients/3');
+        await flushPromises();
+        const saving = save(renamedPayload);
+
+        // Act
+        await router.push('/businesses/7/clients/4');
+        await flushPromises();
+        saveRequest.resolve();
+
+        // Assert: the form still gets its answer, but Bolt's page keeps Bolt
+        await expect(saving).resolves.toStrictEqual(renamed);
         expect(state.value).toStrictEqual({ kind: 'found', client: bolt });
     });
 });
