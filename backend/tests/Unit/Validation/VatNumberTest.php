@@ -2,21 +2,21 @@
 
 declare(strict_types = 1);
 
-use App\Validation\EuVatNumber;
+use App\Validation\VatNumber;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Validator as ValidatorInstance;
 
 // Runs the rule the way a FormRequest would, so the test proves the message the API will send.
-function validateEuVatNumber(mixed $value, string $prefix): ValidatorInstance
+function validateVatNumber(mixed $value, string $prefix): ValidatorInstance
 {
-    return Validator::make(['vat_number' => $value], ['vat_number' => [new EuVatNumber($prefix)]]);
+    return Validator::make(['vat_number' => $value], ['vat_number' => [new VatNumber($prefix)]]);
 }
 
-describe('The EuVatNumber rule', function (): void {
+describe('The VatNumber rule', function (): void {
 
     it('should accept the prefix followed by 2 to 12 letters or digits', function (string $value, string $prefix): void {
         // Act
-        $validator = validateEuVatNumber($value, $prefix);
+        $validator = validateVatNumber($value, $prefix);
 
         // Assert
         expect($validator->passes())->toBeTrue();
@@ -31,7 +31,7 @@ describe('The EuVatNumber rule', function (): void {
 
     it('should reject anything else, with the message the API sends', function (string $value, string $prefix): void {
         // Act
-        $validator = validateEuVatNumber($value, $prefix);
+        $validator = validateVatNumber($value, $prefix);
 
         // Assert
         expect($validator->fails())->toBeTrue()
@@ -50,17 +50,9 @@ describe('The EuVatNumber rule', function (): void {
         'a trailing newline' => ["DE123456789\n", 'DE'],
     ]);
 
-    it('should refuse to be built for NL, whose numbers BtwId checks', function (): void {
-        // Act
-        $act = fn (): EuVatNumber => new EuVatNumber('NL');
-
-        // Assert
-        expect($act)->toThrow(LogicException::class, 'A Dutch VAT number is checked by BtwId, not EuVatNumber.');
-    });
-
     it('should leave a non-string to the string rule', function (): void {
         // Act
-        $validator = validateEuVatNumber(123456789, 'DE');
+        $validator = validateVatNumber(123456789, 'DE');
 
         // Assert
         expect($validator->passes())->toBeTrue();
