@@ -139,28 +139,29 @@ describe('EditClient page', () =>
     it('should show a 422 (unprocessable content) next to its input and keep what was typed', async () =>
     {
         // Arrange
-        const message = 'The email field must be a valid email address.';
-        vi.mocked(clientsService.fetchClient).mockResolvedValue(bakker);
+        const message = 'The vat number field must be a VAT number starting with DE.';
+        vi.mocked(clientsService.fetchClient).mockResolvedValue(huber);
         vi.mocked(clientsService.updateClient).mockRejectedValue(axiosErrorWith(422, {
             message,
-            errors: { email: [message] },
+            errors: { vat_number: [message] },
         }));
-        const { wrapper } = await mountEditClient('1', '3');
+        const { wrapper } = await mountEditClient('1', '4');
         await flushPromises();
 
-        // Act: an address the browser's own check would let through
-        await wrapper.find('#client-email').setValue('info@bakker');
+        // Act: lowercase, which the backend's VAT format rejects; the input
+        // has no browser check of its own
+        await wrapper.find('#client-vat_number').setValue('de123456789');
         await form(wrapper).trigger('submit');
         await flushPromises();
 
         // Assert: the message is linked to its input, for a screen reader
-        const input = wrapper.find('#client-email');
+        const input = wrapper.find('#client-vat_number');
         expect(input.attributes('aria-invalid')).toBe('true');
         const describedBy = input.attributes('aria-describedby');
         expect(describedBy).toBeDefined();
         expect(wrapper.find(`#${describedBy}`).text()).toBe(message);
 
-        expect(inputValue(wrapper, 'client-email')).toBe('info@bakker');
+        expect(inputValue(wrapper, 'client-vat_number')).toBe('de123456789');
         expect(formStatus(wrapper)).toBe('');
     });
 
