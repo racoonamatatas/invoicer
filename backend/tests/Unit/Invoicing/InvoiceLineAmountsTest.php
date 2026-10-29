@@ -42,6 +42,8 @@ describe('InvoiceLineAmounts', function (): void {
     })->with([
         'zero quantity' => [0, 1000],
         'zero unit price' => [100, 0],
+        // A price of 0 makes any quantity safe, and the overflow check must not divide by it.
+        'zero unit price, largest quantity' => [PHP_INT_MAX, 0],
     ]);
 
     it('should refuse a quantity × unit price too large for an int, with the 50 for rounding added', function (int $quantityHundredths, int $unitPriceCents): void {
@@ -55,6 +57,7 @@ describe('InvoiceLineAmounts', function (): void {
         'far past the limit' => [100, PHP_INT_MAX],
         // The product itself fits, but totalCents() adds 50 before dividing, and that no longer does.
         'within 50 of the limit' => [1, PHP_INT_MAX - 10],
+        'a huge quantity at €0.01' => [PHP_INT_MAX, 1],
     ]);
 
     it('should accept the largest unit price whose product with 1.00 still fits, and compute its line total', function (): void {
