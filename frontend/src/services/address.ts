@@ -63,3 +63,34 @@ export const isNullableString = (value: unknown): value is string | null =>
 {
     return value === null || typeof value === 'string';
 };
+
+// The body came over the network, so it is checked at runtime: TypeScript
+// trusts the `value is` claim without verifying it. The country
+// decides which half of the union applies, so postal_code and region are
+// checked per half: checking each loosely on its own would let a Dutch
+// address with a region through. Extra keys pass, a missing key or a wrong
+// type doesn't.
+export const isAddress = (value: unknown): value is Address =>
+{
+    const hasSharedFields = typeof value === 'object'
+                            && value !== null // typeof null is 'object'
+                            && 'street' in value && typeof value.street === 'string'
+                            && 'house_number' in value && typeof value.house_number === 'string'
+                            && 'house_number_addition' in value && isNullableString(value.house_number_addition)
+                            && 'city' in value && typeof value.city === 'string'
+                            && 'country_code' in value && isCountryCode(value.country_code)
+                            && 'postal_code' in value
+                            && 'region' in value;
+
+    if (!hasSharedFields)
+    {
+        return false;
+    }
+
+    if (value.country_code === 'NL')
+    {
+        return typeof value.postal_code === 'string' && value.region === null;
+    }
+
+    return isNullableString(value.postal_code) && isNullableString(value.region);
+};
