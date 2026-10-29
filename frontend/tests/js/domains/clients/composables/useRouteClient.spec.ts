@@ -5,6 +5,7 @@ import { createMemoryHistory, createRouter } from 'vue-router';
 
 import { useRouteClient } from '@/domains/clients/composables/useRouteClient';
 import { ClientNotFoundError, fetchClient, updateClient, type Client, type ClientPayload } from '@/services/clients';
+import { SessionEndedError } from '@/services/http';
 import { axiosErrorWith } from '../../../utility/axiosErrorWith';
 import { dutchClient } from '../../../utility/clients';
 import { createDeferred } from '../../../utility/createDeferred';
@@ -189,6 +190,21 @@ describe('useRouteClient', () =>
 
         // Assert
         expect(state.value).toStrictEqual({ kind: 'found', client: bolt });
+    });
+
+    it('should stay loading and hand nothing on when fetchClient ends the session with a 401 (unauthenticated)', async () =>
+    {
+        // Arrange: the http layer has already sent the browser to /login
+        vi.mocked(fetchClient).mockRejectedValue(new SessionEndedError(axiosErrorWith(401, { message: 'Unauthenticated.' })));
+        const errorHandler = vi.fn<(error: unknown) => void>();
+
+        // Act
+        const { state } = await mountRouteClient('/businesses/7/clients/3', errorHandler);
+        await flushPromises();
+
+        // Assert: no "Couldn't load the client." flashes by while /login loads
+        expect(state.value).toStrictEqual({ kind: 'loading' });
+        expect(errorHandler).not.toHaveBeenCalled();
     });
 
     it('should keep the client in the URL and hand nothing on when the request for the client left behind fails with a 500 (server error) after it', async () =>
