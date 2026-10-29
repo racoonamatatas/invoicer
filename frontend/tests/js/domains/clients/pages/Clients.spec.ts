@@ -8,6 +8,7 @@ import * as clientsService from '@/services/clients';
 import { axiosErrorWith } from '../../../utility/axiosErrorWith';
 import { business, jan, logInAs } from '../../../utility/businesses';
 import { dutchClient, germanClient } from '../../../utility/clients';
+import type { ClientPayload } from '@/services/clients';
 import { createDeferred } from '../../../utility/createDeferred';
 import { createTestRouter } from '../../../utility/createTestRouter';
 
@@ -38,6 +39,38 @@ const mountClients = async (businessId: string, errorHandler?: (error: unknown) 
 
     return { wrapper, router };
 };
+
+// What the tests type into the add form: a Dutch client in Groningen.
+const typed: ClientPayload = {
+    name: 'Fietsenmakerij Bakker',
+    email: 'info@fietsenmakerijbakker.nl',
+    vat_number: 'NL987654321B01',
+    street: 'Oosterstraat',
+    house_number: '123',
+    house_number_addition: null,
+    postal_code: '9711 LM',
+    city: 'Groningen',
+    region: null,
+    country_code: 'NL',
+};
+
+// Fills the add form the way a user types, and submits it. The country is
+// left as the form starts it; the addition is left empty.
+const addClient = async (wrapper: VueWrapper, vatNumber: string): Promise<void> =>
+{
+    await wrapper.find('#client-name').setValue(typed.name);
+    await wrapper.find('#client-email').setValue(typed.email);
+    await wrapper.find('#client-vat_number').setValue(vatNumber);
+    await wrapper.find('#client-street').setValue(typed.street);
+    await wrapper.find('#client-house_number').setValue(typed.house_number);
+    await wrapper.find('#client-postal_code').setValue(typed.postal_code);
+    await wrapper.find('#client-city').setValue(typed.city);
+    await wrapper.find('form[aria-label="Add a client"]').trigger('submit');
+};
+
+const addFormStatus = (wrapper: VueWrapper): string => wrapper.find('form[aria-label="Add a client"] [role="status"]').text();
+
+const inputValue = (wrapper: VueWrapper, id: string): string => (wrapper.find(`#${id}`).element as HTMLInputElement).value;
 
 // Each listed client's text, as a user reads the row.
 const listedClients = (wrapper: VueWrapper): string[] =>
@@ -245,5 +278,139 @@ describe('Clients page', () =>
         expect(service.listBusinesses).toHaveBeenCalledOnce();
         expect(wrapper.find('h1').text()).toBe('Business not found');
         expect(clientsService.listClients).not.toHaveBeenCalled();
+    });
+
+    it('should send the client, show it in the reloaded list, clear the form and say Added. when createClient gets a 201 (created)', async () =>
+    {
+        // Arrange: the first list is empty, the reload after the add has the client
+        vi.mocked(service.listBusinesses).mockResolvedValue([bakery]);
+        vi.mocked(clientsService.listClients).mockResolvedValueOnce([]).mockResolvedValueOnce([bakker]);
+        vi.mocked(clientsService.createClient).mockResolvedValue(bakker);
+        const { wrapper } = await mountClients('1');
+        await flushPromises();
+
+        // Act
+        await addClient(wrapper, typed.vat_number ?? '');
+        await flushPromises();
+
+        // Assert: the emptied addition goes as '', which the backend stores as null
+        expect(clientsService.createClient).toHaveBeenCalledExactlyOnceWith(1, { ...typed, house_number_addition: '' });
+        expect(listedClients(wrapper)).toStrictEqual(['Fietsenmakerij Bakker, Groningen, Netherlands']);
+        expect(inputValue(wrapper, 'client-name')).toBe('');
+        expect(inputValue(wrapper, 'client-email')).toBe('');
+        expect(inputValue(wrapper, 'client-street')).toBe('');
+        expect(addFormStatus(wrapper)).toBe('Added.');
+    });
+
+    it('should start the add form with the business\'s country selected, and select it again after an add', async () =>
+    {
+        // Arrange
+        vi.mocked(service.listBusinesses).mockResolvedValue([bakery]);
+        vi.mocked(clientsService.createClient).mockResolvedValue(bakker);
+        const { wrapper } = await mountClients('1');
+        await flushPromises();
+        const country = wrapper.find('#client-country_code');
+
+        // Assert: a business can only be Dutch today, so NL from the business
+        // and an NL default look the same here; a foreign business can't be
+        // built to tell them apart until the app allows one
+        expect((country.element as HTMLSelectElement).value).toBe('NL');
+
+        // Act: pick another country, then add
+        await country.setValue('DE');
+        await addClient(wrapper, '');
+        await flushPromises();
+
+        // Assert: the next client starts from the business's country again
+        expect((wrapper.find('#client-country_code').element as HTMLSelectElement).value).toBe('NL');
+    });
+
+    it('should send an empty VAT number as null', async () =>
+    {
+        // Arrange
+        vi.mocked(service.listBusinesses).mockResolvedValue([bakery]);
+        vi.mocked(clientsService.createClient).mockResolvedValue(bakker);
+        const { wrapper } = await mountClients('1');
+        await flushPromises();
+
+        // Act
+        await addClient(wrapper, '');
+        await flushPromises();
+
+        // Assert: null, not '': the field is optional, and '' is no VAT number
+        expect(clientsService.createClient).toHaveBeenCalledExactlyOnceWith(1, expect.objectContaining({ vat_number: null }));
+    });
+
+    // One row per field the issue names; both are the client's own, outside AddressFields.
+    it.for([
+        { field: 'email', inputId: 'client-email', message: 'The email field must be a valid email address.' },
+        { field: 'vat_number', inputId: 'client-vat_number', message: 'The vat number is not valid for this country.' },
+    ])('should show a 422 (unprocessable content) on $field next to its input, keep what was typed and not reload the list', async ({ field, inputId, message }) =>
+    {
+        // Arrange
+        vi.mocked(service.listBusinesses).mockResolvedValue([bakery]);
+        vi.mocked(clientsService.createClient).mockRejectedValue(axiosErrorWith(422, {
+            message,
+            errors: { [field]: [message] },
+        }));
+        const { wrapper } = await mountClients('1');
+        await flushPromises();
+
+        // Act
+        await addClient(wrapper, 'NL987654321B01');
+        await flushPromises();
+
+        // Assert: the message is linked to its input, for a screen reader
+        const input = wrapper.find(`#${inputId}`);
+        expect(input.attributes('aria-invalid')).toBe('true');
+        const describedBy = input.attributes('aria-describedby');
+        expect(describedBy).toBeDefined();
+        expect(wrapper.find(`#${describedBy}`).text()).toBe(message);
+
+        expect(inputValue(wrapper, 'client-name')).toBe(typed.name);
+        expect(inputValue(wrapper, 'client-vat_number')).toBe('NL987654321B01');
+        expect(clientsService.listClients).toHaveBeenCalledOnce();
+        expect(addFormStatus(wrapper)).toBe('');
+    });
+
+    it('should say Couldn\'t save. and hand the error on when createClient fails with a 500 (server error)', async () =>
+    {
+        // Arrange: errorHandler is a spy standing in for app.config.errorHandler
+        vi.mocked(service.listBusinesses).mockResolvedValue([bakery]);
+        const error = axiosErrorWith(500, { message: 'Server Error' });
+        vi.mocked(clientsService.createClient).mockRejectedValue(error);
+        const errorHandler = vi.fn<(error: unknown) => void>();
+        const { wrapper } = await mountClients('1', errorHandler);
+        await flushPromises();
+
+        // Act
+        await addClient(wrapper, '');
+        await flushPromises();
+
+        // Assert
+        expect(addFormStatus(wrapper)).toBe('Couldn\'t save.');
+        expect(errorHandler).toHaveBeenCalledExactlyOnceWith(error, expect.anything(), expect.anything());
+    });
+
+    it('should disable Add while createClient is in flight', async () =>
+    {
+        // Arrange: createClient is a stub whose request the test finishes by hand
+        vi.mocked(service.listBusinesses).mockResolvedValue([bakery]);
+        const request = createDeferred();
+        vi.mocked(clientsService.createClient).mockReturnValue(request.promise.then(() => bakker));
+        const { wrapper } = await mountClients('1');
+        await flushPromises();
+        const add = wrapper.findAll('button').find((button) => button.text() === 'Add');
+
+        // Act
+        await addClient(wrapper, '');
+
+        // Assert
+        expect(add?.attributes('disabled')).toBeDefined();
+
+        // Act: let the request finish, so nothing is left pending after the test
+        request.resolve();
+        await flushPromises();
+        expect(add?.attributes('disabled')).toBeUndefined();
     });
 });
