@@ -95,7 +95,7 @@ abstract class BusinessRequest extends FormRequest
     {
         $normalisers = [
             'kvk_number' => Normaliser::kvkNumber(...),
-            'vat_number' => Normaliser::btwId(...),
+            'vat_number' => Normaliser::vatNumber(...),
             'country_code' => Normaliser::uppercase(...),
             // Always the Dutch shape: a business address is Dutch, and any other country is rejected anyway.
             'postal_code' => Normaliser::dutchPostcode(...),

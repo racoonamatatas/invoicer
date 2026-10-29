@@ -27,10 +27,11 @@ final class Normaliser
     }
 
     /**
-     * A btw-id as people write it, "NL 1234.56.789.B01" or "nl123456789b01", becomes "NL123456789B01": spaces and
-     * dots removed, then uppercased. Only those two separators: anything else stays, for the BtwId rule to reject.
+     * A VAT number as people write it, "NL 1234.56.789.B01" or "de 123.456.789", becomes "NL123456789B01" or
+     * "DE123456789": spaces and dots removed, then uppercased. Only those two separators: anything else stays, for
+     * the VAT number rule to reject.
      */
-    public static function btwId(mixed $value): mixed
+    public static function vatNumber(mixed $value): mixed
     {
         return self::uppercase(self::withoutSpacesAndDots($value));
     }

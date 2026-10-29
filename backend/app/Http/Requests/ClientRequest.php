@@ -77,7 +77,7 @@ final class ClientRequest extends FormRequest
     protected function prepareForValidation(): void
     {
         $this->merge(['country_code' => Normaliser::uppercase($this->input('country_code'))]);
-        $this->merge(['vat_number' => Normaliser::btwId($this->input('vat_number'))]);
+        $this->merge(['vat_number' => Normaliser::vatNumber($this->input('vat_number'))]);
 
         if ($this->input('country_code') === 'NL')
         {
