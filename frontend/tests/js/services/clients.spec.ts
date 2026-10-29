@@ -1,7 +1,7 @@
 import type { AxiosResponse } from 'axios';
 import { beforeEach, describe, it, expect, vi } from 'vitest';
 
-import { createClient, fetchClient, isClient, listClients, updateClient, type Client, type ClientPayload } from '@/services/clients';
+import { ClientNotFoundError, createClient, fetchClient, isClient, listClients, updateClient, type Client, type ClientPayload } from '@/services/clients';
 import { getRequest, postRequest, putRequest, UnexpectedResponseError } from '@/services/http';
 
 import { axiosErrorWith } from '../utility/axiosErrorWith';
@@ -170,6 +170,17 @@ describe('clients service', () =>
         // Assert
         expect(getRequest).toHaveBeenCalledExactlyOnceWith('/businesses/7/clients/3');
         expect(result).toStrictEqual(dutchClient);
+    });
+
+    // An unknown id and another business's client are the same 404, so one
+    // test covers both
+    it('should throw a ClientNotFoundError when the fetch gets a 404 (not found): the client isn\'t the business\'s', async () =>
+    {
+        // Arrange
+        vi.mocked(getRequest).mockRejectedValue(axiosErrorWith(404, { message: 'Not Found' }));
+
+        // Act + Assert
+        await expect(fetchClient(7, 3)).rejects.toThrow(ClientNotFoundError);
     });
 
     // A foreign payload too: its postcode and region rules differ, and the
