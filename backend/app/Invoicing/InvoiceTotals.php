@@ -36,7 +36,9 @@ final readonly class InvoiceTotals
      */
     public static function fromLines(VatTreatment $treatment, array $lines): self
     {
-        foreach ($lines as $index => $line)
+        // array_values() because the list<> type is only a docblock: PHP doesn't check it, and an array_filter() result
+        // or a keyed array would otherwise name the wrong line, or fail on a string key.
+        foreach (array_values($lines) as $index => $line)
         {
             // Counted from 1, so the message names the line the way a person sees it on the invoice.
             $position = $index + 1;
