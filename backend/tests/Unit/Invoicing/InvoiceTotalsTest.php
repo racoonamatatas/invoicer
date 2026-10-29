@@ -154,7 +154,10 @@ describe('InvoiceTotals', function (): void {
         $build = static fn (): InvoiceTotals => InvoiceTotals::fromLines(VatTreatment::ReverseCharge, $lines);
 
         // Assert
-        expect($build)->toThrow(InvalidArgumentException::class, "The invoice's amounts add up to more than an int can hold.");
+        // 100 line totals still fit, so the 101st addition is the one refused.
+        $sumSoFar = 100 * $largestPriceCents;
+        $message = "The invoice's amounts add up to more than an int can hold: {$sumSoFar} + {$largestPriceCents} cents.";
+        expect($build)->toThrow(InvalidArgumentException::class, $message);
     });
 
     it('should refuse a subtotal that fits in an int when adding the VAT to it does not', function (): void {
@@ -173,6 +176,7 @@ describe('InvoiceTotals', function (): void {
         $build = static fn (): InvoiceTotals => InvoiceTotals::fromLines(VatTreatment::Domestic, $lines);
 
         // Assert
-        expect($build)->toThrow(InvalidArgumentException::class, "The invoice's amounts add up to more than an int can hold.");
+        $message = "The invoice's amounts add up to more than an int can hold: ".(PHP_INT_MAX - 10).' + 21 cents.';
+        expect($build)->toThrow(InvalidArgumentException::class, $message);
     });
 });
