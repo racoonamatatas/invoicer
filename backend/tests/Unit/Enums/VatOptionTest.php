@@ -41,13 +41,13 @@ describe('VatOption', function (): void {
         expect($ratePercent)->toBeNull();
     });
 
-    it('should return a rate or null for every case, so a case missing from the match fails here', function (VatOption $option): void {
+    it('should answer ratePercent() for every case without an UnhandledMatchError', function (VatOption $option): void {
         // Act
         // The match in ratePercent() has no default arm, so a case it doesn't list throws an UnhandledMatchError.
         // The dataset is cases() itself, so a new case is in this test the moment it exists.
-        $ratePercent = $option->ratePercent();
+        $ratePercent = static fn (): ?int => $option->ratePercent();
 
         // Assert
-        expect($ratePercent === null || is_int($ratePercent))->toBeTrue();
+        expect($ratePercent)->not->toThrow(UnhandledMatchError::class);
     })->with(VatOption::cases());
 });

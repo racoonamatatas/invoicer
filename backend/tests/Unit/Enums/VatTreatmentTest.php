@@ -38,13 +38,13 @@ describe('VatTreatment', function (): void {
         'OutsideScope' => [VatTreatment::OutsideScope],
     ]);
 
-    it('should say for every case whether it charges VAT, so a case missing from the match fails here', function (VatTreatment $treatment): void {
+    it('should answer chargesVat() for every case without an UnhandledMatchError', function (VatTreatment $treatment): void {
         // Act
         // The match in chargesVat() has no default arm, so a case it doesn't list throws an UnhandledMatchError.
         // The dataset is cases() itself, so a new case is in this test the moment it exists.
-        $chargesVat = $treatment->chargesVat();
+        $chargesVat = static fn (): bool => $treatment->chargesVat();
 
         // Assert
-        expect($chargesVat)->toBeBool();
+        expect($chargesVat)->not->toThrow(UnhandledMatchError::class);
     })->with(VatTreatment::cases());
 });
