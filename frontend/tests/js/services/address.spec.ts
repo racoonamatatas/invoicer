@@ -190,6 +190,7 @@ describe('isAddress', () =>
         { name: 'house_number as a number', value: { ...dutchAddress, house_number: 123 } },
         { name: 'house_number_addition as a number', value: { ...dutchAddress, house_number_addition: 1 } },
         { name: 'city as null', value: { ...dutchAddress, city: null } },
+        { name: 'a Dutch postal_code as a number', value: { ...dutchAddress, postal_code: 9711 } },
         { name: 'a foreign postal_code as a number', value: { ...foreignAddress, postal_code: 80802 } },
         { name: 'a foreign region as a number', value: { ...foreignAddress, region: 1 } },
     ])('should reject an address with a value of the wrong type: $name', ({ value }) =>
