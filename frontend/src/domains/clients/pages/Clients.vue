@@ -7,14 +7,20 @@ import LogoutButton from '@/components/LogoutButton.vue';
 // From the businesses domain: a client belongs to a business, so clients may
 // depend on businesses, never the other way round.
 import { useRouteBusiness } from '@/domains/businesses/composables/useRouteBusiness';
+import ClientForm from '@/domains/clients/components/ClientForm.vue';
 import { useClients } from '@/domains/clients/composables/useClients';
 import { countryName } from '@/services/address';
+import { createClient, type Client, type ClientPayload } from '@/services/clients';
 
 const { state, retry } = useRouteBusiness();
 
 // Clients load once the business is found, never for an id that isn't the
 // user's: the list already answered that, so a request would only be a 404.
 const { state: clients, reload } = useClients(() => (state.value.kind === 'found' ? state.value.business.id : null));
+
+// Takes the id while the template has it narrowed: a closure written inline
+// would read state again later, where TypeScript no longer knows it's found.
+const createClientFor = (businessId: number) => (payload: ClientPayload): Promise<Client> => createClient(businessId, payload);
 </script>
 
 <template>
@@ -49,6 +55,20 @@ const { state: clients, reload } = useClients(() => (state.value.kind === 'found
                 </ul>
                 <p v-else>No clients yet.</p>
             </template>
+
+            <!-- Outside the list's states: adding works even while the list
+                 is loading or failed. Keyed by id, so another business in the
+                 URL gets an empty form with its own country. The reload puts
+                 the new client in the server's order. -->
+            <ClientForm
+                :key="state.business.id"
+                :initial="{ kind: 'new', countryCode: state.business.country_code }"
+                label="Add a client"
+                submit-label="Add"
+                saved-message="Added."
+                :save="createClientFor(state.business.id)"
+                @saved="reload"
+            />
 
             <p><RouterLink :to="{ name: 'dashboard', params: { businessId: state.business.id } }">Back to the dashboard</RouterLink></p>
         </template>
