@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace App\Validation;
 
+use App\Validation\Country\Netherlands\BtwId;
 use Closure;
 use Illuminate\Contracts\Validation\ValidationRule;
 
@@ -19,6 +20,20 @@ use Illuminate\Contracts\Validation\ValidationRule;
 readonly class VatNumber implements ValidationRule
 {
     public function __construct(protected string $prefix) {}
+
+    /**
+     * The one place that names a country with its own format; every other member state gets the default.
+     */
+    public static function forCountry(string $countryCode): self
+    {
+        return match ($countryCode)
+        {
+            'NL' => new BtwId,
+            // vatPrefix() throws for a country outside the EU: whether such a client may have a VAT number at all
+            // is the request's decision, made before it asks for a rule.
+            default => new self(EuMemberStates::vatPrefix($countryCode)),
+        };
+    }
 
     final public function validate(string $attribute, mixed $value, Closure $fail): void
     {
