@@ -155,13 +155,17 @@ describe('clients service', () =>
         { name: 'one malformed client', data: [dutchClient, clientWithout('email')] },
         { name: 'a wrapped list', data: { data: [dutchClient] } },
         { name: 'a single client', data: dutchClient },
-    ])('should throw an UnexpectedResponseError when /businesses/{id}/clients answers with $name', async ({ data }) =>
+    ])('should throw an UnexpectedResponseError naming the endpoint when /businesses/{id}/clients answers with $name', async ({ data }) =>
     {
         // Arrange
         vi.mocked(getRequest).mockResolvedValue({ data } as AxiosResponse);
 
-        // Act + Assert
-        await expect(listClients(7)).rejects.toThrow(UnexpectedResponseError);
+        // Act
+        const promise = listClients(7);
+
+        // Assert
+        await expect(promise).rejects.toThrow(UnexpectedResponseError);
+        await expect(promise).rejects.toThrow('Unexpected response from /businesses/7/clients');
     });
 
     it('should get /businesses/{id}/clients/{id} and return the client from the 200 (ok) response', async () =>
