@@ -204,6 +204,37 @@ describe('EditClient page', () =>
         expect(wrapper.find('h1').text()).toBe('Edit Fietsenmakerij Bakker');
     });
 
+    it('should show Business not found, and ask nothing about the client, when the business isn\'t in the 200 (ok) from listBusinesses', async () =>
+    {
+        // Arrange: not one of the user's businesses
+        vi.mocked(service.listBusinesses).mockResolvedValue([]);
+
+        // Act
+        const { wrapper } = await mountEditClient('1', '3');
+        await flushPromises();
+
+        // Assert: the list already answered, so a client request would only be a 404
+        expect(wrapper.find('h1').text()).toBe('Business not found');
+        expect(clientsService.fetchClient).not.toHaveBeenCalled();
+        expect(form(wrapper).exists()).toBe(false);
+    });
+
+    it('should show Couldn\'t load your businesses. with a Try again button, and ask nothing about the client, when listBusinesses fails with a 500 (server error)', async () =>
+    {
+        // Arrange: errorHandler is a stub, so the handed-on error doesn't fail the test
+        vi.mocked(service.listBusinesses).mockRejectedValue(axiosErrorWith(500, { message: 'Server Error' }));
+
+        // Act
+        const { wrapper } = await mountEditClient('1', '3', () =>
+        {});
+        await flushPromises();
+
+        // Assert
+        expect(wrapper.find('[role="status"]').text()).toBe('Couldn\'t load your businesses.');
+        expect(wrapper.findAll('button').some((button) => button.text() === 'Try again')).toBe(true);
+        expect(clientsService.fetchClient).not.toHaveBeenCalled();
+    });
+
     it('should link back to the business\'s clients when the business is found', async () =>
     {
         // Arrange
