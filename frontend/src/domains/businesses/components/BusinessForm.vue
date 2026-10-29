@@ -5,7 +5,7 @@ import { computed, ref } from 'vue';
 // Project imports
 import AddressFields from '@/components/AddressFields.vue';
 import { useForm } from '@/composables/useForm';
-import type { Address } from '@/services/address';
+import type { DutchAddress } from '@/services/address';
 import type { Business, BusinessPayload } from '@/services/businesses';
 
 // One form for creating and editing a business, so the two can't drift apart
@@ -36,14 +36,14 @@ const emit = defineEmits<{
 }>();
 
 // What the form holds: the payload with its address nested, so AddressFields
-// binds it as one object. No country_code: a business is always NL, so there
-// is nothing to ask, and onSubmit adds it.
+// binds it as one object. A business is always NL, so the address is always
+// a DutchAddress, and there is no country to ask for.
 interface BusinessFormFields
 {
     registered_name: string;
     kvk_number: string;
     vat_number: string;
-    address: Address;
+    address: DutchAddress;
     // '': the input was emptied. v-model.number hands back the raw text when
     // it isn't a number, and an empty number input's text is ''.
     payment_term_days: number | '';
@@ -60,7 +60,7 @@ const fieldsFrom = (business: Business | null): BusinessFormFields =>
             registered_name: '',
             kvk_number: '',
             vat_number: '',
-            address: { street: '', house_number: '', house_number_addition: '', postal_code: '', city: '' },
+            address: { street: '', house_number: '', house_number_addition: '', postal_code: '', city: '', region: null, country_code: 'NL' },
             payment_term_days: 30,
         };
     }
@@ -75,6 +75,8 @@ const fieldsFrom = (business: Business | null): BusinessFormFields =>
             house_number_addition: business.house_number_addition ?? '',
             postal_code: business.postal_code,
             city: business.city,
+            region: null,
+            country_code: business.country_code,
         },
         payment_term_days: business.payment_term_days,
     };
@@ -125,8 +127,9 @@ const hasFailed = ref(false);
 // the same way after a 422, so only reaching that line proves the save went
 // through. Refilled from it, not left as typed, so the inputs show what the
 // backend normalised ('9711lm' is stored as '9711 LM'). The address is
-// spread back to the flat shape the API takes, and an emptied payment term
-// becomes the payload's null.
+// copied back to the flat shape the API takes field by field, not spread:
+// a spread would send the address's region, which the payload leaves out.
+// An emptied payment term becomes the payload's null.
 // What submit() re-throws is shown, then re-thrown again, so Vue's error
 // handler still sees what went wrong.
 const onSubmit = async (): Promise<void> =>
@@ -141,8 +144,12 @@ const onSubmit = async (): Promise<void> =>
             const { address, payment_term_days: paymentTermDays, ...fields } = form.value;
             const stored = await props.save({
                 ...fields,
-                ...address,
-                country_code: 'NL',
+                street: address.street,
+                house_number: address.house_number,
+                house_number_addition: address.house_number_addition,
+                postal_code: address.postal_code,
+                city: address.city,
+                country_code: address.country_code,
                 payment_term_days: paymentTermDays === '' ? null : paymentTermDays,
             });
             form.value = fieldsFrom(stored);

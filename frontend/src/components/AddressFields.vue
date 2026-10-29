@@ -6,12 +6,17 @@ import { computed } from 'vue';
 import type { FieldError } from '@/composables/useForm';
 import type { Address, AddressField } from '@/services/address';
 
+// The fields this renders an input for. Not region or country_code yet, so
+// it only asks the parent for errors on these, and a parent whose payload
+// has no region (a business) can still pass its fieldError.
+type ShownField = Exclude<AddressField, 'region' | 'country_code'>;
+
 // The parent owns the form and its useForm: this component only renders the
 // address part of it. fieldError is the parent's own; it takes every field
 // of the parent's form, so it also takes these five.
 const props = defineProps<{
     formName: string;
-    fieldError: (field: AddressField) => FieldError | null;
+    fieldError: (field: ShownField) => FieldError | null;
 }>();
 
 // The parent's address. Never changed in place: each keystroke assigns a new
@@ -21,7 +26,7 @@ const props = defineProps<{
 const address = defineModel<Address>({ required: true });
 
 // target is only typed as EventTarget; the check proves it's the input.
-const onInput = (key: AddressField, event: Event): void =>
+const onInput = (key: ShownField, event: Event): void =>
 {
     if (!(event.target instanceof HTMLInputElement))
     {
@@ -33,7 +38,7 @@ const onInput = (key: AddressField, event: Event): void =>
 
 interface Row
 {
-    key: AddressField;
+    key: ShownField;
     label: string;
     // undefined: no autocomplete token matches a split street or house number.
     autocomplete: string | undefined;
