@@ -10,6 +10,9 @@ namespace App\Enums;
  *
  * The backing integers are what invoice_lines.vat_option stores, so they are a storage format, not an order: never
  * renumber or reuse one. They start at 1 so a stray 0 can't pass for an option.
+ *
+ * The order of the cases is a different thing: it's the order the VAT groups appear in on an invoice, because the
+ * totals loop over cases(). So adding or moving a case is also a decision about how invoices look.
  */
 enum VatOption: int
 {
