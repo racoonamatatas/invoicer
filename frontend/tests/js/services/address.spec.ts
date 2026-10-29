@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, it, expect } from 'vitest';
 
-import { COUNTRY_CODES, isCountryCode, type DutchAddress, type ForeignAddress } from '@/services/address';
+import { COUNTRY_CODES, isAddress, isCountryCode, type DutchAddress, type ForeignAddress } from '@/services/address';
 
 // The backend rule the frontend list is a copy of. Read as text: the
 // frontend has no PHP, and the list is plain quoted codes.
@@ -117,5 +117,118 @@ describe('Address', () =>
         };
 
         return address;
+    });
+});
+
+describe('isAddress', () =>
+{
+    const dutchAddress: DutchAddress = {
+        street: 'Oosterstraat',
+        house_number: '123',
+        house_number_addition: 'A',
+        postal_code: '9711 LM',
+        city: 'Groningen',
+        region: null,
+        country_code: 'NL',
+    };
+
+    const foreignAddress: ForeignAddress = {
+        street: 'Leopoldstraße',
+        house_number: '12',
+        house_number_addition: null,
+        postal_code: '80802',
+        city: 'München',
+        region: 'Bayern',
+        country_code: 'DE',
+    };
+
+    // A copy of an address without one key.
+    const without = (address: DutchAddress | ForeignAddress, key: keyof DutchAddress): Record<string, unknown> =>
+    {
+        const copy: Record<string, unknown> = { ...address };
+        delete copy[key];
+
+        return copy;
+    };
+
+    it.for([
+        { name: 'a Dutch address', value: dutchAddress },
+        { name: 'a Dutch address without a house number addition', value: { ...dutchAddress, house_number_addition: null } },
+        { name: 'a foreign address with a postcode and a region', value: foreignAddress },
+        // Hong Kong has no postcodes
+        { name: 'a foreign address with a region but no postcode', value: { ...foreignAddress, postal_code: null, region: 'Kowloon', country_code: 'HK' } },
+        { name: 'a foreign address with neither a postcode nor a region', value: { ...foreignAddress, postal_code: null, region: null } },
+        // A field added to the response mustn't break the SPA before it uses it
+        { name: 'an extra key', value: { ...dutchAddress, created_at: '2026-10-29' } },
+    ])('should accept $name', ({ value }) =>
+    {
+        // Act + Assert
+        expect(isAddress(value)).toBe(true);
+    });
+
+    it.for(Object.keys(dutchAddress).map((key) => ({ name: key, value: without(dutchAddress, key as keyof DutchAddress) })))(
+        'should reject a Dutch address without a key: $name',
+        ({ value }) =>
+        {
+            // Act + Assert
+            expect(isAddress(value)).toBe(false);
+        },
+    );
+
+    // null is a valid postal_code and region abroad, but a missing key is not
+    it.for([
+        { name: 'postal_code', value: without(foreignAddress, 'postal_code') },
+        { name: 'region', value: without(foreignAddress, 'region') },
+    ])('should reject a foreign address without a key: $name', ({ value }) =>
+    {
+        // Act + Assert
+        expect(isAddress(value)).toBe(false);
+    });
+
+    it.for([
+        { name: 'street as null', value: { ...dutchAddress, street: null } },
+        { name: 'house_number as a number', value: { ...dutchAddress, house_number: 123 } },
+        { name: 'house_number_addition as a number', value: { ...dutchAddress, house_number_addition: 1 } },
+        { name: 'city as null', value: { ...dutchAddress, city: null } },
+        { name: 'a Dutch postal_code as a number', value: { ...dutchAddress, postal_code: 9711 } },
+        { name: 'a foreign postal_code as a number', value: { ...foreignAddress, postal_code: 80802 } },
+        { name: 'a foreign region as a number', value: { ...foreignAddress, region: 1 } },
+    ])('should reject an address with a value of the wrong type: $name', ({ value }) =>
+    {
+        // Act + Assert
+        expect(isAddress(value)).toBe(false);
+    });
+
+    it('should reject a Dutch address with a region, since a Dutch postal address has none', () =>
+    {
+        // Act + Assert: a region is valid abroad, so only the country decides this
+        expect(isAddress({ ...dutchAddress, region: 'Groningen' })).toBe(false);
+    });
+
+    it('should reject a Dutch address without a postcode, since every Dutch address has one', () =>
+    {
+        // Act + Assert: a null postcode is valid abroad, so only the country decides this
+        expect(isAddress({ ...dutchAddress, postal_code: null })).toBe(false);
+    });
+
+    it.for([
+        { name: 'a code that is not on the list', countryCode: 'XX' },
+        // The backend stores the canonical, uppercase form; anything else means the contract changed
+        { name: 'a lowercase code', countryCode: 'nl' },
+        { name: 'null', countryCode: null },
+    ])('should reject an address whose country_code is $name', ({ countryCode }) =>
+    {
+        // Act + Assert
+        expect(isAddress({ ...foreignAddress, country_code: countryCode })).toBe(false);
+    });
+
+    it.for([
+        { name: 'null', value: null },
+        { name: 'a string', value: 'Oosterstraat 123A, 9711 LM Groningen' },
+        { name: 'an array', value: [] },
+    ])('should reject $name', ({ value }) =>
+    {
+        // Act + Assert
+        expect(isAddress(value)).toBe(false);
     });
 });
