@@ -24,7 +24,7 @@ describe('InvoiceTotals', function (): void {
         '€2.50 at 21%, VAT 52.5 cents up to 53' => [[invoiceLine(100, 250, VatOption::High)], 250, 53],
     ]);
 
-    it('should give a mixed-rate invoice one group per rate, in High, Low order', function (): void {
+    it('should give a mixed-rate invoice one group per rate, in High, Low order, and a VAT total that adds them up', function (): void {
         // Arrange
         // The Low line comes first, so the order of the groups can't just be the order of the lines.
         $lines = [invoiceLine(100, 5000, VatOption::Low), invoiceLine(100, 10000, VatOption::High)];
@@ -35,6 +35,7 @@ describe('InvoiceTotals', function (): void {
         // Assert
         expect(vatGroupRows($totals))->toBe([[VatOption::High, 10000, 2100], [VatOption::Low, 5000, 450]])
             ->and($totals->subtotalCents)->toBe(15000)
+            ->and($totals->vatCents)->toBe(2550)
             ->and($totals->totalCents)->toBe(17550);
     });
 
@@ -50,7 +51,7 @@ describe('InvoiceTotals', function (): void {
             ->and($totals->totalCents)->toBe(10000);
     });
 
-    it('should give a ReverseCharge or OutsideScope invoice no VAT groups, so the total is the subtotal', function (VatTreatment $treatment): void {
+    it('should give a ReverseCharge or OutsideScope invoice no VAT groups and no VAT, so the total is the subtotal', function (VatTreatment $treatment): void {
         // Arrange
         $lines = [invoiceLine(200, 10000), invoiceLine(150, 3000)];
 
@@ -60,6 +61,7 @@ describe('InvoiceTotals', function (): void {
         // Assert
         expect($totals->vatGroups)->toBe([])
             ->and($totals->subtotalCents)->toBe(24500)
+            ->and($totals->vatCents)->toBe(0)
             ->and($totals->totalCents)->toBe(24500);
     })->with([
         'ReverseCharge' => [VatTreatment::ReverseCharge],
