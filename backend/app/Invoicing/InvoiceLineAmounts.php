@@ -20,8 +20,9 @@ final readonly class InvoiceLineAmounts
 
     /**
      * A negative amount is refused here, so no negative line can exist: totalCents()'s rounding is half up only for
-     * amounts of 0 or more. The request validates first, so this firing means a bug, hence a plain
-     * InvalidArgumentException and no HTTP mapping. Zero is fine: a line of 0 hours or a free item rounds correctly.
+     * amounts of 0 or more. A quantity × price too large for an int is refused too. The request is meant to validate
+     * first, so this firing means a bug, hence a plain InvalidArgumentException and no HTTP mapping. Zero is fine: a
+     * line of 0 hours or a free item rounds correctly.
      *
      * @throws InvalidArgumentException
      */
@@ -38,6 +39,16 @@ final readonly class InvoiceLineAmounts
         if ($unitPriceCents < 0)
         {
             throw new InvalidArgumentException("An invoice line's unit price can't be negative, got {$unitPriceCents} cents.");
+        }
+
+        // totalCents() computes q × p + 50, which must fit in an int: past PHP_INT_MAX PHP turns it into a float, and
+        // intdiv() refuses that with a TypeError. For p > 0, q × p + 50 ≤ PHP_INT_MAX holds exactly when
+        // q ≤ intdiv(PHP_INT_MAX - 50, p), so the check needs no multiplication that could overflow itself.
+        if ($unitPriceCents > 0 && $quantityHundredths > intdiv(PHP_INT_MAX - self::HUNDREDTHS_PER_UNIT / 2, $unitPriceCents))
+        {
+            throw new InvalidArgumentException(
+                "An invoice line's quantity × unit price is too large to compute, got {$quantityHundredths} hundredths × {$unitPriceCents} cents.",
+            );
         }
     }
 
