@@ -6,6 +6,7 @@ namespace App\Validation;
 
 use Closure;
 use Illuminate\Contracts\Validation\ValidationRule;
+use LogicException;
 
 /**
  * Accepts a VAT number from an EU member state other than the Netherlands, in canonical form: the country's prefix
@@ -15,7 +16,17 @@ use Illuminate\Contracts\Validation\ValidationRule;
  */
 final readonly class EuVatNumber implements ValidationRule
 {
-    public function __construct(private string $prefix) {}
+    /**
+     * NL is refused here rather than trusted to the caller: this rule's shape would let "NL12" through, which BtwId
+     * rejects, so a Dutch number checked here by mistake must fail loudly, not pass quietly.
+     */
+    public function __construct(private string $prefix)
+    {
+        if ($prefix === 'NL')
+        {
+            throw new LogicException('A Dutch VAT number is checked by BtwId, not EuVatNumber.');
+        }
+    }
 
     public function validate(string $attribute, mixed $value, Closure $fail): void
     {
