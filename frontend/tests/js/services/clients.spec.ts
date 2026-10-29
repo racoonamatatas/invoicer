@@ -231,7 +231,7 @@ describe('clients service', () =>
     // the service must hand on the very error it got, not a wrapped or swallowed one
     it.for([
         { name: 'listClients', status: 404, meaning: '404 (not found)', request: getRequest, send: () => listClients(7) },
-        { name: 'fetchClient', status: 404, meaning: '404 (not found)', request: getRequest, send: () => fetchClient(7, 3) },
+        { name: 'fetchClient', status: 500, meaning: '500 (server error)', request: getRequest, send: () => fetchClient(7, 3) },
         { name: 'createClient', status: 422, meaning: '422 (unprocessable content)', request: postRequest, send: () => createClient(7, dutchPayload) },
         { name: 'updateClient', status: 422, meaning: '422 (unprocessable content)', request: putRequest, send: () => updateClient(7, 3, dutchPayload) },
     ])('should rethrow the request\'s error unchanged: $name with a $meaning', async ({ status, request, send }) =>

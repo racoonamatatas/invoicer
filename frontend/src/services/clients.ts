@@ -1,3 +1,5 @@
+import { isAxiosError } from 'axios';
+
 import { isAddress, isNullableString, type Address } from '@/services/address';
 import { checkResponse, getRequest, postRequest, putRequest } from '@/services/http';
 
@@ -47,14 +49,41 @@ export const listClients = async (businessId: number): Promise<Client[]> =>
     return checkResponse(endpoint, response.data, isClientList);
 };
 
+// A fetch's 404: the client isn't one of the business's. Its own class, so
+// the page can tell it from other failures with instanceof and never reads a
+// status code itself. The original 404 is kept as `cause`, like
+// SessionEndedError.
+export class ClientNotFoundError extends Error
+{
+    constructor(cause: unknown)
+    {
+        super('The client does not exist', { cause });
+        this.name = 'ClientNotFoundError';
+    }
+}
+
 // One client of the business. An unknown id and a client of another business
-// are both a 404 (not found), thrown.
+// are both a 404 (not found), thrown as a ClientNotFoundError. Anything else
+// is thrown as it is.
 export const fetchClient = async (businessId: number, clientId: number): Promise<Client> =>
 {
     const endpoint = `${endpointFor(businessId)}/${clientId}`;
-    const response = await getRequest<unknown>(endpoint);
 
-    return checkResponse(endpoint, response.data, isClient);
+    try
+    {
+        const response = await getRequest<unknown>(endpoint);
+
+        return checkResponse(endpoint, response.data, isClient);
+    }
+    catch (error) // unknown: anything can be thrown
+    {
+        if (isAxiosError(error) && error.response?.status === 404)
+        {
+            throw new ClientNotFoundError(error);
+        }
+
+        throw error;
+    }
 };
 
 // 201 (created) with the client. A 422 is thrown, not caught, so the form can
