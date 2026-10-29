@@ -28,14 +28,16 @@ interface MountOptions
 
 // Mounts AddressFields the way a parent form does: an address bound with
 // v-model, the parent's form name, and its fieldError. The address is
-// returned so a test can check it was left alone. Each emitted address is
-// fed back as the new modelValue, as v-model in a parent would.
+// returned so a test can check it was left alone.
 const mountAddressFields = ({ fieldError = () => null, countryCodes = ['NL'], address = emptyAddress() }: MountOptions = {}) =>
 {
     const wrapper = mount(AddressFields, {
         props: {
             modelValue: address,
-            'onUpdate:modelValue': async (next: Address) => wrapper.setProps({ modelValue: next }),
+            // A listener, even one that does nothing, leaves the address to the
+            // parent, as v-model does: without one, defineModel keeps its own
+            // copy and re-renders by itself. Tests re-render with rerenderWithEmitted.
+            'onUpdate:modelValue': (): void => undefined,
             formName: 'client',
             fieldError,
             countryCodes,
@@ -43,6 +45,22 @@ const mountAddressFields = ({ fieldError = () => null, countryCodes = ['NL'], ad
     });
 
     return { wrapper, address };
+};
+
+// Feeds the last emitted address back as the new modelValue, as v-model in a
+// parent would. Called and awaited by the test, not wired into the mount: an
+// event handler's promise is discarded, so a failed re-render there would be
+// an unhandled rejection instead of a failing test.
+const rerenderWithEmitted = async (wrapper: ReturnType<typeof mountAddressFields>['wrapper']): Promise<void> =>
+{
+    const next = wrapper.emitted<[Address]>('update:modelValue')?.at(-1)?.[0];
+
+    if (next === undefined)
+    {
+        throw new Error('AddressFields emitted no address to re-render with');
+    }
+
+    await wrapper.setProps({ modelValue: next });
 };
 
 const FIELDS: readonly AddressField[] = ['street', 'house_number', 'house_number_addition', 'postal_code', 'city'];
@@ -85,6 +103,26 @@ describe('AddressFields', () =>
         {
             expect(wrapper.find(`label[for="client-${field}"]`).exists()).toBe(true);
         }
+    });
+
+    it('should show the foreign layout for a DE address: Region last, with its label and autocomplete, and the postcode optional', () =>
+    {
+        // Act
+        const { wrapper } = mountAddressFields({ address: emptyGermanAddress(), countryCodes: COUNTRY_CODES });
+
+        // Assert: the order is the format's, the same for every country
+        const inputs = wrapper.findAll('input');
+        expect(inputs.map((input) => input.attributes('id'))).toStrictEqual(
+            ['street', 'house_number', 'house_number_addition', 'postal_code', 'city', 'region'].map((field) => `client-${field}`),
+        );
+
+        // Assert: what a browser's autofill and a screen reader go by
+        expect(wrapper.find('label[for="client-region"]').text()).toBe('Region');
+        expect(wrapper.find('#client-region').attributes('autocomplete')).toBe('address-level1');
+
+        // Assert: AddressRules requires street, house number and city everywhere, and nothing else abroad
+        const required = inputs.map((input) => input.attributes('required') !== undefined);
+        expect(required).toStrictEqual([true, true, false, false, true, false]);
     });
 
     it('should mark every input required except the house number addition, as the backend does for a Dutch address', () =>
@@ -140,10 +178,19 @@ describe('AddressFields', () =>
 
         // Assert
         const select = wrapper.find<HTMLSelectElement>('#client-country_code');
-        const names = select.findAll('option').map((option) => option.text());
-        expect(names).toHaveLength(COUNTRY_CODES.length);
-        expect(names).toContain('Germany');
-        expect(names).toStrictEqual([...names].sort((first, second) => first.localeCompare(second, 'en')));
+        const options = select.findAll<HTMLOptionElement>('option').map((option) => ({ code: option.element.value, name: option.text() }));
+        expect(options).toHaveLength(COUNTRY_CODES.length);
+
+        // Assert: each code under its English name, not its code
+        expect(options).toContainEqual({ code: 'NL', name: 'Netherlands' });
+        expect(options).toContainEqual({ code: 'GB', name: 'United Kingdom' });
+        expect(options).toContainEqual({ code: 'DE', name: 'Germany' });
+
+        // Assert: sorted by name. Pairs whose code order is the other way
+        // round (CH before DE, GB before NL), so a sort by code fails here.
+        const names = options.map((option) => option.name);
+        expect(names.indexOf('Germany')).toBeLessThan(names.indexOf('Switzerland'));
+        expect(names.indexOf('Netherlands')).toBeLessThan(names.indexOf('United Kingdom'));
         expect(select.element.value).toBe('NL');
         expect(wrapper.find('label[for="client-country_code"]').text()).toBe('Country');
     });
@@ -182,8 +229,9 @@ describe('AddressFields', () =>
         const { wrapper } = mountAddressFields({ countryCodes: COUNTRY_CODES });
         expect(wrapper.find('#client-region').exists()).toBe(false);
 
-        // Act
+        // Act: switch, then re-render with what was emitted, as a parent would
         await wrapper.find('#client-country_code').setValue('DE');
+        await rerenderWithEmitted(wrapper);
 
         // Assert (interaction): only the country changed
         expect(wrapper.emitted('update:modelValue')).toStrictEqual([[{ ...emptyAddress(), country_code: 'DE' }]]);
@@ -199,8 +247,9 @@ describe('AddressFields', () =>
         const address = { ...emptyGermanAddress(), region: 'Bayern' };
         const { wrapper } = mountAddressFields({ countryCodes: COUNTRY_CODES, address });
 
-        // Act
+        // Act: switch, then re-render with what was emitted, as a parent would
         await wrapper.find('#client-country_code').setValue('NL');
+        await rerenderWithEmitted(wrapper);
 
         // Assert (interaction)
         expect(wrapper.emitted('update:modelValue')).toStrictEqual([[{ ...emptyAddress(), country_code: 'NL' }]]);
