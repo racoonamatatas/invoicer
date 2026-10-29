@@ -124,7 +124,7 @@ const hasFailed = ref(false);
 // The stored business is copied in inside the callback: submit() resolves
 // the same way after a 422, so only reaching that line proves the save went
 // through. Refilled from it, not left as typed, so the inputs show what the
-// backend normalised ('1015cj' is stored as '1015 CJ'). The address is
+// backend normalised ('9711lm' is stored as '9711 LM'). The address is
 // spread back to the flat shape the API takes, and an emptied payment term
 // becomes the payload's null.
 // What submit() re-throws is shown, then re-thrown again, so Vue's error
