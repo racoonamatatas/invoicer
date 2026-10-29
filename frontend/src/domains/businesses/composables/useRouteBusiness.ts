@@ -5,6 +5,7 @@ import { useRoute } from 'vue-router';
 // Project imports
 import { useBusinessList } from '@/domains/businesses/composables/useBusinessList';
 import { useBusinessesStore } from '@/domains/businesses/store';
+import { parseRouteId } from '@/router/parseRouteId';
 import type { Business } from '@/services/businesses';
 
 // What a page under /businesses/:businessId knows about its business.
@@ -13,22 +14,6 @@ export type RouteBusinessState =
     | { kind: 'failed' }
     | { kind: 'notFound' }
     | { kind: 'found'; business: Business };
-
-// The id from the URL, or null when it can't be a business id. Only digits
-// without a leading zero: Number() alone would also take '1e3', ' 7' and
-// '0x1F'.
-const parseBusinessId = (param: string | string[] | undefined): number | null =>
-{
-    if (typeof param !== 'string' || !/^[1-9]\d*$/.test(param))
-    {
-        return null;
-    }
-
-    const id = Number(param);
-
-    // A longer digit string would lose precision and could match the wrong id.
-    return Number.isSafeInteger(id) ? id : null;
-};
 
 // The business in the URL, for every page under a business. Read from the
 // user's own list, not fetched by id: one request serves every page under a
@@ -40,7 +25,7 @@ export const useRouteBusiness = () =>
     const store = useBusinessesStore();
     const route = useRoute();
 
-    const businessId = computed(() => parseBusinessId(route.params.businessId));
+    const businessId = computed(() => parseRouteId(route.params.businessId));
 
     // No request for an id that can't exist: it is not-found either way.
     const { state: list, retry } = useBusinessList(() => businessId.value !== null);
