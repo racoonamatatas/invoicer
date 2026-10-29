@@ -49,13 +49,13 @@ final readonly class VatGroupTotal
 
         // base × rate + 50 must fit in an int, or PHP turns it into a float that intdiv() refuses with a TypeError. For
         // a rate above 0 that holds exactly when base ≤ intdiv(PHP_INT_MAX - 50, rate), a check that can't overflow.
-        if ($ratePercent > 0 && $baseCents > intdiv(PHP_INT_MAX - self::PERCENT / 2, $ratePercent))
+        if ($ratePercent > 0 && $baseCents > intdiv(PHP_INT_MAX - intdiv(self::PERCENT, 2), $ratePercent))
         {
             throw new InvalidArgumentException("A VAT group's base is too large to compute its VAT, got {$baseCents} cents.");
         }
 
         // Half up the same way as a line total: half the divisor added before intdiv() truncates.
-        $vatCents = intdiv($baseCents * $ratePercent + self::PERCENT / 2, self::PERCENT);
+        $vatCents = intdiv($baseCents * $ratePercent + intdiv(self::PERCENT, 2), self::PERCENT);
 
         return new self($option, $baseCents, $vatCents);
     }

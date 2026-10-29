@@ -44,7 +44,7 @@ final readonly class InvoiceLineAmounts
         // totalCents() computes q × p + 50, which must fit in an int: past PHP_INT_MAX PHP turns it into a float, and
         // intdiv() refuses that with a TypeError. For p > 0, q × p + 50 ≤ PHP_INT_MAX holds exactly when
         // q ≤ intdiv(PHP_INT_MAX - 50, p), so the check needs no multiplication that could overflow itself.
-        if ($unitPriceCents > 0 && $quantityHundredths > intdiv(PHP_INT_MAX - self::HUNDREDTHS_PER_UNIT / 2, $unitPriceCents))
+        if ($unitPriceCents > 0 && $quantityHundredths > intdiv(PHP_INT_MAX - intdiv(self::HUNDREDTHS_PER_UNIT, 2), $unitPriceCents))
         {
             throw new InvalidArgumentException(
                 "An invoice line's quantity × unit price is too large to compute, got {$quantityHundredths} hundredths × {$unitPriceCents} cents.",
@@ -61,7 +61,7 @@ final readonly class InvoiceLineAmounts
         // Integer-only half-up rounding: adding half the divisor before intdiv() turns its truncation into rounding.
         // There is no float anywhere, so no 0.5 that is really 0.4999.
         return intdiv(
-            $this->quantityHundredths * $this->unitPriceCents + self::HUNDREDTHS_PER_UNIT / 2,
+            $this->quantityHundredths * $this->unitPriceCents + intdiv(self::HUNDREDTHS_PER_UNIT, 2),
             self::HUNDREDTHS_PER_UNIT,
         );
     }
