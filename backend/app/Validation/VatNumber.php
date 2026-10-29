@@ -9,13 +9,10 @@ use Closure;
 use Illuminate\Contracts\Validation\ValidationRule;
 
 /**
- * Accepts a VAT number from an EU member state in canonical form: the country's prefix (from EuMemberStates, so EL
- * for Greece), then 2 to 12 uppercase letters or digits, 14 characters at most. That shape fits every member state,
- * so it is the default; a country with a stricter format gets a subclass that overrides pattern() and message(). A
- * shape check only: whether the number exists is for VIES to answer, which is known and planned to be added.
+ * Built for one EU country's VAT prefix (EL for Greece); checks that a VAT number is that prefix plus 2 to 12
+ * uppercase letters or digits. A country with a stricter format subclasses it. A format check only: VIES is planned.
  *
- * Not final, unlike the other rules here: being extended is its job. validate() is final instead, so a subclass
- * changes what is matched and what is said, never the steps around them.
+ * Not final, so it can be extended; validate() is final instead, so a subclass only changes pattern() and message().
  */
 readonly class VatNumber implements ValidationRule
 {
