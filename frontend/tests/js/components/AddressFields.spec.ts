@@ -11,6 +11,8 @@ const emptyAddress = (): Address => ({
     house_number_addition: null,
     postal_code: '',
     city: '',
+    region: null,
+    country_code: 'NL',
 });
 
 // Mounts AddressFields the way a parent form does: an address bound with
