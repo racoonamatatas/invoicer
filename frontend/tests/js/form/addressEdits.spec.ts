@@ -77,15 +77,10 @@ describe('withText', () =>
         expect(original).toStrictEqual(germanAddress());
     });
 
-    it('should return the same Dutch address when a region is typed, since a Dutch address has none', () =>
+    it('should throw when a region is typed into a Dutch address, since a Dutch address has none', () =>
     {
-        // Arrange: unreachable through AddressFields, which shows no region input for NL
-        const original = dutchAddress();
-
-        // Act
-        const address = withText(original, 'region', 'Groningen');
-
-        // Assert: the same object, so not even a re-render follows
-        expect(address).toBe(original);
+        // Act & Assert: unreachable through AddressFields, which shows no
+        // region input for NL, so reaching it is a bug to surface, not to hide
+        expect(() => withText(dutchAddress(), 'region', 'Groningen')).toThrow('A Dutch address has no region');
     });
 });

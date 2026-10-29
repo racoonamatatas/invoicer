@@ -49,8 +49,7 @@ export const withCountry = (address: Address, code: CountryCode): Address =>
 
 // The address with one typed field changed. One spread per field, not
 // `{ ...address, [key]: value }`: a computed key widens the result, so it
-// would no longer be checked against either side of the union. A Dutch
-// address has no region, so one sent anyway leaves the address as it was.
+// would no longer be checked against either side of the union.
 export const withText = (address: Address, key: AddressTextField, value: string): Address =>
 {
     switch (key)
@@ -66,6 +65,14 @@ export const withText = (address: Address, key: AddressTextField, value: string)
         case 'city':
             return { ...address, city: value };
         case 'region':
-            return address.country_code === 'NL' ? address : { ...address, region: value };
+            // Unreachable from the inputs: the Dutch format hides the region.
+            // TypeScript can't tie this key to the foreign side, so the check
+            // is what lets the region be text.
+            if (address.country_code === 'NL')
+            {
+                throw new Error('A Dutch address has no region, but one was typed into it');
+            }
+
+            return { ...address, region: value };
     }
 };
