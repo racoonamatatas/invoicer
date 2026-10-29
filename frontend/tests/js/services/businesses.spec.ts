@@ -57,8 +57,6 @@ describe('isBusiness', () =>
     it.for([
         { name: 'every field filled', value: business },
         { name: 'no house number addition', value: { ...business, house_number_addition: null } },
-        // The guard checks the type, not the business rules: a region is the backend's to refuse.
-        { name: 'a region', value: { ...business, region: 'Noord-Holland' } },
         // A column added to BusinessResourceData mustn't break the SPA before it uses it.
         { name: 'an extra key', value: { ...business, created_at: '2026-10-24' } },
     ])('should accept a business with $name', ({ value }) =>
@@ -105,6 +103,12 @@ describe('isBusiness', () =>
     {
         // Act + Assert
         expect(isBusiness({ ...business, country_code: countryCode })).toBe(false);
+    });
+
+    it('should reject a business with a region, since a business is Dutch and a Dutch address has none', () =>
+    {
+        // Act + Assert: AddressRules never stores one, so a region means the contract changed
+        expect(isBusiness({ ...business, region: 'Groningen' })).toBe(false);
     });
 
     it.for([

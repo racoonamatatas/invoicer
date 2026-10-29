@@ -2,6 +2,7 @@ import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 
+import AddressFields from '@/components/AddressFields.vue';
 import Businesses from '@/domains/businesses/pages/Businesses.vue';
 import { useBusinessesStore } from '@/domains/businesses/store';
 import * as service from '@/services/businesses';
@@ -498,6 +499,36 @@ describe('Businesses page, create form', () =>
         expect(router.push).toHaveBeenCalledOnce();
         expect(wrapper.find(`${addForm} [role="status"]`).text()).toBe('');
         expect(errorHandler).toHaveBeenCalledWith(failure, expect.anything(), expect.anything());
+    });
+
+    it('should not call createBusiness, show Couldn\'t save. and hand the error on when the address is foreign, since a business is always Dutch', async () =>
+    {
+        // Arrange: no input can pick another country here, so the address is
+        // emitted the way AddressFields would if it could. errorHandler is a
+        // spy standing in for app.config.errorHandler
+        vi.mocked(service.listBusinesses).mockResolvedValue([]);
+        const errorHandler = vi.fn<(error: unknown) => void>();
+        const wrapper = await mountBusinesses(errorHandler);
+        await flushPromises();
+        await fillForm(wrapper);
+        wrapper.findComponent(AddressFields).vm.$emit('update:modelValue', {
+            street: 'Hauptstraße',
+            house_number: '1',
+            house_number_addition: null,
+            postal_code: null,
+            city: 'Berlin',
+            region: null,
+            country_code: 'DE',
+        });
+
+        // Act
+        await wrapper.find(addForm).trigger('submit');
+        await flushPromises();
+
+        // Assert
+        expect(service.createBusiness).not.toHaveBeenCalled();
+        expect(wrapper.find(`${addForm} [role="status"]`).text()).toBe('Couldn\'t save.');
+        expect(errorHandler).toHaveBeenCalledWith(new Error('A business address must be Dutch, got DE'), expect.anything(), expect.anything());
     });
 
     it('should send a typed payment term as a number, not the input\'s text', async () =>

@@ -4,9 +4,9 @@ import { computed, ref } from 'vue';
 
 // Project imports
 import AddressFields from '@/components/AddressFields.vue';
-import { useForm } from '@/composables/useForm';
-import type { Address } from '@/services/address';
-import type { Business, BusinessPayload } from '@/services/businesses';
+import { useForm, type FieldError } from '@/composables/useForm';
+import type { Address, AddressField } from '@/services/address';
+import { BUSINESS_COUNTRY_CODES, type Business, type BusinessPayload } from '@/services/businesses';
 
 // One form for creating and editing a business, so the two can't drift apart
 // on fields or labels. The page decides what saving means.
@@ -36,8 +36,9 @@ const emit = defineEmits<{
 }>();
 
 // What the form holds: the payload with its address nested, so AddressFields
-// binds it as one object. No country_code: a business is always NL, so there
-// is nothing to ask, and onSubmit adds it.
+// binds it as one object. An Address, not a DutchAddress: that is what
+// AddressFields emits, and vue-tsc doesn't check what v-model writes back.
+// onSubmit narrows it to the Dutch side before it becomes a payload.
 interface BusinessFormFields
 {
     registered_name: string;
@@ -60,7 +61,7 @@ const fieldsFrom = (business: Business | null): BusinessFormFields =>
             registered_name: '',
             kvk_number: '',
             vat_number: '',
-            address: { street: '', house_number: '', house_number_addition: '', postal_code: '', city: '' },
+            address: { street: '', house_number: '', house_number_addition: '', postal_code: '', city: '', region: null, country_code: 'NL' },
             payment_term_days: 30,
         };
     }
@@ -75,6 +76,8 @@ const fieldsFrom = (business: Business | null): BusinessFormFields =>
             house_number_addition: business.house_number_addition ?? '',
             postal_code: business.postal_code,
             city: business.city,
+            region: business.region,
+            country_code: business.country_code,
         },
         payment_term_days: business.payment_term_days,
     };
@@ -105,6 +108,10 @@ const kvkNumberError = computed(() => fieldError('kvk_number'));
 const vatNumberError = computed(() => fieldError('vat_number'));
 const paymentTermDaysError = computed(() => fieldError('payment_term_days'));
 
+// AddressFields asks for every address field's error, region too. A business
+// payload has no region, so the backend can't name it in a 422.
+const addressFieldError = (field: AddressField): FieldError | null => field === 'region' ? null : fieldError(field);
+
 // The form's fields as the last save stored them, as JSON so a deep
 // comparison is one string compare (fieldsFrom always builds the keys in the
 // same order). null until a save went through, and again from the next
@@ -125,8 +132,9 @@ const hasFailed = ref(false);
 // the same way after a 422, so only reaching that line proves the save went
 // through. Refilled from it, not left as typed, so the inputs show what the
 // backend normalised ('9711lm' is stored as '9711 LM'). The address is
-// spread back to the flat shape the API takes, and an emptied payment term
-// becomes the payload's null.
+// copied back to the flat shape the API takes field by field, not spread:
+// a spread would send the address's region, which the payload leaves out.
+// An emptied payment term becomes the payload's null.
 // What submit() re-throws is shown, then re-thrown again, so Vue's error
 // handler still sees what went wrong.
 const onSubmit = async (): Promise<void> =>
@@ -139,10 +147,22 @@ const onSubmit = async (): Promise<void> =>
         await submit(async () =>
         {
             const { address, payment_term_days: paymentTermDays, ...fields } = form.value;
+
+            // Unreachable from the inputs: AddressFields only offers NL here.
+            // The check is what lets the payload take a string postcode.
+            if (address.country_code !== 'NL')
+            {
+                throw new Error(`A business address must be Dutch, got ${address.country_code}`);
+            }
+
             const stored = await props.save({
                 ...fields,
-                ...address,
-                country_code: 'NL',
+                street: address.street,
+                house_number: address.house_number,
+                house_number_addition: address.house_number_addition,
+                postal_code: address.postal_code,
+                city: address.city,
+                country_code: address.country_code,
                 payment_term_days: paymentTermDays === '' ? null : paymentTermDays,
             });
             form.value = fieldsFrom(stored);
@@ -213,7 +233,7 @@ const onSubmit = async (): Promise<void> =>
             <p v-if="vatNumberError" :id="vatNumberError.id">{{ vatNumberError.message }}</p>
         </div>
 
-        <AddressFields v-model="form.address" form-name="business" :field-error="fieldError" />
+        <AddressFields v-model="form.address" form-name="business" :field-error="addressFieldError" :country-codes="BUSINESS_COUNTRY_CODES" />
 
         <div>
             <label for="business-payment_term_days">Payment term (days)</label>
