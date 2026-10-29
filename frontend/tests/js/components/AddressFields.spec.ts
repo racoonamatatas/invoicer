@@ -24,12 +24,13 @@ interface MountOptions
     fieldError?: (field: AddressField) => FieldError | null;
     countryCodes?: readonly CountryCode[]; // default NL only, as on the business form
     address?: Address;
+    readonly?: boolean; // default false, as while no save runs
 }
 
 // Mounts AddressFields the way a parent form does: an address bound with
 // v-model, the parent's form name, and its fieldError. The address is
 // returned so a test can check it was left alone.
-const mountAddressFields = ({ fieldError = () => null, countryCodes = ['NL'], address = emptyAddress() }: MountOptions = {}) =>
+const mountAddressFields = ({ fieldError = () => null, countryCodes = ['NL'], address = emptyAddress(), readonly = false }: MountOptions = {}) =>
 {
     const wrapper = mount(AddressFields, {
         props: {
@@ -41,6 +42,7 @@ const mountAddressFields = ({ fieldError = () => null, countryCodes = ['NL'], ad
             formName: 'client',
             fieldError,
             countryCodes,
+            readonly,
         },
     });
 

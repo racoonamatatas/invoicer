@@ -15,6 +15,9 @@ const props = defineProps<{
     formName: string;
     fieldError: (field: AddressField) => FieldError | null;
     countryCodes: readonly CountryCode[]; // one code hides the select, as for a business (always NL)
+    // True while the parent's save runs, so nothing typed then is wiped when
+    // the save refills the form. Required: every parent has to decide.
+    readonly: boolean;
 }>();
 
 // The parent's address. Never changed in place: each keystroke assigns a new
@@ -44,7 +47,9 @@ const onCountryChange = (event: Event): void =>
 
     // Put back by hand: Vue patches :value only when the address changes, and
     // a rejected value changes nothing, so the select would keep showing it.
-    if (!isCountryCode(event.target.value))
+    // A select has no readonly attribute, so a read-only one is undone here;
+    // disabled would take the focus away.
+    if (props.readonly || !isCountryCode(event.target.value))
     {
         event.target.value = address.value.country_code;
 
@@ -127,6 +132,7 @@ const rows = computed(() => ADDRESS_TEXT_FIELDS
             :value="address[row.key] ?? ''"
             type="text"
             :required="row.isRequired"
+            :readonly="readonly"
             :autocomplete="row.autocomplete"
             :aria-invalid="row.error !== null"
             :aria-describedby="row.error?.id"

@@ -109,6 +109,9 @@ const isSaved = computed(() => savedFields.value !== null && JSON.stringify(form
 // the next submit.
 const hasFailed = ref(false);
 
+// readonly, not disabled, while the request runs: a success refills the
+// form and would wipe anything typed meanwhile, and disabled drops focus.
+//
 // The form is refilled inside the callback: submit() resolves the same way
 // after a 422, which must leave what the user typed. A new client's form
 // starts over, prefill included, for the next one; an existing client's
@@ -163,6 +166,7 @@ const onSubmit = async (): Promise<void> =>
             <input
                 id="client-name"
                 v-model="form.name"
+                :readonly="isPending"
                 type="text"
                 required
                 autocomplete="organization"
@@ -176,6 +180,7 @@ const onSubmit = async (): Promise<void> =>
             <input
                 id="client-email"
                 v-model="form.email"
+                :readonly="isPending"
                 type="email"
                 required
                 autocomplete="email"
@@ -191,6 +196,7 @@ const onSubmit = async (): Promise<void> =>
             <input
                 id="client-vat_number"
                 v-model="form.vat_number"
+                :readonly="isPending"
                 type="text"
                 :aria-invalid="vatNumberError !== null"
                 :aria-describedby="vatNumberError?.id"
@@ -198,7 +204,7 @@ const onSubmit = async (): Promise<void> =>
             <p v-if="vatNumberError" :id="vatNumberError.id">{{ vatNumberError.message }}</p>
         </div>
 
-        <AddressFields v-model="form.address" form-name="client" :field-error="fieldError" :country-codes="COUNTRY_CODES" />
+        <AddressFields v-model="form.address" form-name="client" :field-error="fieldError" :country-codes="COUNTRY_CODES" :readonly="isPending" />
 
         <button type="submit" :disabled="isPending">{{ submitLabel }}</button>
     </form>
