@@ -50,6 +50,14 @@ describe('The EuVatNumber rule', function (): void {
         'a trailing newline' => ["DE123456789\n", 'DE'],
     ]);
 
+    it('should refuse to be built for NL, whose numbers BtwId checks', function (): void {
+        // Act
+        $act = fn (): EuVatNumber => new EuVatNumber('NL');
+
+        // Assert
+        expect($act)->toThrow(LogicException::class, 'A Dutch VAT number is checked by BtwId, not EuVatNumber.');
+    });
+
     it('should leave a non-string to the string rule', function (): void {
         // Act
         $validator = validateEuVatNumber(123456789, 'DE');
