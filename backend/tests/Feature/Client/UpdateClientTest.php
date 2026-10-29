@@ -45,6 +45,27 @@ describe('Updating a client', function (): void {
         expect($client->fresh()?->only(array_keys($expected)))->toBe($expected);
     });
 
+    it('should store an update in canonical form, as creating does', function (): void {
+        // Arrange
+        $business = Business::factory()->create();
+        $client = Client::factory()->for($business)->create();
+        $this->actingAs($business->user, 'web');
+
+        // Act. Written the way people type it: lowercase country, VAT number with spaces and dots, postcode without a space.
+        $this->putJson("/api/businesses/{$business->id}/clients/{$client->id}", clientPayload([
+            'vat_number' => 'nl 1234.56.789.b01',
+            'postal_code' => '9712cp',
+            'country_code' => 'nl',
+        ]))->assertOk();
+
+        // Assert
+        expect($client->fresh()?->only(['vat_number', 'postal_code', 'country_code']))->toBe([
+            'vat_number' => 'NL123456789B01',
+            'postal_code' => '9712 CP',
+            'country_code' => 'NL',
+        ]);
+    });
+
     it('should return 422 (unprocessable) on the field whose rule fails, and leave the client as it was', function (): void {
         // Arrange
         $business = Business::factory()->create();
