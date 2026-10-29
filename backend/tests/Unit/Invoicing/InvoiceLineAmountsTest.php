@@ -28,4 +28,29 @@ describe('InvoiceLineAmounts', function (): void {
         'zero quantity' => [0, 1000],
         'zero unit price' => [100, 0],
     ]);
+
+    it('should refuse a quantity × unit price too large for an int, with the 50 for rounding added', function (int $quantityHundredths, int $unitPriceCents): void {
+        // Act
+        $build = static fn (): InvoiceLineAmounts => new InvoiceLineAmounts($quantityHundredths, $unitPriceCents, VatOption::High);
+
+        // Assert
+        $message = "An invoice line's quantity × unit price is too large to compute, got {$quantityHundredths} hundredths × {$unitPriceCents} cents.";
+        expect($build)->toThrow(InvalidArgumentException::class, $message);
+    })->with([
+        'far past the limit' => [100, PHP_INT_MAX],
+        // The product itself fits, but totalCents() adds 50 before dividing, and that no longer does.
+        'within 50 of the limit' => [1, PHP_INT_MAX - 10],
+    ]);
+
+    it('should accept the largest unit price whose product with 1.00 still fits, and compute its line total', function (): void {
+        // Arrange
+        // 100 hundredths × this price + 50 is at most PHP_INT_MAX, so it's the largest price a quantity of 1.00 allows.
+        $largestPriceCents = intdiv(PHP_INT_MAX - 50, 100);
+
+        // Act
+        $line = new InvoiceLineAmounts(100, $largestPriceCents, VatOption::High);
+
+        // Assert
+        expect($line->totalCents())->toBe($largestPriceCents);
+    });
 });
