@@ -4,28 +4,7 @@ declare(strict_types = 1);
 
 use App\Enums\VatOption;
 use App\Enums\VatTreatment;
-use App\Invoicing\InvoiceLineAmounts;
 use App\Invoicing\InvoiceTotals;
-use App\Invoicing\VatGroupTotal;
-
-function invoiceLine(int $quantityHundredths, int $unitPriceCents, ?VatOption $vatOption = null): InvoiceLineAmounts
-{
-    return new InvoiceLineAmounts($quantityHundredths, $unitPriceCents, $vatOption);
-}
-
-/**
- * The groups as plain [option, base, VAT] rows. VatGroupTotal's constructor is private, so a test can't build the
- * expected objects to compare against.
- *
- * @return list<array{VatOption, int, int}>
- */
-function vatGroupRows(InvoiceTotals $totals): array
-{
-    return array_map(
-        static fn (VatGroupTotal $group): array => [$group->option, $group->baseCents, $group->vatCents],
-        $totals->vatGroups,
-    );
-}
 
 describe('InvoiceTotals', function (): void {
 
