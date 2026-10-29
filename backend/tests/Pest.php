@@ -96,8 +96,8 @@ function clientPayload(array $changes = []): array
         'street' => 'Dorpsstraat',
         'house_number' => '12',
         'house_number_addition' => 'B',
-        'postal_code' => '3511 AB',
-        'city' => 'Utrecht',
+        'postal_code' => '9712 CP',
+        'city' => 'Groningen',
         'country_code' => 'NL',
         ...$changes,
     ], static fn (mixed $value): bool => $value !== null);

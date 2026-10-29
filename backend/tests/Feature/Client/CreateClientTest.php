@@ -26,8 +26,8 @@ describe('Creating a client', function (): void {
             'street' => 'Dorpsstraat',
             'house_number' => '12',
             'house_number_addition' => 'B',
-            'postal_code' => '3511 AB',
-            'city' => 'Utrecht',
+            'postal_code' => '9712 CP',
+            'city' => 'Groningen',
             'region' => null,
             'country_code' => 'NL',
         ]);
@@ -76,7 +76,7 @@ describe('Creating a client', function (): void {
         // Assert
         expect($business->clients()->sole()->postal_code)->toBe($stored);
     })->with([
-        'Dutch, lowercase and without a space' => ['NL', '3511ab', '3511 AB'],
+        'Dutch, lowercase and without a space' => ['NL', '9712cp', '9712 CP'],
         'British' => ['GB', 'SW1A 1AA', 'SW1A 1AA'],
         // The Dutch shape on a foreign address: reformatting it would invent a format that country doesn't use.
         'Belgian, which only looks Dutch' => ['BE', '1000ab', '1000ab'],
@@ -132,7 +132,7 @@ describe('Creating a client', function (): void {
         'name too long' => [['name' => str_repeat('a', 256)], 'name', 'The name field must not be greater than 255 characters.'],
         'email missing' => [['email' => null], 'email', 'The email field is required.'],
         'email not an email' => [['email' => 'jansen'], 'email', 'The email field must be a valid email address.'],
-        'a region on a Dutch client' => [['region' => 'Utrecht'], 'region', 'The region field is prohibited.'],
+        'a region on a Dutch client' => [['region' => 'Groningen'], 'region', 'The region field is prohibited.'],
         'an invalid Dutch VAT number' => [['vat_number' => 'NL123'], 'vat_number', 'The vat number field must be a valid btw-id, like NL123456789B01.'],
         'a French VAT number on a German client' => [
             ['vat_number' => 'FR123456789', 'country_code' => 'DE'], 'vat_number', 'The vat number field must be a VAT number starting with DE.',

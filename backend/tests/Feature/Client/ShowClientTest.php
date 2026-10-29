@@ -18,7 +18,7 @@ describe('Showing a client', function (): void {
             'house_number' => '12',
             'house_number_addition' => null,
             'postal_code' => '1234 AB',
-            'city' => 'Utrecht',
+            'city' => 'Groningen',
             'region' => null,
             'country_code' => 'NL',
         ]);
@@ -37,7 +37,7 @@ describe('Showing a client', function (): void {
             'house_number' => '12',
             'house_number_addition' => null,
             'postal_code' => '1234 AB',
-            'city' => 'Utrecht',
+            'city' => 'Groningen',
             'region' => null,
             'country_code' => 'NL',
         ]);
