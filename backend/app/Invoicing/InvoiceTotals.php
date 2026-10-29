@@ -76,11 +76,15 @@ final readonly class InvoiceTotals
             $vatGroups[] = VatGroupTotal::forBase($option, self::sumLineTotals($groupLines));
         }
 
-        $vatCents = array_sum(array_map(static fn (VatGroupTotal $group): int => $group->vatCents, $vatGroups));
-
         // The VAT total is the sum of the groups' rounded VAT, not the VAT on the subtotal, so it matches the groups the
         // invoice lists above it.
-        return new self($subtotalCents, $vatGroups, $vatCents, $subtotalCents + $vatCents);
+        $vatCents = array_reduce(
+            $vatGroups,
+            static fn (int $sum, VatGroupTotal $group): int => self::addCents($sum, $group->vatCents),
+            0,
+        );
+
+        return new self($subtotalCents, $vatGroups, $vatCents, self::addCents($subtotalCents, $vatCents));
     }
 
     /**
@@ -88,6 +92,27 @@ final readonly class InvoiceTotals
      */
     private static function sumLineTotals(array $lines): int
     {
-        return array_sum(array_map(static fn (InvoiceLineAmounts $line): int => $line->totalCents(), $lines));
+        return array_reduce(
+            $lines,
+            static fn (int $sum, InvoiceLineAmounts $line): int => self::addCents($sum, $line->totalCents()),
+            0,
+        );
+    }
+
+    /**
+     * Adds two amounts of 0 or more. Past PHP_INT_MAX PHP turns a sum into a float, which an int property or return
+     * type then refuses with a TypeError; this refuses it first and says why. Every amount here is 0 or more, so
+     * PHP_INT_MAX - $b can't overflow.
+     *
+     * @throws InvalidArgumentException
+     */
+    private static function addCents(int $a, int $b): int
+    {
+        if ($a > PHP_INT_MAX - $b)
+        {
+            throw new InvalidArgumentException("The invoice's amounts add up to more than an int can hold.");
+        }
+
+        return $a + $b;
     }
 }
