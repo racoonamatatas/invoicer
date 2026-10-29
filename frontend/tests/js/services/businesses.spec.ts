@@ -105,6 +105,12 @@ describe('isBusiness', () =>
         expect(isBusiness({ ...business, country_code: countryCode })).toBe(false);
     });
 
+    it('should reject a business with a region, since a business is Dutch and a Dutch address has none', () =>
+    {
+        // Act + Assert: AddressRules never stores one, so a region means the contract changed
+        expect(isBusiness({ ...business, region: 'Groningen' })).toBe(false);
+    });
+
     it.for([
         { name: 'null', value: null },
         { name: 'an array', value: [business] },
