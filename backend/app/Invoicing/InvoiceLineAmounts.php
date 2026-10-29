@@ -14,6 +14,11 @@ use InvalidArgumentException;
 final readonly class InvoiceLineAmounts
 {
     /**
+     * The quantity is in hundredths, so quantity × price is in hundredths of a cent until it's divided by this.
+     */
+    private const int HUNDREDTHS_PER_UNIT = 100;
+
+    /**
      * A negative amount is refused here, so no negative line can exist: totalCents()'s rounding is half up only for
      * amounts of 0 or more. The request validates first, so this firing means a bug, hence a plain
      * InvalidArgumentException and no HTTP mapping. Zero is fine: a line of 0 hours or a free item rounds correctly.
@@ -44,6 +49,9 @@ final readonly class InvoiceLineAmounts
     {
         // Integer-only half-up rounding: adding half the divisor before intdiv() turns its truncation into rounding.
         // There is no float anywhere, so no 0.5 that is really 0.4999.
-        return intdiv($this->quantityHundredths * $this->unitPriceCents + 50, 100);
+        return intdiv(
+            $this->quantityHundredths * $this->unitPriceCents + self::HUNDREDTHS_PER_UNIT / 2,
+            self::HUNDREDTHS_PER_UNIT,
+        );
     }
 }
