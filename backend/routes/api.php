@@ -47,7 +47,9 @@ Route::middleware('auth:sanctum')->prefix('businesses')->group(function (): void
         // business is a 404, even when that business is the user's own.
         Route::prefix('clients')->scopeBindings()->group(function (): void {
             Route::get('/', [ClientController::class, 'index']);
+            Route::post('/', [ClientController::class, 'store']);
             Route::get('{client}', [ClientController::class, 'show'])->whereNumber('client');
+            Route::put('{client}', [ClientController::class, 'update'])->whereNumber('client');
         });
     });
 });
