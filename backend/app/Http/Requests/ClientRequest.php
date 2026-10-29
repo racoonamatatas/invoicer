@@ -33,7 +33,7 @@ final class ClientRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['nullable', 'email', 'max:255'],
+            'email' => ['required', 'email', 'max:255'],
             'vat_number' => $this->vatNumberRules(),
             ...AddressRules::forAddress(),
         ];
@@ -55,7 +55,7 @@ final class ClientRequest extends FormRequest
 
         return new ClientData(
             name: $safe->string('name')->toString(),
-            email: $this->validatedStringOrNull('email'),
+            email: $safe->string('email')->toString(),
             vatNumber: $this->validatedStringOrNull('vat_number'),
             street: $safe->string('street')->toString(),
             houseNumber: $safe->string('house_number')->toString(),

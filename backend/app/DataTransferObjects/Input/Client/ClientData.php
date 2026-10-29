@@ -12,7 +12,7 @@ final readonly class ClientData
 {
     public function __construct(
         public string $name,
-        public ?string $email,
+        public string $email,
         public ?string $vatNumber,
         public string $street,
         public string $houseNumber,
@@ -25,11 +25,11 @@ final readonly class ClientData
 
     /**
      * The columns as the model takes them, for creating and updating alike. A null is set, not left out, so a PUT
-     * that drops the email clears it.
+     * that drops the VAT number clears it.
      *
      * @return array{
      *     name: string,
-     *     email: ?string,
+     *     email: string,
      *     vat_number: ?string,
      *     street: string,
      *     house_number: string,

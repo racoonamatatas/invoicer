@@ -19,7 +19,7 @@ final readonly class ClientResourceData implements JsonSerializable, Responsable
     public function __construct(
         public int $id,
         public string $name,
-        public ?string $email,
+        public string $email,
         public ?string $vatNumber,
         public string $street,
         public string $houseNumber,
@@ -51,7 +51,7 @@ final readonly class ClientResourceData implements JsonSerializable, Responsable
      * @return array{
      *     id: int,
      *     name: string,
-     *     email: ?string,
+     *     email: string,
      *     vat_number: ?string,
      *     street: string,
      *     house_number: string,
