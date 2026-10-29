@@ -31,16 +31,18 @@ const { id: _id, ...renamedPayload }: { id: number } & ClientPayload = renamed;
 // A composable's watchers only run inside a component's setup, so a host
 // component that renders nothing calls it, the way a page does. A router of
 // its own with one route: the composable only reads :clientId, and the test
-// moves between ids by pushing paths.
+// moves between ids by pushing paths. The business is an object the id is
+// read from, the way the page reads it from useRouteBusiness's state, so a
+// test can replace it with a same-id copy.
 const mountRouteClient = async (path: string, errorHandler?: (error: unknown) => void) =>
 {
-    const businessId = ref<number | null>(7);
+    const business = ref<{ id: number } | null>({ id: 7 });
 
     let routeClient: ReturnType<typeof useRouteClient> | undefined;
     const Host = defineComponent({
         setup()
         {
-            routeClient = useRouteClient(() => businessId.value);
+            routeClient = useRouteClient(() => business.value?.id ?? null);
 
             return () => null;
         },
@@ -58,7 +60,7 @@ const mountRouteClient = async (path: string, errorHandler?: (error: unknown) =>
         throw new Error('Host did not run its setup');
     }
 
-    return { ...routeClient, router, businessId };
+    return { ...routeClient, router, business };
 };
 
 describe('useRouteClient', () =>
@@ -117,8 +119,8 @@ describe('useRouteClient', () =>
     {
         // Arrange: the page's business is still loading
         vi.mocked(fetchClient).mockResolvedValue(acme);
-        const { state, businessId } = await mountRouteClient('/businesses/7/clients/3');
-        businessId.value = null;
+        const { state, business } = await mountRouteClient('/businesses/7/clients/3');
+        business.value = null;
         await flushPromises();
         vi.mocked(fetchClient).mockClear(); // the mount's own load, before the id went null
 
@@ -127,7 +129,7 @@ describe('useRouteClient', () =>
         expect(fetchClient).not.toHaveBeenCalled();
 
         // Act
-        businessId.value = 7;
+        business.value = { id: 7 };
         await flushPromises();
 
         // Assert
@@ -187,6 +189,24 @@ describe('useRouteClient', () =>
 
         // Assert
         expect(state.value).toStrictEqual({ kind: 'found', client: bolt });
+    });
+
+    it('should not fetch the client again when the business is replaced by a copy with the same id', async () =>
+    {
+        // Arrange
+        vi.mocked(fetchClient).mockResolvedValue(acme);
+        const { state, business } = await mountRouteClient('/businesses/7/clients/3');
+        await flushPromises();
+        vi.mocked(fetchClient).mockClear(); // the mount's own load
+
+        // Act: what a reload of the businesses list does to the page's state
+        business.value = { id: 7 };
+        await flushPromises();
+
+        // Assert: a refetch would have passed through loading and unmounted
+        // the page's form, losing what was typed
+        expect(fetchClient).not.toHaveBeenCalled();
+        expect(state.value).toStrictEqual({ kind: 'found', client: acme });
     });
 
     it('should put the payload for the client shown, then show and return what the backend stored, when updateClient gets a 200 (ok)', async () =>
