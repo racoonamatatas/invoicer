@@ -110,7 +110,7 @@ final readonly class InvoiceTotals
     {
         if ($a > PHP_INT_MAX - $b)
         {
-            throw new InvalidArgumentException("The invoice's amounts add up to more than an int can hold.");
+            throw new InvalidArgumentException("The invoice's amounts add up to more than an int can hold: {$a} + {$b} cents.");
         }
 
         return $a + $b;
