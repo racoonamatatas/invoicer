@@ -7,8 +7,7 @@ namespace App\Validation;
 use LogicException;
 
 /**
- * The EU member states, each with the prefix its VAT numbers carry. The one list in the app: client VAT numbers check
- * against it now, and an invoice's VAT treatment (reverse charge within the EU) will read it later.
+ * The EU member states, each with the prefix its VAT numbers carry.
  */
 final class EuMemberStates
 {

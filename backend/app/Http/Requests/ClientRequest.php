@@ -16,16 +16,16 @@ use Illuminate\Validation\ConditionalRules;
 use Illuminate\Validation\Rule;
 
 /**
- * Creating and updating a client, in one class: unlike a business, a client has no uniqueness rule that needs to
- * know which record is being updated, so the two requests would be identical.
+ * Validates a client for both create and update. The two take the same fields, all of them, because PUT replaces
+ * the whole client.
  */
 final class ClientRequest extends FormRequest
 {
     /**
      * Get the validation rules that apply to the request.
      *
-     * - email is kept as typed, unlike a login email: nothing looks a client up by it.
-     * - The address rules are used unchanged: a client's address can be in any country, tightened for NL.
+     * - email is kept as typed: nothing looks a client up by it, it is only shown and mailed to.
+     * - The address can be in any country; its rules tighten when the country is NL.
      *
      * @return array<string, ValidationRule|array<mixed>|string>
      */
@@ -68,12 +68,11 @@ final class ClientRequest extends FormRequest
     }
 
     /**
-     * Canonical form before any rule runs, step by step rather than a map of normalisers as in BusinessRequest,
-     * because the postcode step reads the country code the first step has just uppercased.
+     * Puts the input in canonical form before any rule runs. The country code goes first: the postcode step reads it.
      *
-     * - vat_number: spaces and dots out, then uppercase, so "de 123.456.789" is DE123456789. Normaliser::btwId() is
-     *   named for the Dutch number, but nothing in it is Dutch.
-     * - postal_code: only a Dutch postcode has a known shape; a German "10115" or a British "SW1A 1AA" stays as typed.
+     * - vat_number: spaces and dots removed, then uppercased, so "de 123.456.789" becomes DE123456789.
+     * - postal_code: reformatted for NL only, the one country whose postcode shape is known here; "10115" or
+     *   "SW1A 1AA" stays as typed.
      */
     protected function prepareForValidation(): void
     {
@@ -87,12 +86,12 @@ final class ClientRequest extends FormRequest
     }
 
     /**
-     * A VAT number is optional for every client, checked against the client's country when it is an EU member state,
-     * and prohibited for any other country.
+     * A VAT number is optional. For a client in an EU member state it must match that country's format; for any
+     * other country it is prohibited.
      *
-     * The rules for the EU case are a closure, not a list: Laravel calls it with the input wrapped in a Fluent
-     * (ConditionalRules::rules()), so the rule is built for the submitted country. It only runs for a member state,
-     * which is why EuVatNumber::forCountry() can't throw here.
+     * $euRules is a closure rather than a list: Laravel calls it during validation with the input wrapped in a
+     * Fluent, so the rule is built for the submitted country. It only runs once $isEu has passed, so the country
+     * always has a VAT format to look up.
      *
      * @return list<string|ConditionalRules>
      */

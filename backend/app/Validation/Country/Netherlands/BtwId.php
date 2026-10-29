@@ -11,8 +11,6 @@ use App\Validation\EuVatNumber;
  * uppercase and without spaces, 14 characters in all. This is a format check only: the two checksums in use
  * (mod-97 over the whole id for ids issued since 2020, the elfproef over the nine digits for the older
  * RSIN-based numbers) are not applied, so a passing value is well-formed, not proven to exist.
- *
- * The Dutch case of EuVatNumber: the EU-wide shape would let "NL12" through, so this narrows it to the Dutch format.
  */
 final readonly class BtwId extends EuVatNumber
 {
