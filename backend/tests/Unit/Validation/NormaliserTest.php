@@ -39,11 +39,11 @@ describe('Normaliser::uppercase', function (): void {
     ]);
 });
 
-describe('Normaliser::btwId', function (): void {
+describe('Normaliser::vatNumber', function (): void {
 
     it('should drop spaces and dots and uppercase the rest', function (string $value): void {
         // Act
-        $normalised = Normaliser::btwId($value);
+        $normalised = Normaliser::vatNumber($value);
 
         // Assert
         expect($normalised)->toBe('NL123456789B01');
@@ -54,9 +54,17 @@ describe('Normaliser::btwId', function (): void {
         'already canonical' => 'NL123456789B01',
     ]);
 
-    it('should leave any other separator, for the BtwId rule to reject', function (): void {
+    it('should clean a VAT number from another EU country the same way', function (): void {
         // Act
-        $normalised = Normaliser::btwId('NL-123456789-B01');
+        $normalised = Normaliser::vatNumber('de 123.456.789');
+
+        // Assert
+        expect($normalised)->toBe('DE123456789');
+    });
+
+    it('should leave any other separator, for the VAT number rule to reject', function (): void {
+        // Act
+        $normalised = Normaliser::vatNumber('NL-123456789-B01');
 
         // Assert
         expect($normalised)->toBe('NL-123456789-B01');
@@ -64,7 +72,7 @@ describe('Normaliser::btwId', function (): void {
 
     it('should hand back a non-string unchanged, for the string rule to reject', function (mixed $value): void {
         // Act
-        $normalised = Normaliser::btwId($value);
+        $normalised = Normaliser::vatNumber($value);
 
         // Assert
         expect($normalised)->toBe($value);
