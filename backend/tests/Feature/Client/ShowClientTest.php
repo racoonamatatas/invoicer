@@ -12,13 +12,13 @@ describe('Showing a client', function (): void {
         $business = Business::factory()->create();
         $client = Client::factory()->for($business)->create([
             'name' => 'Jan Jansen',
-            'email' => null,
+            'email' => 'jan@jansen.example',
             'vat_number' => null,
             'street' => 'Dorpsstraat',
             'house_number' => '12',
             'house_number_addition' => null,
             'postal_code' => '1234 AB',
-            'city' => 'Utrecht',
+            'city' => 'Groningen',
             'region' => null,
             'country_code' => 'NL',
         ]);
@@ -31,13 +31,13 @@ describe('Showing a client', function (): void {
         $response->assertOk()->assertExactJson([
             'id' => $client->id,
             'name' => 'Jan Jansen',
-            'email' => null,
+            'email' => 'jan@jansen.example',
             'vat_number' => null,
             'street' => 'Dorpsstraat',
             'house_number' => '12',
             'house_number_addition' => null,
             'postal_code' => '1234 AB',
-            'city' => 'Utrecht',
+            'city' => 'Groningen',
             'region' => null,
             'country_code' => 'NL',
         ]);

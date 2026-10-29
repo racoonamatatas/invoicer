@@ -46,7 +46,7 @@ describe('The clients table', function (): void {
 
         // Assert
         expect($create)->toThrow(QueryException::class);
-    })->with(['name', 'street', 'house_number', 'city', 'country_code']);
+    })->with(['name', 'email', 'street', 'house_number', 'city', 'country_code']);
 
     it('should allow two clients with the same name for one business (name is not unique)', function (): void {
         // Arrange
@@ -59,10 +59,9 @@ describe('The clients table', function (): void {
         expect($second->exists)->toBeTrue();
     });
 
-    it('should accept a client abroad without email, vat_number, postal_code or region (all four are nullable)', function (): void {
+    it('should accept a client abroad without vat_number, postal_code or region (all three are nullable)', function (): void {
         // Act. A consumer abroad has no VAT number, and many countries have no postcode or region.
         $client = Client::factory()->create([
-            'email' => null,
             'vat_number' => null,
             'postal_code' => null,
             'region' => null,

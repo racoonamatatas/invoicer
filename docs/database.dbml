@@ -65,7 +65,7 @@ Table clients
   id integer [pk, increment]
   business_id integer [not null]
   name varchar [not null]
-  email varchar
+  email varchar [not null, note: 'every invoice is mailed to its client']
   vat_number varchar(14) [note: 'EU VAT id, e.g. DE123456789; only for an EU country (INV-0058), required on a reverse-charge invoice']
   street varchar [not null]
   house_number varchar(10) [not null]

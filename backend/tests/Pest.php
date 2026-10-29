@@ -79,3 +79,26 @@ function businessPayload(array $changes = []): array
         ...$changes,
     ], static fn (mixed $value): bool => $value !== null);
 }
+
+/**
+ * A valid create or update body for a Dutch client with a VAT number, in canonical form, with $changes on top. A
+ * null in $changes removes the field, the way a client that leaves it out sends the request.
+ *
+ * @param  array<string, mixed>  $changes
+ * @return array<string, mixed>
+ */
+function clientPayload(array $changes = []): array
+{
+    return array_filter([
+        'name' => 'Jansen Advies',
+        'email' => 'factuur@jansen.example',
+        'vat_number' => 'NL123456789B01',
+        'street' => 'Dorpsstraat',
+        'house_number' => '12',
+        'house_number_addition' => 'B',
+        'postal_code' => '9712 CP',
+        'city' => 'Groningen',
+        'country_code' => 'NL',
+        ...$changes,
+    ], static fn (mixed $value): bool => $value !== null);
+}
