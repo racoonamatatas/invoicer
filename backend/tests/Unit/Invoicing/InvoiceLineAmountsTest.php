@@ -18,6 +18,21 @@ describe('InvoiceLineAmounts', function (): void {
         'unit price -€0.01' => [100, -1, "An invoice line's unit price can't be negative, got -1 cents."],
     ]);
 
+    it('should round the line total to the cent, half up', function (int $quantityHundredths, int $unitPriceCents, int $lineTotalCents): void {
+        // Arrange
+        $line = new InvoiceLineAmounts($quantityHundredths, $unitPriceCents, VatOption::High);
+
+        // Act
+        $totalCents = $line->totalCents();
+
+        // Assert
+        expect($totalCents)->toBe($lineTotalCents);
+    })->with([
+        '0.33 × €1.01 = 33.33 cents, down to 33' => [33, 101, 33],
+        '0.49 × €0.01 = 0.49 cents, down to 0' => [49, 1, 0],
+        '0.50 × €0.01 = 0.5 cents, up to 1' => [50, 1, 1],
+    ]);
+
     it('should accept a zero quantity and a zero unit price, with a line total of 0', function (int $quantityHundredths, int $unitPriceCents): void {
         // Act
         $line = new InvoiceLineAmounts($quantityHundredths, $unitPriceCents, VatOption::High);

@@ -24,20 +24,6 @@ describe('InvoiceTotals', function (): void {
         '€2.50 at 21%, VAT 52.5 cents up to 53' => [[invoiceLine(100, 250, VatOption::High)], 250, 53],
     ]);
 
-    it('should round a line total to the cent, half up', function (int $quantityHundredths, int $unitPriceCents, int $lineTotalCents): void {
-        // Arrange
-        $lines = [invoiceLine($quantityHundredths, $unitPriceCents, VatOption::High)];
-
-        // Act
-        $totals = InvoiceTotals::fromLines(VatTreatment::Domestic, $lines);
-
-        // Assert
-        expect($totals->subtotalCents)->toBe($lineTotalCents);
-    })->with([
-        '0.33 × €1.01 = 33.33 cents, down to 33' => [33, 101, 33],
-        '0.50 × €0.01 = 0.5 cents, up to 1' => [50, 1, 1],
-    ]);
-
     it('should give a mixed-rate invoice one group per rate, in High, Low order', function (): void {
         // Arrange
         // The Low line comes first, so the order of the groups can't just be the order of the lines.
