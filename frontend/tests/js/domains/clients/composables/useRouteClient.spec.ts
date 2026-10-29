@@ -191,6 +191,34 @@ describe('useRouteClient', () =>
         expect(state.value).toStrictEqual({ kind: 'found', client: bolt });
     });
 
+    it('should keep the client in the URL and hand nothing on when the request for the client left behind fails with a 500 (server error) after it', async () =>
+    {
+        // Arrange: Acme's request is held, then fails after Bolt is shown
+        const acmeRequest = createDeferred();
+        vi.mocked(fetchClient).mockImplementation(async (_businessId, clientId): Promise<Client> =>
+        {
+            if (clientId === acme.id)
+            {
+                await acmeRequest.promise;
+                throw axiosErrorWith(500, { message: 'Server Error' });
+            }
+
+            return bolt;
+        });
+        const errorHandler = vi.fn<(error: unknown) => void>();
+        const { state, router } = await mountRouteClient('/businesses/7/clients/3', errorHandler);
+
+        // Act
+        await router.push('/businesses/7/clients/4');
+        await flushPromises();
+        acmeRequest.resolve();
+        await flushPromises();
+
+        // Assert: a failure for a page the user left is no failure of this one
+        expect(state.value).toStrictEqual({ kind: 'found', client: bolt });
+        expect(errorHandler).not.toHaveBeenCalled();
+    });
+
     it('should not fetch the client again when the business is replaced by a copy with the same id', async () =>
     {
         // Arrange
