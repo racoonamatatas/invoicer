@@ -124,13 +124,16 @@ export const useRouteClient = (businessId: () => number | null) =>
         }
 
         // Read before the await: the URL can change while the request runs,
-        // and the save goes to the client the form was showing. latest is
-        // noted, not incremented: a save isn't a load and mustn't cancel one.
-        const request = latest;
+        // and the save goes to the client the form was showing. latest is left
+        // alone: a save isn't a load and mustn't cancel one.
         const stored = await updateClient(business, state.value.client.id, payload);
 
-        // Another client's page by now: this one's values don't belong there.
-        if (request === latest)
+        // Kept only while the same client is shown, checked by id rather than
+        // by latest: a load of this same client during the save (back to it
+        // from another) would otherwise drop the stored values, and the
+        // heading would disagree with the form's "Saved.". Another client's
+        // page, or one still loading, is left alone.
+        if (state.value.kind === 'found' && state.value.client.id === stored.id)
         {
             state.value = { kind: 'found', client: stored };
         }
