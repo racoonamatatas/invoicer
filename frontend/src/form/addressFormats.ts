@@ -48,8 +48,9 @@ const DEFAULT_FORMAT = {
 } as const satisfies AddressFormat;
 
 // Typed against its own side of the union: a Dutch format that asks for a
-// region, or lets the postcode go, doesn't compile.
-const DUTCH_FORMAT: AddressFormatFor<DutchAddress> = {
+// region, or lets the postcode go, doesn't compile. Exported with that type,
+// so withCountry can build a DutchAddress from it.
+export const DUTCH_FORMAT: AddressFormatFor<DutchAddress> = {
     ...DEFAULT_FORMAT,
     postal_code: { ...DEFAULT_FORMAT.postal_code, presence: 'required' },
     region: { ...DEFAULT_FORMAT.region, presence: 'hidden' },

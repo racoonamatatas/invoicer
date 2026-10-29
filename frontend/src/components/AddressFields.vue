@@ -4,8 +4,9 @@ import { computed } from 'vue';
 
 // Project imports
 import type { FieldError } from '@/composables/useForm';
+import { withCountry, withText } from '@/form/addressEdits';
 import { ADDRESS_TEXT_FIELDS, addressFormatFor, type AddressTextField } from '@/form/addressFormats';
-import { isCountryCode, withCountry, withText, type Address, type AddressField, type CountryCode } from '@/services/address';
+import { isCountryCode, type Address, type AddressField, type CountryCode } from '@/services/address';
 
 // The parent owns the form and its useForm: this component only renders the
 // address part of it. fieldError is the parent's own; it takes every field
