@@ -16,10 +16,20 @@ describe('COUNTRY_CODES', () =>
 {
     it('should hold the same codes in the same order as the backend\'s CountryCode rule', () =>
     {
-        // Arrange: only the CODES array, so a quoted two-letter word elsewhere
-        // in the file can't count as a code
-        const source = readFileSync(COUNTRY_CODE_RULE, 'utf8');
-        const codesBlock = source.split('CODES = [')[1]?.split('];')[0] ?? '';
+        // Arrange: comments stripped first, so a code commented out in PHP
+        // doesn't count; then only the CODES array, so a quoted two-letter
+        // word elsewhere in the file can't count as a code either
+        const source = readFileSync(COUNTRY_CODE_RULE, 'utf8')
+            .replaceAll(/\/\*[\s\S]*?\*\//g, '')
+            .replaceAll(/\/\/.*$/gm, '');
+        const codesBlock = /\bCODES = \[([^\]]*)\]/.exec(source)?.[1];
+
+        // A renamed or reformatted constant says so, instead of failing as a
+        // list of 249 missing codes
+        if (codesBlock === undefined)
+        {
+            throw new Error(`No "CODES = [...]" array in ${COUNTRY_CODE_RULE}: was the constant renamed or reformatted?`);
+        }
 
         // Act
         const backendCodes = [...codesBlock.matchAll(/'([A-Z]{2})'/g)].map((match) => match[1]);
