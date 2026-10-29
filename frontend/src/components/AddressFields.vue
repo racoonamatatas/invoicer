@@ -50,7 +50,11 @@ const onCountryChange = (event: Event): void =>
 // "Germany", not "DE". sort() is safe here: map() made a new array.
 const regionNames = new Intl.DisplayNames(['en'], { type: 'region' });
 
-const countries = computed(() => props.countryCodes
+// The address's own country is always offered, even when the parent's list
+// leaves it out: a select whose value has no option shows the first option,
+// while the address would still send the code nobody sees. A Set, so a
+// country already on the list isn't offered twice.
+const countries = computed(() => [...new Set([...props.countryCodes, address.value.country_code])]
     .map((code) => ({ code, name: regionNames.of(code) ?? code }))
     .sort((first, second) => first.name.localeCompare(second.name, 'en')));
 
