@@ -6,7 +6,7 @@ import { computed } from 'vue';
 import type { FieldError } from '@/composables/useForm';
 import { withCountry, withText } from '@/form/addressEdits';
 import { ADDRESS_TEXT_FIELDS, addressFormatFor, type AddressTextField } from '@/form/addressFormats';
-import { isCountryCode, type Address, type AddressField, type CountryCode } from '@/services/address';
+import { countryName, isCountryCode, type Address, type AddressField, type CountryCode } from '@/services/address';
 
 // The parent owns the form and its useForm: this component only renders the
 // address part of it. fieldError is the parent's own; it takes every field
@@ -54,14 +54,10 @@ const onCountryChange = (event: Event): void =>
     address.value = withCountry(address.value, event.target.value);
 };
 
-// Names in English, like the rest of the UI. Intl knows every ISO code, so
-// no list of names is kept here. Sorted by name, not code: people look for
-// "Germany", not "DE".
-const regionNames = new Intl.DisplayNames(['en'], { type: 'region' });
-
+// Sorted by name, not code: people look for "Germany", not "DE".
 const countryOption = (code: CountryCode): { code: CountryCode; name: string } =>
 {
-    return { code, name: regionNames.of(code) ?? code }; // `??` for the type only: the default fallback already returns the code
+    return { code, name: countryName(code) };
 };
 
 const byName = (first: { name: string }, second: { name: string }): number => first.name.localeCompare(second.name, 'en');

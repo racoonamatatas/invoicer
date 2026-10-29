@@ -28,6 +28,16 @@ export const isCountryCode = (value: unknown): value is CountryCode =>
     return COUNTRY_CODES.some((code) => code === value);
 };
 
+// Names in English, like the rest of the UI. Intl knows every ISO code, so
+// no list of names is kept here.
+const regionNames = new Intl.DisplayNames(['en'], { type: 'region' });
+
+// 'DE' is 'Germany': what a person reads, wherever a country is shown.
+export const countryName = (code: CountryCode): string =>
+{
+    return regionNames.of(code) ?? code; // `??` for the type only: the default fallback already returns the code
+};
+
 // The address fields every addressed payload sends (the backend's
 // AddressRules), so a business and a client share one shape and one
 // AddressFields component. A union on country_code, mirroring the rules: a
