@@ -98,8 +98,12 @@ export const useRouteClient = (businessId: () => number | null) =>
     };
 
     // A watcher, not a bare call in setup: Vue hands a rejected watch callback
-    // to its error handler.
-    watch(() => [businessId(), clientId.value] as const, loadCurrent, { immediate: true });
+    // to its error handler. Two sources, not one getter returning
+    // `[business, client]`: Vue compares each source on its own, while a new
+    // array is never the old one. A business replaced by a same-id copy (a
+    // list reload) would otherwise fetch the client again and unmount the
+    // form, losing what was typed.
+    watch([businessId, clientId], loadCurrent, { immediate: true });
 
     // For the page's "Try again".
     const retry = (): Promise<void> => loadCurrent() ?? Promise.resolve();
