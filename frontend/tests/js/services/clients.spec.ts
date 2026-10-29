@@ -1,7 +1,7 @@
 import type { AxiosResponse } from 'axios';
 import { beforeEach, describe, it, expect, vi } from 'vitest';
 
-import { createClient, fetchClient, isClient, listClients, updateClient, type Client, type ClientPayload } from '@/services/clients';
+import { ClientNotFoundError, createClient, fetchClient, isClient, listClients, updateClient, type Client, type ClientPayload } from '@/services/clients';
 import { getRequest, postRequest, putRequest, UnexpectedResponseError } from '@/services/http';
 
 import { axiosErrorWith } from '../utility/axiosErrorWith';
@@ -172,6 +172,22 @@ describe('clients service', () =>
         expect(result).toStrictEqual(dutchClient);
     });
 
+    // An unknown id and another business's client are the same 404, so one
+    // test covers both
+    it('should throw a ClientNotFoundError when the fetch gets a 404 (not found): the client isn\'t the business\'s', async () =>
+    {
+        // Arrange
+        const error = axiosErrorWith(404, { message: 'Not Found' });
+        vi.mocked(getRequest).mockRejectedValue(error);
+
+        // Act
+        const promise = fetchClient(7, 3);
+
+        // Assert: the 404 kept as cause, so the console still shows the request
+        await expect(promise).rejects.toThrow(ClientNotFoundError);
+        await expect(promise).rejects.toMatchObject({ cause: error });
+    });
+
     // A foreign payload too: its postcode and region rules differ, and the
     // service must send it as given
     it.for([
@@ -231,7 +247,9 @@ describe('clients service', () =>
     // the service must hand on the very error it got, not a wrapped or swallowed one
     it.for([
         { name: 'listClients', status: 404, meaning: '404 (not found)', request: getRequest, send: () => listClients(7) },
-        { name: 'fetchClient', status: 404, meaning: '404 (not found)', request: getRequest, send: () => fetchClient(7, 3) },
+        { name: 'fetchClient', status: 500, meaning: '500 (server error)', request: getRequest, send: () => fetchClient(7, 3) },
+        // Only a 404 means not found: a looser check (any 4xx) would turn this into one
+        { name: 'fetchClient', status: 403, meaning: '403 (forbidden)', request: getRequest, send: () => fetchClient(7, 3) },
         { name: 'createClient', status: 422, meaning: '422 (unprocessable content)', request: postRequest, send: () => createClient(7, dutchPayload) },
         { name: 'updateClient', status: 422, meaning: '422 (unprocessable content)', request: putRequest, send: () => updateClient(7, 3, dutchPayload) },
     ])('should rethrow the request\'s error unchanged: $name with a $meaning', async ({ status, request, send }) =>

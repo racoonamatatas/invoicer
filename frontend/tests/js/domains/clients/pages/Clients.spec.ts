@@ -172,6 +172,24 @@ describe('Clients page', () =>
         expect(wrapper.find('#clients-status').text()).toBe('');
     });
 
+    it('should link each client\'s name to its edit page when listClients gets a 200 (ok)', async () =>
+    {
+        // Arrange
+        vi.mocked(service.listBusinesses).mockResolvedValue([bakery]);
+        vi.mocked(clientsService.listClients).mockResolvedValue([huber, bakker]);
+
+        // Act
+        const { wrapper } = await mountClients('1');
+        await flushPromises();
+
+        // Assert: one link per row, its text the name alone
+        const links = wrapper.findAll('ul[aria-label="Clients"] li a').map((anchor) => ({ text: anchor.text(), href: anchor.attributes('href') }));
+        expect(links).toStrictEqual([
+            { text: 'Brauerei Huber', href: '/businesses/1/clients/4/edit' },
+            { text: 'Fietsenmakerij Bakker', href: '/businesses/1/clients/3/edit' },
+        ]);
+    });
+
     it('should say there are no clients yet when listClients gets a 200 (ok) with an empty list', async () =>
     {
         // Arrange

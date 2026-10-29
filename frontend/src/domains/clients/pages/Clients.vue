@@ -49,8 +49,11 @@ const createClientFor = (businessId: number) => (payload: ClientPayload): Promis
             </p>
             <template v-if="clients.kind === 'loaded'">
                 <ul v-if="clients.clients.length > 0" aria-label="Clients">
+                    <!-- Only the name is the link: a screen reader reads a
+                         link's text on its own, and the name says where it
+                         goes. -->
                     <li v-for="client in clients.clients" :key="client.id">
-                        {{ client.name }}, {{ client.city }}, {{ countryName(client.country_code) }}
+                        <RouterLink :to="{ name: 'editClient', params: { businessId: state.business.id, clientId: client.id } }">{{ client.name }}</RouterLink>, {{ client.city }}, {{ countryName(client.country_code) }}
                     </li>
                 </ul>
                 <p v-else>No clients yet.</p>
