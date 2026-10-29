@@ -111,7 +111,9 @@ export const useRouteClient = (businessId: () => number | null) =>
     // For the page's form. Writes state too, so what the page shows outside
     // the form (its heading) matches what the backend stored. Nothing is
     // caught: a 422 must reach the form's useForm, and any other failure the
-    // form's "Couldn't save.".
+    // form's "Couldn't save.". A 404 too, without switching to not-found:
+    // neither a client nor a business can be deleted, so the client can't
+    // vanish while its form is open.
     const save = async (payload: ClientPayload): Promise<Client> =>
     {
         const business = businessId();
