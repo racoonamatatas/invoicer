@@ -4,6 +4,8 @@ import { beforeEach, describe, it, expect, vi } from 'vitest';
 import { createClient, fetchClient, isClient, listClients, updateClient, type Client, type ClientPayload } from '@/services/clients';
 import { getRequest, postRequest, putRequest, UnexpectedResponseError } from '@/services/http';
 
+import { axiosErrorWith } from '../utility/axiosErrorWith';
+
 // Only the request functions become vi.fn()s, so no request leaves the test.
 // checkResponse and UnexpectedResponseError stay real: they are what the
 // service tests are about.
@@ -226,5 +228,22 @@ describe('clients service', () =>
         // Assert
         await expect(promise).rejects.toThrow(UnexpectedResponseError);
         await expect(promise).rejects.toThrow(`Unexpected response from ${endpoint}`);
+    });
+
+    // The form shows a 422 next to its fields and the page handles a 404, so
+    // the service must hand on the very error it got, not a wrapped or swallowed one
+    it.for([
+        { name: 'listClients', status: 404, meaning: '404 (not found)', request: getRequest, send: () => listClients(7) },
+        { name: 'fetchClient', status: 404, meaning: '404 (not found)', request: getRequest, send: () => fetchClient(7, 3) },
+        { name: 'createClient', status: 422, meaning: '422 (unprocessable content)', request: postRequest, send: () => createClient(7, payload) },
+        { name: 'updateClient', status: 422, meaning: '422 (unprocessable content)', request: putRequest, send: () => updateClient(7, 3, payload) },
+    ])('should rethrow the request\'s error unchanged: $name with a $meaning', async ({ status, request, send }) =>
+    {
+        // Arrange
+        const error = axiosErrorWith(status, { message: 'Request failed' });
+        vi.mocked(request).mockRejectedValue(error);
+
+        // Act + Assert: toBe, so the same object, not one that only looks like it
+        await expect(send()).rejects.toBe(error);
     });
 });
