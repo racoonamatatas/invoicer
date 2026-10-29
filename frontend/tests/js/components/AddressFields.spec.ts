@@ -1,5 +1,5 @@
 import { mount } from '@vue/test-utils';
-import { describe, it, expect } from 'vitest';
+import { afterEach, describe, it, expect, vi } from 'vitest';
 
 import AddressFields from '@/components/AddressFields.vue';
 import type { FieldError } from '@/composables/useForm';
@@ -67,6 +67,12 @@ const FIELDS: readonly AddressField[] = ['street', 'house_number', 'house_number
 
 describe('AddressFields', () =>
 {
+    // Restores the spy on Intl.DisplayNames, so no other test sees it.
+    afterEach(() =>
+    {
+        vi.restoreAllMocks();
+    });
+
     // One row per field, so each input's binding is checked on its own.
     it.for([
         { field: 'street', value: 'Oosterstraat' },
@@ -205,6 +211,21 @@ describe('AddressFields', () =>
         const select = wrapper.find<HTMLSelectElement>('#client-country_code');
         expect(select.findAll('option').map((option) => option.text())).toStrictEqual(['Belgium', 'Germany', 'Netherlands']);
         expect(select.element.value).toBe('DE');
+    });
+
+    it('should not look up country names again while an address field is typed into', async () =>
+    {
+        // Arrange: spied on after mounting, so the first build of the list doesn't count
+        const { wrapper } = mountAddressFields({ countryCodes: COUNTRY_CODES });
+        const nameLookup = vi.spyOn(Intl.DisplayNames.prototype, 'of');
+
+        // Act: a keystroke, then a re-render with the new address, as a parent would
+        await wrapper.find('#client-street').setValue('O');
+        await rerenderWithEmitted(wrapper);
+
+        // Assert: the address changed, but ~249 names weren't looked up and sorted again
+        expect(wrapper.find<HTMLInputElement>('#client-street').element.value).toBe('O');
+        expect(nameLookup).not.toHaveBeenCalled();
     });
 
     it('should emit nothing when the select changes to a value that is not a country code', async () =>
