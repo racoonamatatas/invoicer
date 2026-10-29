@@ -2,6 +2,7 @@
 
 declare(strict_types = 1);
 
+use App\Validation\Country\Netherlands\BtwId;
 use App\Validation\VatNumber;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Validator as ValidatorInstance;
@@ -56,5 +57,42 @@ describe('The VatNumber rule', function (): void {
 
         // Assert
         expect($validator->passes())->toBeTrue();
+    });
+});
+
+describe('VatNumber::forCountry()', function (): void {
+
+    it('should give BtwId for NL, so a Dutch number gets the stricter format', function (): void {
+        // Act
+        $rule = VatNumber::forCountry('NL');
+
+        // Assert
+        expect($rule)->toBeInstanceOf(BtwId::class);
+    });
+
+    it('should give the default rule with the country\'s own prefix for another member state', function (string $countryCode, string $accepted, string $rejected): void {
+        // Arrange
+        $rules = ['vat_number' => [VatNumber::forCountry($countryCode)]];
+
+        // Act
+        $acceptedValidator = Validator::make(['vat_number' => $accepted], $rules);
+        $rejectedValidator = Validator::make(['vat_number' => $rejected], $rules);
+
+        // Assert. The class alone would not show the prefix, so the rule is run on one value of each kind.
+        expect(get_class($rules['vat_number'][0]))->toBe(VatNumber::class)
+            ->and($acceptedValidator->passes())->toBeTrue()
+            ->and($rejectedValidator->fails())->toBeTrue();
+    })->with([
+        'Germany' => ['DE', 'DE123456789', 'FR123456789'],
+        // The ISO code is GR, the VAT prefix EL.
+        'Greece' => ['GR', 'EL123456789', 'GR123456789'],
+    ]);
+
+    it('should throw for a country outside the EU, which has no VAT number to check', function (): void {
+        // Act
+        $act = fn (): VatNumber => VatNumber::forCountry('US');
+
+        // Assert
+        expect($act)->toThrow(LogicException::class, 'US is not an EU member state.');
     });
 });
