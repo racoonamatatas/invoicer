@@ -9,7 +9,7 @@ use App\Enums\VatTreatment;
 use InvalidArgumentException;
 
 /**
- * An invoice's subtotal, VAT per group and total, all in cents. A draft doesn't store these: they're computed from its
+ * An invoice's subtotal, VAT per group, VAT total and total, all in cents. A draft doesn't store these: they're computed from its
  * lines on every read, so there is one source of truth until sending freezes them.
  *
  * The constructor is private so the numbers always add up: fromLines() is the only way in.
@@ -22,6 +22,7 @@ final readonly class InvoiceTotals
     private function __construct(
         public int $subtotalCents,
         public array $vatGroups,
+        public int $vatCents,
         public int $totalCents,
     ) {}
 
@@ -58,7 +59,7 @@ final readonly class InvoiceTotals
 
         if (! $treatment->chargesVat())
         {
-            return new self($subtotalCents, [], $subtotalCents);
+            return new self($subtotalCents, [], 0, $subtotalCents);
         }
 
         // Loop over the options, not the lines, so the groups come out in one fixed order (High, Low, Zero, Exempt)
@@ -77,7 +78,9 @@ final readonly class InvoiceTotals
 
         $vatCents = array_sum(array_map(static fn (VatGroupTotal $group): int => $group->vatCents, $vatGroups));
 
-        return new self($subtotalCents, $vatGroups, $subtotalCents + $vatCents);
+        // The VAT total is the sum of the groups' rounded VAT, not the VAT on the subtotal, so it matches the groups the
+        // invoice lists above it.
+        return new self($subtotalCents, $vatGroups, $vatCents, $subtotalCents + $vatCents);
     }
 
     /**
