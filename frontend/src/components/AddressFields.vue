@@ -4,19 +4,16 @@ import { computed } from 'vue';
 
 // Project imports
 import type { FieldError } from '@/composables/useForm';
-import type { Address, AddressField } from '@/services/address';
-
-// The fields this renders an input for. Not region or country_code yet, so
-// it only asks the parent for errors on these, and a parent whose payload
-// has no region (a business) can still pass its fieldError.
-type ShownField = Exclude<AddressField, 'region' | 'country_code'>;
+import { ADDRESS_TEXT_FIELDS, addressFormatFor, type AddressTextField } from '@/form/addressFormats';
+import { isCountryCode, withCountry, withText, type Address, type AddressField, type CountryCode } from '@/services/address';
 
 // The parent owns the form and its useForm: this component only renders the
 // address part of it. fieldError is the parent's own; it takes every field
-// of the parent's form, so it also takes these five.
+// of the parent's form, so it also takes these seven.
 const props = defineProps<{
     formName: string;
-    fieldError: (field: ShownField) => FieldError | null;
+    fieldError: (field: AddressField) => FieldError | null;
+    countryCodes: readonly CountryCode[]; // one code hides the select, as for a business (always NL)
 }>();
 
 // The parent's address. Never changed in place: each keystroke assigns a new
@@ -26,41 +23,75 @@ const props = defineProps<{
 const address = defineModel<Address>({ required: true });
 
 // target is only typed as EventTarget; the check proves it's the input.
-const onInput = (key: ShownField, event: Event): void =>
+const onInput = (key: AddressTextField, event: Event): void =>
 {
     if (!(event.target instanceof HTMLInputElement))
     {
         return;
     }
 
-    address.value = { ...address.value, [key]: event.target.value };
+    address.value = withText(address.value, key, event.target.value);
 };
 
-interface Row
+// The select's value is a string; the guard proves it's one of the codes.
+const onCountryChange = (event: Event): void =>
 {
-    key: ShownField;
-    label: string;
-    // undefined: no autocomplete token matches a split street or house number.
-    autocomplete: string | undefined;
-    // Mirrors AddressRules for a Dutch address, the only kind this renders
-    // so far. A foreign one needs no postcode, so that would become a prop.
-    required: boolean;
-}
+    if (!(event.target instanceof HTMLSelectElement) || !isCountryCode(event.target.value))
+    {
+        return;
+    }
 
-const ROWS: readonly Row[] = [
-    { key: 'street', label: 'Street', autocomplete: undefined, required: true },
-    { key: 'house_number', label: 'House number', autocomplete: undefined, required: true },
-    { key: 'house_number_addition', label: 'Addition', autocomplete: undefined, required: false },
-    { key: 'postal_code', label: 'Postcode', autocomplete: 'postal-code', required: true },
-    { key: 'city', label: 'City', autocomplete: 'address-level2', required: true },
-];
+    address.value = withCountry(address.value, event.target.value);
+};
+
+// Names in English, like the rest of the UI. Intl knows every ISO code, so
+// no list of names is kept here. Sorted by name, not code: people look for
+// "Germany", not "DE". sort() is safe here: map() made a new array.
+const regionNames = new Intl.DisplayNames(['en'], { type: 'region' });
+
+const countries = computed(() => props.countryCodes
+    .map((code) => ({ code, name: regionNames.of(code) ?? code }))
+    .sort((first, second) => first.name.localeCompare(second.name, 'en')));
+
+const countryId = computed(() => `${props.formName}-country_code`);
+const countryError = computed(() => props.fieldError('country_code'));
+
+// The country's format decides which inputs there are and which are
+// required; this component knows no country's rules itself.
+const format = computed(() => addressFormatFor(address.value.country_code));
 
 // One error per row, so its text and both aria attributes read from the same
-// value. A computed, so it re-runs when the parent's errors change.
-const rows = computed(() => ROWS.map((row) => ({ ...row, id: `${props.formName}-${row.key}`, error: props.fieldError(row.key) })));
+// value. A computed, so it re-runs when the parent's errors or the country
+// change.
+const rows = computed(() => ADDRESS_TEXT_FIELDS
+    .map((key) => ({ key, ...format.value[key] }))
+    .filter((row) => row.presence !== 'hidden')
+    .map((row) => ({
+        ...row,
+        id: `${props.formName}-${row.key}`,
+        isRequired: row.presence === 'required',
+        error: props.fieldError(row.key),
+    })));
 </script>
 
 <template>
+    <!-- First: the country decides which fields follow and which are required. -->
+    <div v-if="countries.length > 1">
+        <label :for="countryId">Country</label>
+        <select
+            :id="countryId"
+            :value="address.country_code"
+            required
+            autocomplete="country"
+            :aria-invalid="countryError !== null"
+            :aria-describedby="countryError?.id"
+            @change="onCountryChange"
+        >
+            <option v-for="country in countries" :key="country.code" :value="country.code">{{ country.name }}</option>
+        </select>
+        <p v-if="countryError" :id="countryError.id">{{ countryError.message }}</p>
+    </div>
+
     <!-- One block per field, written once, so no field can miss its aria wiring. -->
     <div v-for="row in rows" :key="row.key">
         <label :for="row.id">{{ row.label }}</label>
@@ -68,7 +99,7 @@ const rows = computed(() => ROWS.map((row) => ({ ...row, id: `${props.formName}-
             :id="row.id"
             :value="address[row.key] ?? ''"
             type="text"
-            :required="row.required"
+            :required="row.isRequired"
             :autocomplete="row.autocomplete"
             :aria-invalid="row.error !== null"
             :aria-describedby="row.error?.id"

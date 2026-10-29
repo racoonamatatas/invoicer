@@ -4,9 +4,9 @@ import { computed, ref } from 'vue';
 
 // Project imports
 import AddressFields from '@/components/AddressFields.vue';
-import { useForm } from '@/composables/useForm';
-import type { DutchAddress } from '@/services/address';
-import type { Business, BusinessPayload } from '@/services/businesses';
+import { useForm, type FieldError } from '@/composables/useForm';
+import type { AddressField, DutchAddress } from '@/services/address';
+import { BUSINESS_COUNTRY_CODES, type Business, type BusinessPayload } from '@/services/businesses';
 
 // One form for creating and editing a business, so the two can't drift apart
 // on fields or labels. The page decides what saving means.
@@ -106,6 +106,10 @@ const registeredNameError = computed(() => fieldError('registered_name'));
 const kvkNumberError = computed(() => fieldError('kvk_number'));
 const vatNumberError = computed(() => fieldError('vat_number'));
 const paymentTermDaysError = computed(() => fieldError('payment_term_days'));
+
+// AddressFields asks for every address field's error, region too. A business
+// payload has no region, so the backend can't name it in a 422.
+const addressFieldError = (field: AddressField): FieldError | null => field === 'region' ? null : fieldError(field);
 
 // The form's fields as the last save stored them, as JSON so a deep
 // comparison is one string compare (fieldsFrom always builds the keys in the
@@ -220,7 +224,7 @@ const onSubmit = async (): Promise<void> =>
             <p v-if="vatNumberError" :id="vatNumberError.id">{{ vatNumberError.message }}</p>
         </div>
 
-        <AddressFields v-model="form.address" form-name="business" :field-error="fieldError" />
+        <AddressFields v-model="form.address" form-name="business" :field-error="addressFieldError" :country-codes="BUSINESS_COUNTRY_CODES" />
 
         <div>
             <label for="business-payment_term_days">Payment term (days)</label>

@@ -49,8 +49,7 @@ export interface ForeignAddress
     street: string;
     house_number: string;
     house_number_addition: string | null;
-    // null: not every country has postcodes (Hong Kong has none).
-    postal_code: string | null;
+    postal_code: string | null; // null: not every country has postcodes (Hong Kong has none)
     city: string;
     region: string | null;
     country_code: Exclude<CountryCode, 'NL'>;
@@ -59,3 +58,27 @@ export interface ForeignAddress
 export type Address = DutchAddress | ForeignAddress;
 
 export type AddressField = keyof Address;
+
+// The address in another country. Into NL, the Dutch side's rules come with
+// it: no region, and a postcode that is text, never null.
+export const withCountry = (address: Address, code: CountryCode): Address =>
+{
+    if (code === 'NL')
+    {
+        return { ...address, country_code: code, region: null, postal_code: address.postal_code ?? '' };
+    }
+
+    return { ...address, country_code: code };
+};
+
+// The address with one typed field changed. A Dutch address has no region,
+// so one sent anyway leaves the address as it was.
+export const withText = (address: Address, key: Exclude<AddressField, 'country_code'>, value: string): Address =>
+{
+    if (key === 'region')
+    {
+        return address.country_code === 'NL' ? address : { ...address, region: value };
+    }
+
+    return { ...address, [key]: value };
+};
