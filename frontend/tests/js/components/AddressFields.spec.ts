@@ -148,6 +148,34 @@ describe('AddressFields', () =>
         expect(wrapper.find('label[for="client-country_code"]').text()).toBe('Country');
     });
 
+    it('should offer and select the address\'s own country when the offered countries leave it out', () =>
+    {
+        // Act
+        const { wrapper } = mountAddressFields({ countryCodes: ['NL', 'BE'], address: emptyGermanAddress() });
+
+        // Assert: without DE as an option the browser would show Belgium
+        // while the address still holds DE
+        const select = wrapper.find<HTMLSelectElement>('#client-country_code');
+        expect(select.findAll('option').map((option) => option.text())).toStrictEqual(['Belgium', 'Germany', 'Netherlands']);
+        expect(select.element.value).toBe('DE');
+    });
+
+    it('should emit nothing when the select changes to a value that is not a country code', async () =>
+    {
+        // Arrange: an option the component never renders, as a browser
+        // extension or a stale DOM could add
+        const { wrapper } = mountAddressFields({ countryCodes: COUNTRY_CODES });
+        const select = wrapper.find<HTMLSelectElement>('#client-country_code');
+        select.element.append(new Option('Nowhere', 'XX'));
+
+        // Act
+        await select.setValue('XX');
+
+        // Assert: the change did happen, so the missing event is the guard's doing
+        expect(select.element.value).toBe('XX');
+        expect(wrapper.emitted('update:modelValue')).toBeUndefined();
+    });
+
     it('should show Region and make the postcode optional after switching from NL to DE', async () =>
     {
         // Arrange
