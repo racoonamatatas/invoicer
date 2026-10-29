@@ -37,8 +37,17 @@ const onInput = (key: AddressTextField, event: Event): void =>
 // The select's value is a string; the guard proves it's one of the codes.
 const onCountryChange = (event: Event): void =>
 {
-    if (!(event.target instanceof HTMLSelectElement) || !isCountryCode(event.target.value))
+    if (!(event.target instanceof HTMLSelectElement))
     {
+        return;
+    }
+
+    // Put back by hand: Vue patches :value only when the address changes, and
+    // a rejected value changes nothing, so the select would keep showing it.
+    if (!isCountryCode(event.target.value))
+    {
+        event.target.value = address.value.country_code;
+
         return;
     }
 

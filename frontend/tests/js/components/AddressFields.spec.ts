@@ -228,7 +228,7 @@ describe('AddressFields', () =>
         expect(nameLookup).not.toHaveBeenCalled();
     });
 
-    it('should emit nothing when the select changes to a value that is not a country code', async () =>
+    it('should emit nothing and put the select back when it changes to a value that is not a country code', async () =>
     {
         // Arrange: an option the component never renders, as a browser
         // extension or a stale DOM could add
@@ -239,9 +239,10 @@ describe('AddressFields', () =>
         // Act
         await select.setValue('XX');
 
-        // Assert: the change did happen, so the missing event is the guard's doing
-        expect(select.element.value).toBe('XX');
+        // Assert: nothing emitted, and the select shows the address's country
+        // again instead of the value it rejected
         expect(wrapper.emitted('update:modelValue')).toBeUndefined();
+        expect(select.element.value).toBe('NL');
     });
 
     it('should show Region and make the postcode optional after switching from NL to DE', async () =>
