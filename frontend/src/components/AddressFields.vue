@@ -47,16 +47,33 @@ const onCountryChange = (event: Event): void =>
 
 // Names in English, like the rest of the UI. Intl knows every ISO code, so
 // no list of names is kept here. Sorted by name, not code: people look for
-// "Germany", not "DE". sort() is safe here: map() made a new array.
+// "Germany", not "DE".
 const regionNames = new Intl.DisplayNames(['en'], { type: 'region' });
+
+const countryOption = (code: CountryCode): { code: CountryCode; name: string } =>
+{
+    return { code, name: regionNames.of(code) ?? code }; // `??` for the type only: the default fallback already returns the code
+};
+
+const byName = (first: { name: string }, second: { name: string }): number => first.name.localeCompare(second.name, 'en');
+
+// Reads only the prop, so typing in an address input, which makes a new
+// address object each time, doesn't rebuild and re-sort ~249 options.
+// sort() is safe here: map() made a new array.
+const offeredCountries = computed(() => props.countryCodes.map(countryOption).sort(byName));
 
 // The address's own country is always offered, even when the parent's list
 // leaves it out: a select whose value has no option shows the first option,
-// while the address would still send the code nobody sees. A Set, so a
-// country already on the list isn't offered twice.
-const countries = computed(() => [...new Set([...props.countryCodes, address.value.country_code])]
-    .map((code) => ({ code, name: regionNames.of(code) ?? code }))
-    .sort((first, second) => first.name.localeCompare(second.name, 'en')));
+// while the address would still send the code nobody sees. The same array
+// while the country is on the list, so a keystroke leaves the options alone.
+const countries = computed(() =>
+{
+    const code = address.value.country_code;
+
+    return offeredCountries.value.some((country) => country.code === code)
+        ? offeredCountries.value
+        : [...offeredCountries.value, countryOption(code)].sort(byName);
+});
 
 const countryId = computed(() => `${props.formName}-country_code`);
 const countryError = computed(() => props.fieldError('country_code'));
