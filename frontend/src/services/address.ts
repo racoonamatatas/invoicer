@@ -58,3 +58,8 @@ export interface ForeignAddress
 export type Address = DutchAddress | ForeignAddress;
 
 export type AddressField = keyof Address;
+
+export const isNullableString = (value: unknown): value is string | null =>
+{
+    return value === null || typeof value === 'string';
+};

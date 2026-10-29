@@ -1,4 +1,4 @@
-import type { DutchAddress } from '@/services/address';
+import { isNullableString, type DutchAddress } from '@/services/address';
 import { checkResponse, getRequest, postRequest, putRequest } from '@/services/http';
 
 // The countries a business can be registered in. A business is a KvK
@@ -41,11 +41,6 @@ export interface BusinessPayload extends Omit<DutchAddress, 'region'>
     // rule answers with its own message.
     payment_term_days: number | null;
 }
-
-const isNullableString = (value: unknown): value is string | null =>
-{
-    return value === null || typeof value === 'string';
-};
 
 // `some` with ===, not includes(): includes() on the `as const` tuple only
 // accepts its own literals, and `value` could be anything at this point.
