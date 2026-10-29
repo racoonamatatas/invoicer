@@ -66,6 +66,9 @@ describe('VatGroupTotal', function (): void {
         $group = VatGroupTotal::forBase(VatOption::High, $largestBaseCents);
 
         // Assert
-        expect($group->vatCents)->toBe(intdiv($largestBaseCents * 21 + 50, 100));
+        // Worked out by hand, not with the class's own formula: 439208192231179797 × 0.21 = 92233720368547757.37,
+        // which rounds down.
+        expect($largestBaseCents)->toBe(439208192231179797)
+            ->and($group->vatCents)->toBe(92233720368547757);
     });
 });
