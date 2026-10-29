@@ -4,7 +4,7 @@ import { useRoute } from 'vue-router';
 
 // Project imports
 import { parseRouteId } from '@/router/parseRouteId';
-import { ClientNotFoundError, fetchClient, type Client } from '@/services/clients';
+import { ClientNotFoundError, fetchClient, updateClient, type Client, type ClientPayload } from '@/services/clients';
 import { SessionEndedError } from '@/services/http';
 
 // What a page under /businesses/:businessId/clients/:clientId knows about its
@@ -104,5 +104,35 @@ export const useRouteClient = (businessId: () => number | null) =>
     // For the page's "Try again".
     const retry = (): Promise<void> => loadCurrent() ?? Promise.resolve();
 
-    return { clientId, state, retry };
+    // For the page's form. Writes state too, so what the page shows outside
+    // the form (its heading) matches what the backend stored. Nothing is
+    // caught: a 422 must reach the form's useForm, and any other failure the
+    // form's "Couldn't save.".
+    const save = async (payload: ClientPayload): Promise<Client> =>
+    {
+        const business = businessId();
+
+        // The page only renders its form for a found client, so this is a bug,
+        // not a path a user can take.
+        if (state.value.kind !== 'found' || business === null)
+        {
+            throw new Error('useRouteClient: save() called without a found client');
+        }
+
+        // Read before the await: the URL can change while the request runs,
+        // and the save goes to the client the form was showing. latest is
+        // noted, not incremented: a save isn't a load and mustn't cancel one.
+        const request = latest;
+        const stored = await updateClient(business, state.value.client.id, payload);
+
+        // Another client's page by now: this one's values don't belong there.
+        if (request === latest)
+        {
+            state.value = { kind: 'found', client: stored };
+        }
+
+        return stored;
+    };
+
+    return { clientId, state, retry, save };
 };
