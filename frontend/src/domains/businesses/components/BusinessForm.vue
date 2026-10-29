@@ -76,7 +76,7 @@ const fieldsFrom = (business: Business | null): BusinessFormFields =>
             house_number_addition: business.house_number_addition ?? '',
             postal_code: business.postal_code,
             city: business.city,
-            region: null,
+            region: business.region,
             country_code: business.country_code,
         },
         payment_term_days: business.payment_term_days,

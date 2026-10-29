@@ -57,8 +57,6 @@ describe('isBusiness', () =>
     it.for([
         { name: 'every field filled', value: business },
         { name: 'no house number addition', value: { ...business, house_number_addition: null } },
-        // The guard checks the type, not the business rules: a region is the backend's to refuse.
-        { name: 'a region', value: { ...business, region: 'Noord-Holland' } },
         // A column added to BusinessResourceData mustn't break the SPA before it uses it.
         { name: 'an extra key', value: { ...business, created_at: '2026-10-24' } },
     ])('should accept a business with $name', ({ value }) =>

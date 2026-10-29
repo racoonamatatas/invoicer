@@ -21,7 +21,7 @@ export interface Business
     house_number_addition: string | null;
     postal_code: string;
     city: string;
-    region: string | null;
+    region: null; // a business is always Dutch, and AddressRules prohibits a Dutch region
     country_code: BusinessCountryCode;
     payment_term_days: number;
 }
@@ -72,7 +72,7 @@ export const isBusiness = (value: unknown): value is Business =>
            && 'house_number_addition' in value && isNullableString(value.house_number_addition)
            && 'postal_code' in value && typeof value.postal_code === 'string'
            && 'city' in value && typeof value.city === 'string'
-           && 'region' in value && isNullableString(value.region)
+           && 'region' in value && value.region === null
            && 'country_code' in value && isBusinessCountryCode(value.country_code)
            && 'payment_term_days' in value && Number.isInteger(value.payment_term_days);
 };
