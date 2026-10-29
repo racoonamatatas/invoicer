@@ -216,8 +216,11 @@ describe('clients service', () =>
         vi.mocked(postRequest).mockResolvedValue(response);
         vi.mocked(putRequest).mockResolvedValue(response);
 
-        // Act + Assert
-        await expect(send()).rejects.toThrow(UnexpectedResponseError);
-        await expect(send()).rejects.toThrow(`Unexpected response from ${endpoint}`);
+        // Act: one request, so both assertions are about the same response
+        const promise = send();
+
+        // Assert
+        await expect(promise).rejects.toThrow(UnexpectedResponseError);
+        await expect(promise).rejects.toThrow(`Unexpected response from ${endpoint}`);
     });
 });
