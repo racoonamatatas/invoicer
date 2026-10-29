@@ -248,6 +248,8 @@ describe('clients service', () =>
     it.for([
         { name: 'listClients', status: 404, meaning: '404 (not found)', request: getRequest, send: () => listClients(7) },
         { name: 'fetchClient', status: 500, meaning: '500 (server error)', request: getRequest, send: () => fetchClient(7, 3) },
+        // Only a 404 means not found: a looser check (any 4xx) would turn this into one
+        { name: 'fetchClient', status: 403, meaning: '403 (forbidden)', request: getRequest, send: () => fetchClient(7, 3) },
         { name: 'createClient', status: 422, meaning: '422 (unprocessable content)', request: postRequest, send: () => createClient(7, dutchPayload) },
         { name: 'updateClient', status: 422, meaning: '422 (unprocessable content)', request: putRequest, send: () => updateClient(7, 3, dutchPayload) },
     ])('should rethrow the request\'s error unchanged: $name with a $meaning', async ({ status, request, send }) =>
