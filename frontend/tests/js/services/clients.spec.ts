@@ -16,9 +16,9 @@ vi.mock('@/services/http', async (importOriginal) => ({
     putRequest: vi.fn<typeof putRequest>(),
 }));
 
-// A Dutch client as the backend sends it.
-const dutchClient: Client = {
-    id: 3,
+// What a form sends for a Dutch client. The client the backend answers with
+// is built from it, so the two can't drift apart.
+const dutchPayload: ClientPayload = {
     name: 'Fietsenmakerij Bakker',
     email: 'info@fietsenmakerijbakker.nl',
     vat_number: 'NL987654321B01',
@@ -31,9 +31,9 @@ const dutchClient: Client = {
     country_code: 'NL',
 };
 
-// A foreign client as the backend sends it.
-const foreignClient: Client = {
-    id: 4,
+const dutchClient: Client = { id: 3, ...dutchPayload };
+
+const foreignPayload: ClientPayload = {
     name: 'Brauerei Huber',
     email: 'kontakt@brauerei-huber.de',
     vat_number: 'DE123456789',
@@ -46,18 +46,7 @@ const foreignClient: Client = {
     country_code: 'DE',
 };
 
-const payload: ClientPayload = {
-    name: 'Fietsenmakerij Bakker',
-    email: 'info@fietsenmakerijbakker.nl',
-    vat_number: 'NL987654321B01',
-    street: 'Oosterstraat',
-    house_number: '123',
-    house_number_addition: 'A',
-    postal_code: '9711 LM',
-    city: 'Groningen',
-    region: null,
-    country_code: 'NL',
-};
+const foreignClient: Client = { id: 4, ...foreignPayload };
 
 // A copy of the Dutch client without one key.
 const clientWithout = (key: keyof Client): Record<string, unknown> =>
@@ -183,37 +172,45 @@ describe('clients service', () =>
         expect(result).toStrictEqual(dutchClient);
     });
 
-    it('should post the payload to /businesses/{id}/clients and return the client from the 201 (created) response', async () =>
+    // A foreign payload too: its postcode and region rules differ, and the
+    // service must send it as given
+    it.for([
+        { name: 'a Dutch client', payload: dutchPayload, client: dutchClient },
+        { name: 'a foreign client', payload: foreignPayload, client: foreignClient },
+    ])('should post the payload to /businesses/{id}/clients and return the client from the 201 (created) response: $name', async ({ payload, client }) =>
     {
         // Arrange
-        vi.mocked(postRequest).mockResolvedValue({ data: dutchClient } as AxiosResponse);
+        vi.mocked(postRequest).mockResolvedValue({ data: client } as AxiosResponse);
 
         // Act
         const result = await createClient(7, payload);
 
         // Assert
         expect(postRequest).toHaveBeenCalledExactlyOnceWith('/businesses/7/clients', payload);
-        expect(result).toStrictEqual(dutchClient);
+        expect(result).toStrictEqual(client);
     });
 
-    it('should put the payload to /businesses/{id}/clients/{id} and return the client from the 200 (ok) response', async () =>
+    it.for([
+        { name: 'a Dutch client', payload: dutchPayload, client: dutchClient },
+        { name: 'a foreign client', payload: foreignPayload, client: foreignClient },
+    ])('should put the payload to /businesses/{id}/clients/{id} and return the client from the 200 (ok) response: $name', async ({ payload, client }) =>
     {
         // Arrange
-        vi.mocked(putRequest).mockResolvedValue({ data: dutchClient } as AxiosResponse);
+        vi.mocked(putRequest).mockResolvedValue({ data: client } as AxiosResponse);
 
         // Act
-        const result = await updateClient(7, 3, payload);
+        const result = await updateClient(7, client.id, payload);
 
         // Assert
-        expect(putRequest).toHaveBeenCalledExactlyOnceWith('/businesses/7/clients/3', payload);
-        expect(result).toStrictEqual(dutchClient);
+        expect(putRequest).toHaveBeenCalledExactlyOnceWith(`/businesses/7/clients/${client.id}`, payload);
+        expect(result).toStrictEqual(client);
     });
 
     // One case per function: each must hand its own response to the check.
     it.for([
         { name: 'fetchClient', send: () => fetchClient(7, 3), endpoint: '/businesses/7/clients/3' },
-        { name: 'createClient', send: () => createClient(7, payload), endpoint: '/businesses/7/clients' },
-        { name: 'updateClient', send: () => updateClient(7, 3, payload), endpoint: '/businesses/7/clients/3' },
+        { name: 'createClient', send: () => createClient(7, dutchPayload), endpoint: '/businesses/7/clients' },
+        { name: 'updateClient', send: () => updateClient(7, 3, dutchPayload), endpoint: '/businesses/7/clients/3' },
     ])('should throw an UnexpectedResponseError naming the endpoint when the client is malformed: $name', async ({ send, endpoint }) =>
     {
         // Arrange: every request function answers with a client missing its id
@@ -235,8 +232,8 @@ describe('clients service', () =>
     it.for([
         { name: 'listClients', status: 404, meaning: '404 (not found)', request: getRequest, send: () => listClients(7) },
         { name: 'fetchClient', status: 404, meaning: '404 (not found)', request: getRequest, send: () => fetchClient(7, 3) },
-        { name: 'createClient', status: 422, meaning: '422 (unprocessable content)', request: postRequest, send: () => createClient(7, payload) },
-        { name: 'updateClient', status: 422, meaning: '422 (unprocessable content)', request: putRequest, send: () => updateClient(7, 3, payload) },
+        { name: 'createClient', status: 422, meaning: '422 (unprocessable content)', request: postRequest, send: () => createClient(7, dutchPayload) },
+        { name: 'updateClient', status: 422, meaning: '422 (unprocessable content)', request: putRequest, send: () => updateClient(7, 3, dutchPayload) },
     ])('should rethrow the request\'s error unchanged: $name with a $meaning', async ({ status, request, send }) =>
     {
         // Arrange
