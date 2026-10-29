@@ -7,8 +7,14 @@ import LogoutButton from '@/components/LogoutButton.vue';
 // From the businesses domain: a client belongs to a business, so clients may
 // depend on businesses, never the other way round.
 import { useRouteBusiness } from '@/domains/businesses/composables/useRouteBusiness';
+import { useClients } from '@/domains/clients/composables/useClients';
+import { countryName } from '@/services/address';
 
 const { state, retry } = useRouteBusiness();
+
+// Clients load once the business is found, never for an id that isn't the
+// user's: the list already answered that, so a request would only be a 404.
+const { state: clients, reload } = useClients(() => (state.value.kind === 'found' ? state.value.business.id : null));
 </script>
 
 <template>
@@ -24,6 +30,25 @@ const { state, retry } = useRouteBusiness();
         <!-- The registered name, so a wrong id in the URL is visible at once. -->
         <template v-else-if="state.kind === 'found'">
             <h1>Clients · {{ state.business.registered_name }}</h1>
+
+            <!-- The clients' own live region, under the heading, so its
+                 message sits next to its Try again. Spans, so both share a
+                 line. -->
+            <p>
+                <span id="clients-status" role="status">
+                    <template v-if="clients.kind === 'loading'">Loading clients...</template>
+                    <template v-else-if="clients.kind === 'failed'">Couldn't load the clients.</template>
+                </span>
+                <button v-if="clients.kind === 'failed'" type="button" @click="reload">Try again</button>
+            </p>
+            <template v-if="clients.kind === 'loaded'">
+                <ul v-if="clients.clients.length > 0" aria-label="Clients">
+                    <li v-for="client in clients.clients" :key="client.id">
+                        {{ client.name }}, {{ client.city }}, {{ countryName(client.country_code) }}
+                    </li>
+                </ul>
+                <p v-else>No clients yet.</p>
+            </template>
 
             <p><RouterLink :to="{ name: 'dashboard', params: { businessId: state.business.id } }">Back to the dashboard</RouterLink></p>
         </template>
