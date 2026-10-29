@@ -9,8 +9,8 @@ use App\Enums\VatTreatment;
 use InvalidArgumentException;
 
 /**
- * An invoice's subtotal, VAT per group, VAT total and total, all in cents. A draft doesn't store these: they're computed from its
- * lines on every read, so there is one source of truth until sending freezes them.
+ * An invoice's subtotal, VAT per group, VAT total and total, all in cents. A draft doesn't store these: they're
+ * computed from its lines on every read, so there is one source of truth until sending freezes them.
  *
  * The constructor is private so the numbers always add up: fromLines() is the only way in.
  */
