@@ -3,21 +3,21 @@
 declare(strict_types = 1);
 
 use App\Validation\Country\Netherlands\BtwId;
-use App\Validation\VatNumber;
+use App\Validation\EuVatNumber;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Validator as ValidatorInstance;
 
 // Runs the rule the way a FormRequest would, so the test proves the message the API will send.
-function validateVatNumber(mixed $value, string $prefix): ValidatorInstance
+function validateEuVatNumber(mixed $value, string $prefix): ValidatorInstance
 {
-    return Validator::make(['vat_number' => $value], ['vat_number' => [new VatNumber($prefix)]]);
+    return Validator::make(['vat_number' => $value], ['vat_number' => [new EuVatNumber($prefix)]]);
 }
 
-describe('The VatNumber rule', function (): void {
+describe('The EuVatNumber rule', function (): void {
 
     it('should accept the prefix followed by 2 to 12 letters or digits', function (string $value, string $prefix): void {
         // Act
-        $validator = validateVatNumber($value, $prefix);
+        $validator = validateEuVatNumber($value, $prefix);
 
         // Assert
         expect($validator->passes())->toBeTrue();
@@ -32,7 +32,7 @@ describe('The VatNumber rule', function (): void {
 
     it('should reject anything else, with the message the API sends', function (string $value, string $prefix): void {
         // Act
-        $validator = validateVatNumber($value, $prefix);
+        $validator = validateEuVatNumber($value, $prefix);
 
         // Assert
         expect($validator->fails())->toBeTrue()
@@ -53,18 +53,18 @@ describe('The VatNumber rule', function (): void {
 
     it('should leave a non-string to the string rule', function (): void {
         // Act
-        $validator = validateVatNumber(123456789, 'DE');
+        $validator = validateEuVatNumber(123456789, 'DE');
 
         // Assert
         expect($validator->passes())->toBeTrue();
     });
 });
 
-describe('VatNumber::forCountry()', function (): void {
+describe('EuVatNumber::forCountry()', function (): void {
 
     it('should give BtwId for NL, so a Dutch number gets the stricter format', function (): void {
         // Act
-        $rule = VatNumber::forCountry('NL');
+        $rule = EuVatNumber::forCountry('NL');
 
         // Assert
         expect($rule)->toBeInstanceOf(BtwId::class);
@@ -72,14 +72,14 @@ describe('VatNumber::forCountry()', function (): void {
 
     it('should give the default rule with the country\'s own prefix for another member state', function (string $countryCode, string $accepted, string $rejected): void {
         // Arrange
-        $rules = ['vat_number' => [VatNumber::forCountry($countryCode)]];
+        $rules = ['vat_number' => [EuVatNumber::forCountry($countryCode)]];
 
         // Act
         $acceptedValidator = Validator::make(['vat_number' => $accepted], $rules);
         $rejectedValidator = Validator::make(['vat_number' => $rejected], $rules);
 
         // Assert. The class alone would not show the prefix, so the rule is run on one value of each kind.
-        expect(get_class($rules['vat_number'][0]))->toBe(VatNumber::class)
+        expect(get_class($rules['vat_number'][0]))->toBe(EuVatNumber::class)
             ->and($acceptedValidator->passes())->toBeTrue()
             ->and($rejectedValidator->fails())->toBeTrue();
     })->with([
@@ -90,7 +90,7 @@ describe('VatNumber::forCountry()', function (): void {
 
     it('should throw for a country outside the EU, which has no VAT number to check', function (): void {
         // Act
-        $act = fn (): VatNumber => VatNumber::forCountry('US');
+        $act = fn (): EuVatNumber => EuVatNumber::forCountry('US');
 
         // Assert
         expect($act)->toThrow(LogicException::class, 'US is not an EU member state.');
