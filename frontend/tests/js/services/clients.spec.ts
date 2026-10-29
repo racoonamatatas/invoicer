@@ -177,10 +177,15 @@ describe('clients service', () =>
     it('should throw a ClientNotFoundError when the fetch gets a 404 (not found): the client isn\'t the business\'s', async () =>
     {
         // Arrange
-        vi.mocked(getRequest).mockRejectedValue(axiosErrorWith(404, { message: 'Not Found' }));
+        const error = axiosErrorWith(404, { message: 'Not Found' });
+        vi.mocked(getRequest).mockRejectedValue(error);
 
-        // Act + Assert
-        await expect(fetchClient(7, 3)).rejects.toThrow(ClientNotFoundError);
+        // Act
+        const promise = fetchClient(7, 3);
+
+        // Assert: the 404 kept as cause, so the console still shows the request
+        await expect(promise).rejects.toThrow(ClientNotFoundError);
+        await expect(promise).rejects.toMatchObject({ cause: error });
     });
 
     // A foreign payload too: its postcode and region rules differ, and the
