@@ -129,4 +129,18 @@ describe('InvoiceTotals', function (): void {
         'OutsideScope' => [VatTreatment::OutsideScope, "Line 1 can't have a VAT option, because the invoice's treatment is OutsideScope."],
     ]);
 
+    it('should give an invoice without lines a subtotal, VAT and total of 0 and no groups', function (VatTreatment $treatment): void {
+        // Act
+        // A new draft has no lines yet, so this is the first input every caller meets.
+        $totals = InvoiceTotals::fromLines($treatment, []);
+
+        // Assert
+        expect($totals->subtotalCents)->toBe(0)
+            ->and($totals->vatGroups)->toBe([])
+            ->and($totals->vatCents)->toBe(0)
+            ->and($totals->totalCents)->toBe(0);
+    })->with([
+        'Domestic, which charges VAT' => [VatTreatment::Domestic],
+        'ReverseCharge, which charges none' => [VatTreatment::ReverseCharge],
+    ]);
 });
