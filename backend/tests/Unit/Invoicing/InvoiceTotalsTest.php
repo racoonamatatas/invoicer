@@ -143,4 +143,36 @@ describe('InvoiceTotals', function (): void {
         'Domestic, which charges VAT' => [VatTreatment::Domestic],
         'ReverseCharge, which charges none' => [VatTreatment::ReverseCharge],
     ]);
+
+    it('should refuse lines whose subtotal is more than an int can hold', function (): void {
+        // Arrange
+        // The largest line total a quantity of 1.00 allows is about PHP_INT_MAX / 100, so 101 of them overflow.
+        $largestPriceCents = intdiv(PHP_INT_MAX - 50, 100);
+        $lines = array_fill(0, 101, invoiceLine(100, $largestPriceCents));
+
+        // Act
+        $build = static fn (): InvoiceTotals => InvoiceTotals::fromLines(VatTreatment::ReverseCharge, $lines);
+
+        // Assert
+        expect($build)->toThrow(InvalidArgumentException::class, "The invoice's amounts add up to more than an int can hold.");
+    });
+
+    it('should refuse a subtotal that fits in an int when adding the VAT to it does not', function (): void {
+        // Arrange
+        // Exempt lines up to PHP_INT_MAX - 110, then a €1.00 line at 21%: the subtotal is PHP_INT_MAX - 10, and its
+        // 21 cents of VAT push the total past the limit. Each exempt line stays under the per-line ceiling.
+        $largestPriceCents = intdiv(PHP_INT_MAX - 50, 100);
+        $exemptCents = PHP_INT_MAX - 110;
+        $lines = [
+            ...array_fill(0, intdiv($exemptCents, $largestPriceCents), invoiceLine(100, $largestPriceCents, VatOption::Exempt)),
+            invoiceLine(100, $exemptCents % $largestPriceCents, VatOption::Exempt),
+            invoiceLine(100, 100, VatOption::High),
+        ];
+
+        // Act
+        $build = static fn (): InvoiceTotals => InvoiceTotals::fromLines(VatTreatment::Domestic, $lines);
+
+        // Assert
+        expect($build)->toThrow(InvalidArgumentException::class, "The invoice's amounts add up to more than an int can hold.");
+    });
 });
