@@ -5,7 +5,7 @@ import { computed, ref } from 'vue';
 // Project imports
 import AddressFields from '@/components/AddressFields.vue';
 import { useForm, type FieldError } from '@/composables/useForm';
-import type { AddressField, DutchAddress } from '@/services/address';
+import type { Address, AddressField } from '@/services/address';
 import { BUSINESS_COUNTRY_CODES, type Business, type BusinessPayload } from '@/services/businesses';
 
 // One form for creating and editing a business, so the two can't drift apart
@@ -36,14 +36,15 @@ const emit = defineEmits<{
 }>();
 
 // What the form holds: the payload with its address nested, so AddressFields
-// binds it as one object. A business is always NL, so the address is always
-// a DutchAddress, and there is no country to ask for.
+// binds it as one object. An Address, not a DutchAddress: that is what
+// AddressFields emits, and vue-tsc doesn't check what v-model writes back.
+// onSubmit narrows it to the Dutch side before it becomes a payload.
 interface BusinessFormFields
 {
     registered_name: string;
     kvk_number: string;
     vat_number: string;
-    address: DutchAddress;
+    address: Address;
     // '': the input was emptied. v-model.number hands back the raw text when
     // it isn't a number, and an empty number input's text is ''.
     payment_term_days: number | '';
@@ -146,6 +147,14 @@ const onSubmit = async (): Promise<void> =>
         await submit(async () =>
         {
             const { address, payment_term_days: paymentTermDays, ...fields } = form.value;
+
+            // Unreachable from the inputs: AddressFields only offers NL here.
+            // The check is what lets the payload take a string postcode.
+            if (address.country_code !== 'NL')
+            {
+                throw new Error(`A business address must be Dutch, got ${address.country_code}`);
+            }
+
             const stored = await props.save({
                 ...fields,
                 street: address.street,
