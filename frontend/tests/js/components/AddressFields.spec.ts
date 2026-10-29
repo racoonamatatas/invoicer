@@ -247,6 +247,32 @@ describe('AddressFields', () =>
         expect(select.element.value).toBe('NL');
     });
 
+    it('should make every text input read-only when readonly is true', () =>
+    {
+        // Act
+        const { wrapper } = mountAddressFields({ readonly: true });
+
+        // Assert: readonly, not disabled, so the focus stays where it was. As
+        // lists of field names, so a failure says which input is wrong.
+        const inputs = FIELDS.map((field) => ({ field, input: wrapper.find(`#client-${field}`) }));
+        expect(inputs.filter(({ input }) => input.attributes('readonly') === undefined).map(({ field }) => field)).toStrictEqual([]);
+        expect(inputs.filter(({ input }) => input.attributes('disabled') !== undefined).map(({ field }) => field)).toStrictEqual([]);
+    });
+
+    it('should emit nothing and put the select back when the country changes while readonly is true', async () =>
+    {
+        // Arrange: a select has no readonly attribute, so the browser lets the user pick
+        const { wrapper } = mountAddressFields({ countryCodes: COUNTRY_CODES, readonly: true });
+        const select = wrapper.find<HTMLSelectElement>('#client-country_code');
+
+        // Act
+        await select.setValue('DE');
+
+        // Assert: nothing emitted, and the select shows the address's country again
+        expect(wrapper.emitted('update:modelValue')).toBeUndefined();
+        expect(select.element.value).toBe('NL');
+    });
+
     it('should show Region and make the postcode optional after switching from NL to DE', async () =>
     {
         // Arrange

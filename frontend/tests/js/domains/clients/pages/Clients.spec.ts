@@ -392,7 +392,7 @@ describe('Clients page', () =>
         expect(errorHandler).toHaveBeenCalledExactlyOnceWith(error, expect.anything(), expect.anything());
     });
 
-    it('should disable Add while createClient is in flight', async () =>
+    it('should disable Add and make every input read-only while createClient is in flight', async () =>
     {
         // Arrange: createClient is a stub whose request the test finishes by hand
         vi.mocked(service.listBusinesses).mockResolvedValue([bakery]);
@@ -401,16 +401,23 @@ describe('Clients page', () =>
         const { wrapper } = await mountClients('1');
         await flushPromises();
         const add = wrapper.findAll('button').find((button) => button.text() === 'Add');
+        const inputs = wrapper.findAll('form[aria-label="Add a client"] input');
 
         // Act
         await addClient(wrapper, '');
 
-        // Assert
+        // Assert: typing now would be wiped when the success clears the form.
+        // The count proves the address inputs are among them.
         expect(add?.attributes('disabled')).toBeDefined();
+        expect(inputs).toHaveLength(8);
+        expect(inputs.filter((input) => input.attributes('readonly') === undefined).map((input) => input.attributes('id'))).toStrictEqual([]);
 
         // Act: let the request finish, so nothing is left pending after the test
         request.resolve();
         await flushPromises();
+
+        // Assert: editable again for the next client
         expect(add?.attributes('disabled')).toBeUndefined();
+        expect(wrapper.findAll('form[aria-label="Add a client"] input').filter((input) => input.attributes('readonly') !== undefined)).toHaveLength(0);
     });
 });
