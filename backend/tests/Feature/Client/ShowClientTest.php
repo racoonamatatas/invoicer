@@ -12,7 +12,7 @@ describe('Showing a client', function (): void {
         $business = Business::factory()->create();
         $client = Client::factory()->for($business)->create([
             'name' => 'Jan Jansen',
-            'email' => null,
+            'email' => 'jan@jansen.example',
             'vat_number' => null,
             'street' => 'Dorpsstraat',
             'house_number' => '12',
@@ -31,7 +31,7 @@ describe('Showing a client', function (): void {
         $response->assertOk()->assertExactJson([
             'id' => $client->id,
             'name' => 'Jan Jansen',
-            'email' => null,
+            'email' => 'jan@jansen.example',
             'vat_number' => null,
             'street' => 'Dorpsstraat',
             'house_number' => '12',
