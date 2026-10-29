@@ -4,28 +4,30 @@ declare(strict_types = 1);
 
 namespace App\Validation\Country\Netherlands;
 
-use Closure;
-use Illuminate\Contracts\Validation\ValidationRule;
+use App\Validation\VatNumber;
 
 /**
  * Accepts a Dutch VAT identification number (btw-id) in canonical form: NL, nine digits, B, two digits, all
  * uppercase and without spaces, 14 characters in all. This is a format check only: the two checksums in use
  * (mod-97 over the whole id for ids issued since 2020, the elfproef over the nine digits for the older
  * RSIN-based numbers) are not applied, so a passing value is well-formed, not proven to exist.
+ *
+ * The Dutch case of VatNumber: the EU-wide shape would let "NL12" through, so this narrows it to the Dutch format.
  */
-final readonly class BtwId implements ValidationRule
+final readonly class BtwId extends VatNumber
 {
-    public function validate(string $attribute, mixed $value, Closure $fail): void
+    public function __construct()
     {
-        // A non-string is for the string rule to reject; this rule only reads what it can.
-        if (! is_string($value))
-        {
-            return;
-        }
+        parent::__construct('NL');
+    }
 
-        if (preg_match('/^NL\d{9}B\d{2}\z/', $value) !== 1)
-        {
-            $fail('The :attribute field must be a valid btw-id, like NL123456789B01.')->translate();
-        }
+    protected function pattern(): string
+    {
+        return '/^NL\d{9}B\d{2}\z/';
+    }
+
+    protected function message(): string
+    {
+        return 'The :attribute field must be a valid btw-id, like NL123456789B01.';
     }
 }
