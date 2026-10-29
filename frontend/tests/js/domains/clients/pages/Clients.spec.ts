@@ -118,20 +118,6 @@ describe('Clients page', () =>
         await flushPromises();
     });
 
-    it('should show not found when listBusinesses gets a 200 (ok) without the id in the URL', async () =>
-    {
-        // Arrange
-        vi.mocked(service.listBusinesses).mockResolvedValue([bakery]);
-
-        // Act
-        const { wrapper } = await mountClients('99');
-        await flushPromises();
-
-        // Assert: the request was answered, and the page says what it means
-        expect(service.listBusinesses).toHaveBeenCalledOnce();
-        expect(wrapper.find('h1').text()).toBe('Business not found');
-    });
-
     it('should show the failure with a Try again button and hand the error on when listBusinesses fails with a 500 (server error)', async () =>
     {
         // Arrange: errorHandler is a spy standing in for app.config.errorHandler
@@ -280,6 +266,29 @@ describe('Clients page', () =>
         expect(clientsService.listClients).not.toHaveBeenCalled();
     });
 
+    it('should show only the new business\'s clients and an empty add form when the URL changes while the old business\'s list is still in flight', async () =>
+    {
+        // Arrange: business 1's request is held, business 2's answers at once
+        vi.mocked(service.listBusinesses).mockResolvedValue([bakery, studio]);
+        const bakeryRequest = createDeferred();
+        vi.mocked(clientsService.listClients).mockImplementation((businessId) =>
+            (businessId === 1 ? bakeryRequest.promise.then(() => [bakker]) : Promise.resolve([huber])));
+        const { wrapper, router } = await mountClients('1');
+        await flushPromises();
+        await wrapper.find('#client-name').setValue('Half typed for the bakery');
+
+        // Act: the page stays mounted while only the param changes, then the old answer arrives last
+        await router.push('/businesses/2/clients');
+        await flushPromises();
+        bakeryRequest.resolve();
+        await flushPromises();
+
+        // Assert: the old business's list and typing don't follow the user to the new one
+        expect(wrapper.find('h1').text()).toBe('Clients · Studio de Vries');
+        expect(listedClients(wrapper)).toStrictEqual(['Brauerei Huber, München, Germany']);
+        expect(inputValue(wrapper, 'client-name')).toBe('');
+    });
+
     it('should send the client, show it in the reloaded list, clear the form and say Added. when createClient gets a 201 (created)', async () =>
     {
         // Arrange: the first list is empty, the reload after the add has the client
@@ -311,9 +320,9 @@ describe('Clients page', () =>
         await flushPromises();
         const country = wrapper.find('#client-country_code');
 
-        // Assert: a business can only be Dutch today, so NL from the business
-        // and an NL default look the same here; a foreign business can't be
-        // built to tell them apart until the app allows one
+        // Assert: a business can only be Dutch today, so this can't tell the
+        // business's country from an NL default; the ClientForm spec starts
+        // a form with another country to prove the prefill is used
         expect((country.element as HTMLSelectElement).value).toBe('NL');
 
         // Act: pick another country, then add

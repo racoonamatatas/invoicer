@@ -247,14 +247,16 @@ describe('AddressFields', () =>
         expect(select.element.value).toBe('NL');
     });
 
-    it('should make every text input read-only when readonly is true', () =>
+    it('should make every text input read-only when readonly is true, Region included', () =>
     {
-        // Act
-        const { wrapper } = mountAddressFields({ readonly: true });
+        // Act: a German address, so Region is shown too
+        const { wrapper } = mountAddressFields({ countryCodes: COUNTRY_CODES, address: emptyGermanAddress(), readonly: true });
 
         // Assert: readonly, not disabled, so the focus stays where it was. As
         // lists of field names, so a failure says which input is wrong.
-        const inputs = FIELDS.map((field) => ({ field, input: wrapper.find(`#client-${field}`) }));
+        const fields: readonly AddressField[] = [...FIELDS, 'region'];
+        expect(wrapper.find('#client-region').exists()).toBe(true);
+        const inputs = fields.map((field) => ({ field, input: wrapper.find(`#client-${field}`) }));
         expect(inputs.filter(({ input }) => input.attributes('readonly') === undefined).map(({ field }) => field)).toStrictEqual([]);
         expect(inputs.filter(({ input }) => input.attributes('disabled') !== undefined).map(({ field }) => field)).toStrictEqual([]);
     });
