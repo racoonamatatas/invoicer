@@ -14,7 +14,7 @@ use Illuminate\Contracts\Validation\ValidationRule;
  *
  * Not final, so it can be extended; validate() is final instead, so a subclass only changes pattern() and message().
  */
-readonly class VatNumber implements ValidationRule
+readonly class EuVatNumber implements ValidationRule
 {
     public function __construct(protected string $prefix) {}
 
