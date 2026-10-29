@@ -259,4 +259,26 @@ describe('useRouteClient', () =>
         await expect(saving).resolves.toStrictEqual(renamed);
         expect(state.value).toStrictEqual({ kind: 'found', client: bolt });
     });
+
+    it('should show what the backend stored when the save lands after navigating away and back to the same client', async () =>
+    {
+        // Arrange: the save is finished by hand, after the visit to Bolt and back
+        const saveRequest = createDeferred();
+        vi.mocked(fetchClient).mockImplementation(async (_businessId, clientId): Promise<Client> => (clientId === acme.id ? acme : bolt));
+        vi.mocked(updateClient).mockReturnValue(saveRequest.promise.then(() => renamed));
+        const { state, save, router } = await mountRouteClient('/businesses/7/clients/3');
+        await flushPromises();
+        const saving = save(renamedPayload);
+
+        // Act: Acme's page again, loaded before the save lands
+        await router.push('/businesses/7/clients/4');
+        await flushPromises();
+        await router.push('/businesses/7/clients/3');
+        await flushPromises();
+        saveRequest.resolve();
+        await saving;
+
+        // Assert: the heading shows the rename the form says was saved
+        expect(state.value).toStrictEqual({ kind: 'found', client: renamed });
+    });
 });
