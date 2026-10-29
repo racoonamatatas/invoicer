@@ -1,4 +1,5 @@
 import { isAddress, isNullableString, type Address } from '@/services/address';
+import { checkResponse, getRequest, postRequest, putRequest } from '@/services/http';
 
 // What the create and edit forms send. Keys match the request's validation
 // rules, so they are also the keys of a 422's errors. Built up with `&`,
@@ -27,4 +28,51 @@ export const isClient = (value: unknown): value is Client =>
            && 'email' in value && typeof value.email === 'string'
            && 'vat_number' in value && isNullableString(value.vat_number)
            && isAddress(value);
+};
+
+const isClientList = (value: unknown): value is Client[] =>
+{
+    return Array.isArray(value) && value.every(isClient);
+};
+
+const endpointFor = (businessId: number): string => `/businesses/${businessId}/clients`;
+
+// A business's clients, sorted by name. A 404 (not found) means the business
+// isn't the user's, or no longer exists.
+export const listClients = async (businessId: number): Promise<Client[]> =>
+{
+    const endpoint = endpointFor(businessId);
+    const response = await getRequest<unknown>(endpoint);
+
+    return checkResponse(endpoint, response.data, isClientList);
+};
+
+// One client of the business. An unknown id and a client of another business
+// are both a 404 (not found), thrown.
+export const fetchClient = async (businessId: number, clientId: number): Promise<Client> =>
+{
+    const endpoint = `${endpointFor(businessId)}/${clientId}`;
+    const response = await getRequest<unknown>(endpoint);
+
+    return checkResponse(endpoint, response.data, isClient);
+};
+
+// 201 (created) with the client. A 422 is thrown, not caught, so the form can
+// show it next to the field.
+export const createClient = async (businessId: number, payload: ClientPayload): Promise<Client> =>
+{
+    const endpoint = endpointFor(businessId);
+    const response = await postRequest<ClientPayload, unknown>(endpoint, payload);
+
+    return checkResponse(endpoint, response.data, isClient);
+};
+
+// Replaces every field of a client: 200 (ok) with the result. A 422 is thrown
+// for the form, a 404 (not found) for the page.
+export const updateClient = async (businessId: number, clientId: number, payload: ClientPayload): Promise<Client> =>
+{
+    const endpoint = `${endpointFor(businessId)}/${clientId}`;
+    const response = await putRequest<ClientPayload, unknown>(endpoint, payload);
+
+    return checkResponse(endpoint, response.data, isClient);
 };
