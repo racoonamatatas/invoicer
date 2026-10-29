@@ -53,9 +53,39 @@ interface ClientFormFields
 // postcode and region as one the user picked.
 const emptyDutchAddress: Address = { street: '', house_number: '', house_number_addition: '', postal_code: '', city: '', region: null, country_code: 'NL' };
 
+// The client's address, key by key, not a rest copy: isClient lets extra keys
+// through, and a rest copy would carry them into the form and back out in
+// the payload. One branch per half of the union, so each keeps its own
+// postcode and region types. A null addition becomes '' because an input
+// holds text; the backend turns '' back into null.
+const addressOf = (client: Client): Address =>
+{
+    if (client.country_code === 'NL')
+    {
+        return {
+            street: client.street,
+            house_number: client.house_number,
+            house_number_addition: client.house_number_addition ?? '',
+            postal_code: client.postal_code,
+            city: client.city,
+            region: null,
+            country_code: 'NL',
+        };
+    }
+
+    return {
+        street: client.street,
+        house_number: client.house_number,
+        house_number_addition: client.house_number_addition ?? '',
+        postal_code: client.postal_code,
+        city: client.city,
+        region: client.region,
+        country_code: client.country_code,
+    };
+};
+
 // Copied once: the form edits its own copy, so a list reload while the user
-// types doesn't overwrite what they typed. A null becomes '' because an
-// input holds text; the backend turns '' back into null.
+// types doesn't overwrite what they typed.
 const fieldsFrom = (initial: ClientFormInitial): ClientFormFields =>
 {
     if (initial.kind === 'new')
@@ -63,20 +93,24 @@ const fieldsFrom = (initial: ClientFormInitial): ClientFormFields =>
         return { name: '', email: '', vat_number: '', address: withCountry(emptyDutchAddress, initial.countryCode) };
     }
 
-    const { id: _id, name, email, vat_number: vatNumber, ...address } = initial.client;
+    const { client } = initial;
 
     return {
-        name,
-        email,
-        vat_number: vatNumber ?? '',
-        address: { ...address, house_number_addition: address.house_number_addition ?? '' },
+        name: client.name,
+        email: client.email,
+        vat_number: client.vat_number ?? '',
+        address: addressOf(client),
     };
 };
 
 const form = ref<ClientFormFields>(fieldsFrom(props.initial));
 
 // Every field true: a client has an input for each, region and country
-// included, so a 422 on any of them shows next to it.
+// included, so a 422 on any of them shows next to it. One exception the
+// flags can't express, since they are fixed when the form is made: a Dutch
+// address hides Region, so a region error there would show nowhere. The form
+// never sends one: withCountry sets region to null when the country becomes
+// NL, and the backend accepts a null region for every country.
 const { submit, isPending, fieldError, throttleMessage, generalMessage } = useForm<keyof ClientPayload>('client', {
     name: true,
     email: true,

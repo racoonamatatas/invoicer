@@ -36,9 +36,6 @@ export default defineConfigWithVueTs(
             '@stylistic/quotes': ['error', 'single', { avoidEscape: true }],
             '@stylistic/no-trailing-spaces': 'error',
             'vue/html-indent': ['error', 4],
-            // `const { id: _id, ...rest } = x` is how a key is left out of a
-            // copy; the named sibling is there to be dropped, not used.
-            '@typescript-eslint/no-unused-vars': ['error', { ignoreRestSiblings: true }],
 
         },
     },
