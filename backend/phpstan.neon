@@ -19,7 +19,12 @@ parameters:
         -
             message: '#^Parameter .+ expects .+, array given\.$#'
             identifier: argument.type
-            path: tests/*
+            paths:
+                - tests/Feature/Business/CreateBusinessTest.php
+                - tests/Feature/Business/UpdateBusinessTest.php
+                - tests/Feature/Client/CreateClientTest.php
+                - tests/Feature/Invoices/CreateInvoiceTest.php
+                - tests/Unit/Invoicing/InvoiceTotalsTest.php
 
 services:
     -
