@@ -11,8 +11,10 @@ describe('Listing invoices', function (): void {
     it('should return 200 (ok) with only this business\'s invoices, newest first', function (): void {
         // Arrange
         $business = Business::factory()->create();
-        $first = Invoice::factory()->for($business)->create();
-        $second = Invoice::factory()->for($business)->create();
+        // The older invoice gets the later created_at, so a sort on created_at instead of id puts them the other way
+        // round rather than tying and passing by luck.
+        $first = Invoice::factory()->for($business)->create(['created_at' => now()]);
+        $second = Invoice::factory()->for($business)->create(['created_at' => now()->subDay()]);
         // An invoice of the same user's other business: listed under that business's URL, not this one.
         Invoice::factory()->for(Business::factory()->for($business->user))->create();
         $this->actingAs($business->user, 'web');
