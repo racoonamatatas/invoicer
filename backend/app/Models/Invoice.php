@@ -39,6 +39,10 @@ class Invoice extends Model
      * Explicit integer casts on the keys, as on Client: they are compared with === when an invoice checks that its
      * client and bank account belong to its business.
      *
+     * The enum casts use from(), so a stored integer no case backs throws a ValueError, which is a 500. Left that way
+     * on purpose: only corrupt data can cause it, and a loud, reported error beats a guess at what it meant. Note
+     * the reach: one such row breaks the whole invoices list of its business, not only its own show.
+     *
      * @return array<string, string>
      */
     protected function casts(): array

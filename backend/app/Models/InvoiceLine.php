@@ -36,6 +36,9 @@ class InvoiceLine extends Model
      * The amounts are cast to integers because the totals take them as int, and a driver that returns strings would
      * fail strict_types there.
      *
+     * The vat_option cast uses from(), so a stored integer no case backs throws a ValueError, which is a 500 on its
+     * invoice's show. Left that way on purpose, as on Invoice: only corrupt data can cause it.
+     *
      * @return array<string, string>
      */
     protected function casts(): array
