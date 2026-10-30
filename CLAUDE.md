@@ -29,6 +29,7 @@ This repo is **public**: no secrets, no private URLs, no details about other cod
 php artisan test --compact                    # whole suite
 php artisan test --compact tests/Feature/Auth/LoginTest.php --filter="pending registration"
 vendor/bin/pint --test                        # style check, changes nothing
+vendor/bin/phpstan analyse --memory-limit=1G  # Larastan at max level, app/ and tests/
 
 # Frontend (from frontend/)
 ./node_modules/.bin/vitest run                # whole suite, or pass a spec path

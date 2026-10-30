@@ -48,6 +48,7 @@ These are the same checks CI runs on every push to `main` and every PR.
 # Backend (from backend/)
 php artisan test --compact
 vendor/bin/pint --test
+vendor/bin/phpstan analyse --memory-limit=1G   # Larastan, max level, no baseline
 
 # Frontend (from frontend/)
 ./node_modules/.bin/vitest run
