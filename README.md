@@ -86,6 +86,17 @@ own tests, reused across requests.
 request, turns it into a typed input object, and hands it to an action class
 (`CreateClientAction`, …). The business logic can be tested without HTTP.
 
+**Everything hangs off a business.** Clients, bank accounts and invoices live
+under `/businesses/{business}/…`. The route binding only finds businesses that
+belong to the logged-in user, and the nested records resolve through their
+business, so another user's data is a 404: the API doesn't even confirm it
+exists.
+
+**Email-first signup.** You register with only an email address and choose a
+password from the link that arrives. The response is the same whether or not
+the address already has an account; only the inbox owner learns which it was.
+So the sign-up form can't be used to find out who has an account.
+
 **Cookie auth, not tokens in local storage.** The SPA and the API share an
 origin, so Sanctum's session cookie works: it is `HttpOnly`, so page scripts
 can't read it, and CSRF is covered by Sanctum's XSRF cookie.
