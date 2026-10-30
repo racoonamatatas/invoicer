@@ -98,6 +98,7 @@ describe('Updating a business', function (): void {
         $this->actingAs($user, 'web');
 
         // Act
+        // @phpstan-ignore argument.type (a dataset value: PHPStan can't follow ->with() into the closure)
         $response = $this->putJson("/api/businesses/{$business->id}", businessPayload($changes));
 
         // Assert

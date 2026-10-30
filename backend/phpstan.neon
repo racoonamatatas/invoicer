@@ -13,19 +13,6 @@ parameters:
         # them. They hold no logic to type-check.
         - tests/Arch/
 
-    ignoreErrors:
-        # A Pest dataset reaches the test closure through ->with() at runtime, which PHPStan can't follow, and it
-        # ignores a docblock on a closure passed as an argument. So a dataset's array parameter stays a plain `array`.
-        -
-            message: '#^Parameter .+ expects .+, array given\.$#'
-            identifier: argument.type
-            paths:
-                - tests/Feature/Business/CreateBusinessTest.php
-                - tests/Feature/Business/UpdateBusinessTest.php
-                - tests/Feature/Client/CreateClientTest.php
-                - tests/Feature/Invoices/CreateInvoiceTest.php
-                - tests/Unit/Invoicing/InvoiceTotalsTest.php
-
 services:
     -
         class: Tests\PHPStan\PestClosureThisExtension

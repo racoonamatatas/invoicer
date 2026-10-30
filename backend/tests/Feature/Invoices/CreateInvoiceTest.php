@@ -111,6 +111,7 @@ describe('Creating an invoice', function (): void {
         // Arrange
         // The passing side of the treatment rules, so a rule that refuses everything fails here.
         $business = Business::factory()->create();
+        // @phpstan-ignore argument.type (a dataset value: PHPStan can't follow ->with() into the closure)
         $client = Client::factory()->for($business)->create($clientAttributes);
         $account = BankAccount::factory()->for($business)->create();
         $this->actingAs($business->user, 'web');
@@ -160,6 +161,7 @@ describe('Creating an invoice', function (): void {
     it('should return 422 (unprocessable) on vat_treatment for a treatment that doesn\'t fit the client, and store nothing', function (string $treatment, array $clientAttributes, string $message): void {
         // Arrange
         $business = Business::factory()->create();
+        // @phpstan-ignore argument.type (a dataset value: PHPStan can't follow ->with() into the closure)
         $client = Client::factory()->for($business)->create($clientAttributes);
         $account = BankAccount::factory()->for($business)->create();
         $this->actingAs($business->user, 'web');
