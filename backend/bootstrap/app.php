@@ -6,6 +6,8 @@ use App\Exceptions\Auth\InvalidCredentialsException;
 use App\Exceptions\BankAccount\BankAccountInUseException;
 use App\Exceptions\BankAccount\DuplicateIbanException;
 use App\Exceptions\Business\DuplicateKvkNumberException;
+use App\Exceptions\Http\IfMatchMalformedException;
+use App\Exceptions\Http\IfMatchMissingException;
 use App\Exceptions\Invoice\InvoiceReferenceGoneException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -67,5 +69,15 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->dontReport(BankAccountInUseException::class);
         $exceptions->render(
             fn (BankAccountInUseException $exception) => new JsonResponse(['message' => $exception->getMessage()], JsonResponse::HTTP_CONFLICT),
+        );
+
+        // Refused before any query. A 428 (precondition required) says the header is missing, a 400 (bad request) that
+        // it can't be read. Neither is reported: the response tells the caller everything there is to know.
+        $exceptions->dontReport([IfMatchMissingException::class, IfMatchMalformedException::class]);
+        $exceptions->render(
+            fn (IfMatchMissingException $exception) => new JsonResponse(['message' => $exception->getMessage()], JsonResponse::HTTP_PRECONDITION_REQUIRED),
+        );
+        $exceptions->render(
+            fn (IfMatchMalformedException $exception) => new JsonResponse(['message' => $exception->getMessage()], JsonResponse::HTTP_BAD_REQUEST),
         );
     })->create();
