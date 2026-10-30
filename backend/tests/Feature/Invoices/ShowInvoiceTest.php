@@ -75,6 +75,21 @@ describe('Showing an invoice', function (): void {
         ]);
     });
 
+    it('should return 200 (ok) with the invoice\'s version as a quoted ETag', function (): void {
+        // Arrange
+        // Version 7, not the factory's 1: a header that sends a constant or the id can't pass by chance.
+        $business = Business::factory()->create();
+        $invoice = Invoice::factory()->for($business)->create(['version' => 7]);
+        $this->actingAs($business->user, 'web');
+
+        // Act
+        $response = $this->getJson("/api/businesses/{$business->id}/invoices/{$invoice->id}");
+
+        // Assert
+        // The quotes are part of an ETag's syntax, and If-Match sends them back the same way.
+        $response->assertOk()->assertHeader('ETag', '"7"');
+    });
+
     it('should return 200 (ok) with a null vat_option on each line and no VAT groups for a reverse-charge or outside-scope invoice', function (VatTreatment $treatment, string $apiName): void {
         // Arrange
         $business = Business::factory()->create();
