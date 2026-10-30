@@ -35,7 +35,7 @@ final class InvoiceController extends Controller
      */
     public function show(Business $business, Invoice $invoice): InvoiceResourceData
     {
-        // Loaded once here: the resource reads the lines for the lines and again for the totals.
+        // Loaded here rather than on first read inside the resource: the same one query, but in sight.
         return InvoiceResourceData::from($invoice->load('lines'));
     }
 }

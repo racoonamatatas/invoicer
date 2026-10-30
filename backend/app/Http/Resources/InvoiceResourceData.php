@@ -27,8 +27,8 @@ final readonly class InvoiceResourceData implements JsonSerializable, Responsabl
     ) {}
 
     /**
-     * Reads $invoice->lines twice (for the lines and for the totals), so the caller loads them first: one query, not
-     * one per read.
+     * Reads $invoice->lines twice, for the lines and for the totals. Eloquent caches a relation after its first read,
+     * so both share one query, whether the caller loaded the lines first or not.
      */
     public static function from(Invoice $invoice): self
     {
