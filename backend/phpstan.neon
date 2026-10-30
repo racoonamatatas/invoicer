@@ -1,0 +1,18 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+
+parameters:
+    level: max
+    paths:
+        - app/
+        - tests/
+    excludePaths:
+        # Arch tests are declarative chains on arch(), which reach expect() through Pest's __call, so PHPStan can't see
+        # them. They hold no logic to type-check.
+        - tests/Arch/
+
+services:
+    -
+        class: Tests\PHPStan\PestClosureThisExtension
+        tags:
+            - phpstan.functionParameterClosureThisExtension
