@@ -16,7 +16,7 @@ describe('Showing an invoice', function (): void {
         $invoice = Invoice::factory()->for($business)->create(['payment_term_days' => 14]);
         // Position 2 is stored first, so a list in insertion order would come back the wrong way round. This can't
         // catch a missing orderBy('position') on SQLite, though: it reads the lines through the (invoice_id, position)
-        // index, which happens to return them in order. The orderBy is what guarantees it on any database or plan.
+        // index, which happens to return them in order. InvoiceLinesOrderTest checks the ORDER BY itself.
         InvoiceLine::factory()->for($invoice)->create([
             'position' => 2,
             'description' => 'Lesmateriaal',
