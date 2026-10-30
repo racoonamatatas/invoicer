@@ -8,6 +8,7 @@ use App\Models\Client;
 use App\Models\Invoice;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 describe('The invoices table', function (): void {
 
@@ -52,6 +53,14 @@ describe('The invoices table', function (): void {
         expect($delete)->toThrow(QueryException::class)
             ->and($invoice->bankAccount()->exists())->toBeTrue();
     });
+
+    it('should have an index that leads with client_id, and one with bank_account_id (SQLite does not index a foreign key by itself)', function (string $column): void {
+        // Act
+        $indexedColumns = collect(Schema::getIndexes('invoices'))->pluck('columns');
+
+        // Assert: the leading column is what serves "where client_id = ?", the lookup every client delete makes.
+        expect($indexedColumns->contains(fn (array $columns): bool => $columns[0] === $column))->toBeTrue();
+    })->with(['client_id', 'bank_account_id']);
 
     it('should refuse an invoice that leaves out status or vat_treatment (NOT NULL, no default)', function (string $column): void {
         // Arrange
