@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace App\DataTransferObjects\Input\Invoice;
 
+use App\Enums\VatOption;
 use App\Enums\VatTreatment;
 use LogicException;
 
@@ -51,5 +52,20 @@ final readonly class InvoiceData
             'vat_treatment' => $this->vatTreatment,
             'payment_term_days' => $this->paymentTermDays,
         ];
+    }
+
+    /**
+     * The lines' attributes, numbered 1, 2, 3… in the order the request sent them. Create and update both number the
+     * lines here, so the two can't disagree on where position 1 is.
+     *
+     * @return list<array{position: int, description: string, quantity_hundredths: int, unit_price_cents: int, vat_option: ?VatOption}>
+     */
+    public function lineAttributes(): array
+    {
+        return array_map(
+            static fn (InvoiceLineData $line, int $index): array => $line->toAttributes($index + 1),
+            $this->lines,
+            array_keys($this->lines),
+        );
     }
 }
