@@ -50,4 +50,37 @@ describe('VatOption', function (): void {
         // Assert
         expect($ratePercent)->not->toThrow(UnhandledMatchError::class);
     })->with(VatOption::cases());
+
+    it('should name High, Low, Zero and Exempt "high", "low", "zero" and "exempt" in the API', function (VatOption $option, string $apiName): void {
+        // Act
+        $name = $option->apiName();
+
+        // Assert
+        // These strings are what the frontend sends and checks, so a renamed one must break this test.
+        expect($name)->toBe($apiName);
+    })->with([
+        'High' => [VatOption::High, 'high'],
+        'Low' => [VatOption::Low, 'low'],
+        'Zero' => [VatOption::Zero, 'zero'],
+        'Exempt' => [VatOption::Exempt, 'exempt'],
+    ]);
+
+    it('should answer apiName() for every case without an UnhandledMatchError', function (VatOption $option): void {
+        // Act
+        // The match in apiName() has no default arm, so a case it doesn't list throws an UnhandledMatchError.
+        // The dataset is cases() itself, so a new case is in this test the moment it exists.
+        $apiName = static fn (): string => $option->apiName();
+
+        // Assert
+        expect($apiName)->not->toThrow(UnhandledMatchError::class);
+    })->with(VatOption::cases());
+
+    it('should give every case a different API name', function (): void {
+        // Act
+        $apiNames = array_map(static fn (VatOption $option): string => $option->apiName(), VatOption::cases());
+
+        // Assert
+        // Two cases with one name would read back as the same case.
+        expect(array_unique($apiNames))->toHaveCount(count(VatOption::cases()));
+    });
 });

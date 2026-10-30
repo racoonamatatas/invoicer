@@ -37,4 +37,19 @@ enum VatTreatment: int
             self::ReverseCharge, self::OutsideScope => false,
         };
     }
+
+    /**
+     * What the API sends and accepts for this treatment. Not the backing integer, which is a storage format, and not
+     * derived from the case name, so renaming a case can't change the API.
+     */
+    public function apiName(): string
+    {
+        // No default arm: a new case throws an UnhandledMatchError until it has a name on the wire.
+        return match ($this)
+        {
+            self::Domestic => 'domestic',
+            self::ReverseCharge => 'reverse_charge',
+            self::OutsideScope => 'outside_scope',
+        };
+    }
 }
