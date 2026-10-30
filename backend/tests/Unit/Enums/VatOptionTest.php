@@ -83,4 +83,25 @@ describe('VatOption', function (): void {
         // Two cases with one name would read back as the same case.
         expect(array_unique($apiNames))->toHaveCount(count(VatOption::cases()));
     });
+
+    it('should read every case back from its own API name', function (VatOption $option): void {
+        // Act
+        $readBack = VatOption::tryFromApiName($option->apiName());
+
+        // Assert
+        // The dataset is cases() itself, so a new case is in this test the moment it exists.
+        expect($readBack)->toBe($option);
+    })->with(VatOption::cases());
+
+    it('should read no case (null) from a name the API doesn\'t use', function (string $name): void {
+        // Act
+        $readBack = VatOption::tryFromApiName($name);
+
+        // Assert
+        expect($readBack)->toBeNull();
+    })->with([
+        'the case name' => ['High'],
+        'the backing integer' => ['1'],
+        'an empty string' => [''],
+    ]);
 });
