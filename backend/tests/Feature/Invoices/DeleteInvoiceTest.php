@@ -2,10 +2,14 @@
 
 declare(strict_types = 1);
 
+use App\Actions\Invoice\DeleteInvoiceAction;
+use App\Http\IfMatch;
 use App\Models\Business;
 use App\Models\Invoice;
 use App\Models\InvoiceLine;
 use Illuminate\Database\Eloquent\Factories\Sequence;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Http\Request;
 
 describe('Deleting an invoice', function (): void {
 
@@ -123,5 +127,38 @@ describe('Deleting an invoice', function (): void {
         // Assert
         $response->assertNotFound();
         $this->assertModelExists($invoice);
+    });
+
+    it('should return 401 (unauthorized) and keep the invoice for a guest', function (): void {
+        // Arrange
+        $invoice = Invoice::factory()->create();
+
+        // Act
+        $response = $this->deleteJson("/api/businesses/{$invoice->business_id}/invoices/{$invoice->id}", [], ['If-Match' => '"1"']);
+
+        // Assert
+        $response->assertUnauthorized();
+        $this->assertModelExists($invoice);
+    });
+});
+
+describe('DeleteInvoiceAction', function (): void {
+
+    it('should throw ModelNotFoundException, a 404 (not found), when the invoice was deleted after the route found it', function (): void {
+        // Arrange
+        // The action is called directly: over HTTP the binding would find the row gone and answer 404 itself, so the
+        // gap between the binding and the delete can only be reached here. The model is loaded, then its row deleted,
+        // as a double-click's first request would.
+        $invoice = Invoice::factory()->create();
+        Invoice::query()->whereKey($invoice->id)->delete();
+        $ifMatch = IfMatch::fromRequest(Request::create('/', 'DELETE', server: ['HTTP_IF_MATCH' => '"1"']));
+
+        // Act
+        $act = fn () => app(DeleteInvoiceAction::class)->execute($invoice, $ifMatch);
+
+        // Assert
+        // Not StaleVersionException: its "changed elsewhere, load the latest version" would send the user to a draft
+        // that no longer exists.
+        expect($act)->toThrow(ModelNotFoundException::class);
     });
 });
