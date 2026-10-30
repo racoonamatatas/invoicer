@@ -61,7 +61,10 @@ describe('The bank_accounts table', function (): void {
         $index = collect(Schema::getIndexes('bank_accounts'))->firstWhere('name', 'bank_accounts_business_id_iban_unique');
 
         // Assert
-        expect($index)->toMatchArray(['columns' => ['business_id', 'iban'], 'unique' => true]);
+        // ?? null: a missing index fails both checks instead of erroring. toBe and toBeTrue compare strictly, unlike
+        // toMatchArray, so a 1 for true wouldn't pass.
+        expect($index['columns'] ?? null)->toBe(['business_id', 'iban'])
+            ->and($index['unique'] ?? null)->toBeTrue();
     });
 
     it('should have an index that leads with business_id (SQLite does not index a foreign key by itself)', function (): void {

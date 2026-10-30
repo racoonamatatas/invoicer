@@ -47,7 +47,10 @@ describe('The businesses table', function (): void {
         $index = collect(Schema::getIndexes('businesses'))->firstWhere('name', 'businesses_user_id_kvk_number_unique');
 
         // Assert
-        expect($index)->toMatchArray(['columns' => ['user_id', 'kvk_number'], 'unique' => true]);
+        // ?? null: a missing index fails both checks instead of erroring. toBe and toBeTrue compare strictly, unlike
+        // toMatchArray, so a 1 for true wouldn't pass.
+        expect($index['columns'] ?? null)->toBe(['user_id', 'kvk_number'])
+            ->and($index['unique'] ?? null)->toBeTrue();
     });
 
     it('should allow one user to own several businesses (user_id is not unique)', function (): void {
