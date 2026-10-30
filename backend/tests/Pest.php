@@ -8,6 +8,7 @@ use App\Invoicing\InvoiceTotals;
 use App\Invoicing\VatGroupTotal;
 use App\Models\BankAccount;
 use App\Models\Client;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -57,9 +58,18 @@ expect()->extend('toBeOne', function () {
 |
 */
 
-function something()
+/**
+ * The model as the database holds it now, as a new instance like fresh(), so a test can still compare it with the
+ * one it holds. Throws where fresh() would return null: a row the test expects to exist being gone is a failure.
+ *
+ * @template TModel of Model
+ *
+ * @param  TModel  $model
+ * @return TModel
+ */
+function reloaded(Model $model): Model
 {
-    // ..
+    return $model->fresh() ?? throw new LogicException($model::class.' '.$model->getKey().' is no longer in the database.');
 }
 
 /**

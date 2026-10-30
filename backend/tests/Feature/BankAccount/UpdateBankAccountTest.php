@@ -20,8 +20,8 @@ describe('Updating a bank account', function (): void {
         // Assert
         $response->assertOk()
             ->assertExactJson(['id' => $account->id, 'iban' => 'NL91ABNA0417164300', 'label' => 'Zakelijk']);
-        expect($account->fresh()?->label)->toBe('Zakelijk')
-            ->and($account->fresh()?->iban)->toBe('NL91ABNA0417164300');
+        expect(reloaded($account)->label)->toBe('Zakelijk')
+            ->and(reloaded($account)->iban)->toBe('NL91ABNA0417164300');
     });
 
     it('should return 200 (ok) when an account keeps its own label in another case', function (): void {
@@ -72,8 +72,8 @@ describe('Updating a bank account', function (): void {
         // Assert
         $response->assertUnprocessable()
             ->assertOnlyJsonValidationErrors(['iban' => 'The iban can\'t be changed.']);
-        expect($account->fresh()?->iban)->toBe('NL91ABNA0417164300')
-            ->and($account->fresh()?->label)->toBe('Main');
+        expect(reloaded($account)->iban)->toBe('NL91ABNA0417164300')
+            ->and(reloaded($account)->label)->toBe('Main');
     })->with([
         'another valid IBAN' => 'NL20INGB0001234567',
         // Empty is not "no change": prohibited would have let these through.
@@ -95,7 +95,7 @@ describe('Updating a bank account', function (): void {
         // Assert
         $response->assertUnprocessable()
             ->assertOnlyJsonValidationErrors(['label' => 'The label has already been taken.']);
-        expect($account->fresh()?->label)->toBe('Zakelijk');
+        expect(reloaded($account)->label)->toBe('Zakelijk');
     });
 
     it('should return 500 (server error) when another account takes the label between validation and update', function (): void {
@@ -115,7 +115,7 @@ describe('Updating a bank account', function (): void {
 
         // Assert
         $response->assertInternalServerError();
-        expect($account->fresh()?->label)->toBe('Main');
+        expect(reloaded($account)->label)->toBe('Main');
     });
 
     it('should return 404 (not found) for an account of the user\'s other business, and change nothing', function (): void {
@@ -130,7 +130,7 @@ describe('Updating a bank account', function (): void {
 
         // Assert
         $response->assertNotFound();
-        expect($sibling->fresh()?->label)->toBe('Main');
+        expect(reloaded($sibling)->label)->toBe('Main');
     });
 
     it('should return 404 (not found) for a business of another user, and change nothing', function (): void {
@@ -144,7 +144,7 @@ describe('Updating a bank account', function (): void {
 
         // Assert
         $response->assertNotFound();
-        expect($account->fresh()?->label)->toBe('Main');
+        expect(reloaded($account)->label)->toBe('Main');
     });
 
     it('should return the same 404 (not found) for an existing and an unknown account id on a business of another user', function (): void {
@@ -174,6 +174,6 @@ describe('Updating a bank account', function (): void {
 
         // Assert
         $response->assertUnauthorized();
-        expect($account->fresh()?->label)->toBe('Main');
+        expect(reloaded($account)->label)->toBe('Main');
     });
 });

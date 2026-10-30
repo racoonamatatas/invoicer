@@ -33,7 +33,7 @@ describe('Updating a business', function (): void {
             'country_code' => 'NL',
             'payment_term_days' => 30,
         ]);
-        expect($business->fresh()->registered_name)->toBe('Bakkerij de Vries');
+        expect(reloaded($business)->registered_name)->toBe('Bakkerij de Vries');
     });
 
     it('should clear the house number addition when the body leaves it out', function (): void {
@@ -47,7 +47,7 @@ describe('Updating a business', function (): void {
 
         // Assert
         $response->assertOk();
-        expect($business->fresh()->house_number_addition)->toBeNull();
+        expect(reloaded($business)->house_number_addition)->toBeNull();
     });
 
     it('should keep the owner, whatever user_id the body holds', function (): void {
@@ -61,7 +61,7 @@ describe('Updating a business', function (): void {
         $this->putJson("/api/businesses/{$business->id}", businessPayload(['user_id' => $other->id]))->assertOk();
 
         // Assert
-        expect($business->fresh()->user_id)->toBe($user->id);
+        expect(reloaded($business)->user_id)->toBe($user->id);
     });
 
     it('should store the postcode in canonical form', function (): void {
@@ -75,7 +75,7 @@ describe('Updating a business', function (): void {
 
         // Assert
         $response->assertOk();
-        expect($business->fresh()->postal_code)->toBe('9711 LM');
+        expect(reloaded($business)->postal_code)->toBe('9711 LM');
     });
 
     it('should return 200 (ok) when the business keeps its own kvk_number', function (): void {
@@ -102,7 +102,7 @@ describe('Updating a business', function (): void {
 
         // Assert
         $response->assertUnprocessable()->assertOnlyJsonValidationErrors([$field => $message]);
-        expect($business->fresh()->registered_name)->toBe($business->registered_name);
+        expect(reloaded($business)->registered_name)->toBe($business->registered_name);
     })->with('business field rules');
 
     it('should return 422 (unprocessable) on kvk_number, alongside the other field errors, when another business of the same user has that number', function (): void {
@@ -141,7 +141,7 @@ describe('Updating a business', function (): void {
         // Assert
         $response->assertUnprocessable()
             ->assertOnlyJsonValidationErrors(['kvk_number' => 'The kvk number has already been taken.']);
-        expect($business->fresh()->kvk_number)->toBe('87654321');
+        expect(reloaded($business)->kvk_number)->toBe('87654321');
     });
 
     it('should return 500 (server error) when the update breaks a unique index other than kvk_number, and change nothing', function (): void {
@@ -160,7 +160,7 @@ describe('Updating a business', function (): void {
 
         // Assert
         $response->assertInternalServerError();
-        expect($business->fresh()->kvk_number)->toBe('87654321');
+        expect(reloaded($business)->kvk_number)->toBe('87654321');
     });
 
     it('should return 404 (not found) for a business of another user, before validating the body', function (): void {
@@ -185,6 +185,6 @@ describe('Updating a business', function (): void {
 
         // Assert
         $response->assertUnauthorized();
-        expect($business->fresh()->registered_name)->toBe($business->registered_name);
+        expect(reloaded($business)->registered_name)->toBe($business->registered_name);
     });
 });

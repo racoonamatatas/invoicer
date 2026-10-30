@@ -107,7 +107,7 @@ describe('Registering', function (): void {
         $this->assertGuest('web');
         $this->assertDatabaseCount('users', 1);
         $this->assertDatabaseCount('pending_registrations', 0);
-        expect($existing->fresh()->password)->toBe($existing->password);
+        expect(reloaded($existing)->password)->toBe($existing->password);
         Mail::assertQueuedCount(1);
         Mail::assertQueued(AccountAlreadyExists::class, function (AccountAlreadyExists $mail) use ($email): bool {
             $html = $mail->render();

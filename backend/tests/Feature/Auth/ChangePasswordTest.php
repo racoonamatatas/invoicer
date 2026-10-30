@@ -27,7 +27,7 @@ describe('Changing the password', function (): void {
         // Assert
         $response->assertNoContent();
         $this->assertAuthenticatedAs($user, 'web');
-        expect(Hash::check('new-horse-battery2', $user->fresh()->password))->toBeTrue();
+        expect(Hash::check('new-horse-battery2', reloaded($user)->password))->toBeTrue();
     });
 
     it('should return 422 (unprocessable) with a current_password error and keep the old password when the current password is wrong', function (): void {
@@ -45,7 +45,7 @@ describe('Changing the password', function (): void {
         // Assert
         $response->assertUnprocessable()
             ->assertOnlyJsonValidationErrors(['current_password']);
-        expect(Hash::check('old-horse-battery1', $user->fresh()->password))->toBeTrue();
+        expect(Hash::check('old-horse-battery1', reloaded($user)->password))->toBeTrue();
     });
 
     it('should return 401 (unauthorized) for a guest', function (): void {
@@ -210,7 +210,7 @@ describe('Changing the password', function (): void {
         // Assert
         $response->assertUnprocessable()
             ->assertOnlyJsonValidationErrors(['password' => 'The password field and current password must be different.']);
-        expect(Hash::check('old-horse-battery1', $user->fresh()->password))->toBeTrue();
+        expect(Hash::check('old-horse-battery1', reloaded($user)->password))->toBeTrue();
     });
 
     // One test per route that the shared rules are wired: the unit (bytes, not characters) is proven on verify-email.
@@ -230,7 +230,7 @@ describe('Changing the password', function (): void {
         // Assert
         $response->assertUnprocessable()
             ->assertOnlyJsonValidationErrors(['password']);
-        expect(Hash::check('old-horse-battery1', $user->fresh()->password))->toBeTrue();
+        expect(Hash::check('old-horse-battery1', reloaded($user)->password))->toBeTrue();
     });
 
     it('should return 422 (unprocessable) with a password error and keep the old password when the confirmation does not match', function (): void {
@@ -248,6 +248,6 @@ describe('Changing the password', function (): void {
         // Assert
         $response->assertUnprocessable()
             ->assertOnlyJsonValidationErrors(['password']);
-        expect(Hash::check('old-horse-battery1', $user->fresh()->password))->toBeTrue();
+        expect(Hash::check('old-horse-battery1', reloaded($user)->password))->toBeTrue();
     });
 });

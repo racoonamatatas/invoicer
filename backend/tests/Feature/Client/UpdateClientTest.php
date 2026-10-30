@@ -42,7 +42,7 @@ describe('Updating a client', function (): void {
             'country_code' => 'DE',
         ];
         $response->assertOk()->assertExactJson($expected);
-        expect($client->fresh()?->only(array_keys($expected)))->toBe($expected);
+        expect(reloaded($client)->only(array_keys($expected)))->toBe($expected);
     });
 
     it('should store an update in canonical form, as creating does', function (): void {
@@ -59,7 +59,7 @@ describe('Updating a client', function (): void {
         ]))->assertOk();
 
         // Assert
-        expect($client->fresh()?->only(['vat_number', 'postal_code', 'country_code']))->toBe([
+        expect(reloaded($client)->only(['vat_number', 'postal_code', 'country_code']))->toBe([
             'vat_number' => 'NL123456789B01',
             'postal_code' => '9712 CP',
             'country_code' => 'NL',
@@ -77,7 +77,7 @@ describe('Updating a client', function (): void {
 
         // Assert
         $response->assertUnprocessable()->assertOnlyJsonValidationErrors(['email' => 'The email field is required.']);
-        expect($client->fresh()?->email)->toBe('oud@jansen.example');
+        expect(reloaded($client)->email)->toBe('oud@jansen.example');
     });
 
     it('should return 404 (not found) and change nothing for a client the URL does not reach', function (Closure $target): void {
@@ -120,6 +120,6 @@ describe('Updating a client', function (): void {
 
         // Assert
         $response->assertUnauthorized();
-        expect($client->fresh()?->name)->not->toBe('Overwritten');
+        expect(reloaded($client)->name)->not->toBe('Overwritten');
     });
 });
