@@ -4,7 +4,9 @@ declare(strict_types = 1);
 
 namespace App\Http\Controllers;
 
+use App\Actions\Invoice\CreateInvoiceAction;
 use App\Actions\Invoice\ListInvoicesAction;
+use App\Http\Requests\InvoiceRequest;
 use App\Http\Resources\InvoiceResourceData;
 use App\Http\Resources\InvoiceSummaryResourceData;
 use App\Models\Business;
@@ -24,6 +26,16 @@ final class InvoiceController extends Controller
             ->all();
 
         return new JsonResponse($invoices);
+    }
+
+    /**
+     * A new draft for the business, as 201 with the draft as show returns it, totals included.
+     */
+    public function store(InvoiceRequest $request, CreateInvoiceAction $action, Business $business): JsonResponse
+    {
+        $invoice = $action->execute($business, $request->toDto());
+
+        return new JsonResponse(InvoiceResourceData::from($invoice), JsonResponse::HTTP_CREATED);
     }
 
     /**
