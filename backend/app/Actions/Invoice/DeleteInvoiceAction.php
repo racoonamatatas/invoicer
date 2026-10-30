@@ -41,7 +41,7 @@ final readonly class DeleteInvoiceAction
         // The same 404 as an unknown id in the URL.
         if (! Invoice::query()->whereKey($invoice->getKey())->exists())
         {
-            throw (new ModelNotFoundException)->setModel(Invoice::class, [$invoice->getKey()]);
+            throw (new ModelNotFoundException)->setModel(Invoice::class, [$invoice->id]);
         }
 
         throw new StaleVersionException;
