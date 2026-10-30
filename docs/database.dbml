@@ -88,14 +88,15 @@ Table invoices
   business_id integer [not null]
   client_id integer [not null]
   bank_account_id integer [not null]
-  status integer [not null, note: 'draft / sent / paid']
+  status integer [not null, note: 'InvoiceStatus; only draft for now, sent and paid come with sending. No default: the creator sets it']
+  vat_treatment integer [not null, note: 'VatTreatment: domestic / reverse charge / outside scope. No default: the creator sets it']
   number varchar [note: 'null while draft']
   payment_term_days integer [note: 'override; null = use business default']
   created_at timestamp
   updated_at timestamp
 
   indexes {
-    (business_id, number) [unique]
+    (business_id, number) [unique, note: 'NULLs are distinct, so any number of drafts can share a business. Also serves lookups by business_id']
   }
 }
 
@@ -103,13 +104,19 @@ Table invoice_lines
 {
   id integer [pk, increment]
   invoice_id integer [not null]
+  position integer [not null, note: 'place on the invoice, from 1']
   description varchar [not null]
-  quantity decimal(10,2) [not null, note: 'e.g. 7.50 hours']
-  unit_price_cents integer [not null, note: 'excl. BTW']
-  vat_option integer [not null, note: 'high / low / zero / vrijgesteld']
-  vat_rate_percent integer [note: 'copied on send; null while draft and for vrijgesteld']
+  quantity_hundredths integer [not null, note: 'unsigned; 1,5 hours is 150']
+  unit_price_cents integer [not null, note: 'unsigned; excl. BTW']
+  vat_option integer [note: 'VatOption: high / low / zero / exempt; null unless the treatment charges VAT']
   created_at timestamp
   updated_at timestamp
+
+  indexes {
+    (invoice_id, position) [unique, note: 'also serves lookups by invoice_id']
+  }
+
+  Note: 'vat_rate_percent comes back with the Send epic: the rate is copied onto the line on send, and nothing writes it before then'
 }
 
 Table invoice_snapshots
