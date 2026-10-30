@@ -97,6 +97,8 @@ Table invoices
 
   indexes {
     (business_id, number) [unique, note: 'NULLs are distinct, so any number of drafts can share a business. Also serves lookups by business_id']
+    client_id [note: 'SQLite does not index a foreign key by itself; every client delete checks for invoices']
+    bank_account_id [note: 'SQLite does not index a foreign key by itself; every bank account delete checks for invoices']
   }
 }
 

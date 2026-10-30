@@ -19,8 +19,10 @@ return new class extends Migration
             $table->foreignId('business_id')->constrained()->restrictOnDelete();
             // The foreign keys only check that the client and the account exist, not that they belong to this
             // invoice's business: the request validates that.
-            $table->foreignId('client_id')->constrained()->restrictOnDelete();
-            $table->foreignId('bank_account_id')->constrained()->restrictOnDelete();
+            // ->index(): SQLite doesn't index a foreign key by itself, and every delete of a client or an account
+            // looks here for invoices that still use it, which would otherwise scan the whole table.
+            $table->foreignId('client_id')->index()->constrained()->restrictOnDelete();
+            $table->foreignId('bank_account_id')->index()->constrained()->restrictOnDelete();
             // No defaults on status and vat_treatment: whoever creates an invoice sets both, so a forgotten one is a
             // constraint error rather than a silent "draft, domestic".
             $table->unsignedTinyInteger('status'); // InvoiceStatus
