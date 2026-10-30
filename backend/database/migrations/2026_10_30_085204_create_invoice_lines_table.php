@@ -22,9 +22,10 @@ return new class extends Migration
             $table->unsignedInteger('position');
             $table->string('description');
             // Integers, not decimals: the quantity in hundredths (1,5 hours is 150) and the price in cents, so the
-            // totals are exact. Signed, because whether a line may be negative is a rule for the request.
-            $table->integer('quantity_hundredths');
-            $table->integer('unit_price_cents'); // excl. BTW
+            // totals are exact. Unsigned: an invoice line never goes negative, as corrections belong on credit notes.
+            // SQLite drops the unsigned flag, so the request is what enforces it.
+            $table->unsignedInteger('quantity_hundredths');
+            $table->unsignedInteger('unit_price_cents'); // excl. BTW
             $table->unsignedTinyInteger('vat_option')->nullable(); // VatOption; null unless the treatment charges VAT
             $table->timestamps();
 
