@@ -6,9 +6,8 @@ An invoicing app designed with Dutch freelancers (zzp'ers) in mind. Today you
 can set up your business and bank accounts and keep a list of clients. Drawing
 up invoices, with the BTW worked out per line, is in progress.
 
-It is also a learning project. It is built in small steps, and wherever there
-was a choice between a loose design and a stricter one, it takes the stricter
-one.
+Wherever there was a choice between a loose design and a stricter one, it takes
+the stricter one.
 
 ## Stack
 
