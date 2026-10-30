@@ -123,16 +123,32 @@ final class InvoiceRequest extends FormRequest
     }
 
     /**
-     * Required with a known name on a Domestic invoice, prohibited on the others: only a Domestic invoice charges VAT
-     * itself. The closure gets the whole input, so it reads the invoice's treatment from inside a line's rule.
+     * Required with a known name on an invoice whose treatment charges VAT. On the others the key is still required,
+     * with null as its value: an empty field is sent as null, never left out, the same shape GET returns. Not
+     * prohibited: that lets any empty value through, [] included, which would reach toDto() as a line's VAT option.
+     *
+     * The closure gets the whole input, so it reads the invoice's treatment from inside a line's rule. An unknown
+     * treatment counts as charging none; its own rule already fails.
      *
      * @return list<ConditionalRules>
      */
     private function vatOptionRules(): array
     {
-        $chargesVat = static fn (Fluent $input): bool => $input->get('vat_treatment') === VatTreatment::Domestic->apiName();
+        $chargesVat = static fn (Fluent $input): bool => is_string($input->get('vat_treatment'))
+            && VatTreatment::tryFromApiName($input->get('vat_treatment'))?->chargesVat() === true;
 
-        return [Rule::when($chargesVat, ['required', 'string', Rule::in(self::apiNames(VatOption::cases()))], ['prohibited'])];
+        $mustBeNull = static function (string $attribute, mixed $value, Closure $fail): void {
+            if ($value !== null)
+            {
+                $fail('A VAT option can only be given on a domestic invoice.');
+            }
+        };
+
+        return [Rule::when(
+            $chargesVat,
+            ['required', 'string', Rule::in(self::apiNames(VatOption::cases()))],
+            ['present', $mustBeNull],
+        )];
     }
 
     /**
