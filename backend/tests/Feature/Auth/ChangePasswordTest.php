@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 use App\Mail\PasswordChanged;
 use App\Models\User;
+use Illuminate\Auth\SessionGuard;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -96,6 +97,8 @@ describe('Changing the password', function (): void {
         $this->withHeader('Referer', config()->string('app.url'));
         // What another device's session holds since its login: a fingerprint of the old password.
         $guard = Auth::guard('web');
+        // PHPStan already knows the type from config/auth.php; this names the cause if the guard ever changes.
+        expect($guard)->toBeInstanceOf(SessionGuard::class);
         $otherSessionPasswordHash = $guard->hashPasswordForCookie($user->password);
         $this->putJson('/api/auth/password', [
             'current_password' => 'old-horse-battery1',
@@ -121,6 +124,8 @@ describe('Changing the password', function (): void {
         $this->withHeader('Referer', config()->string('app.url'));
         // What this session holds since its login: a fingerprint of the old password.
         $guard = Auth::guard('web');
+        // PHPStan already knows the type from config/auth.php; this names the cause if the guard ever changes.
+        expect($guard)->toBeInstanceOf(SessionGuard::class);
         $this->withSession(['password_hash_web' => $guard->hashPasswordForCookie($user->password)]);
         $this->putJson('/api/auth/password', [
             'current_password' => 'old-horse-battery1',
