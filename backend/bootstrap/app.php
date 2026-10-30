@@ -8,6 +8,7 @@ use App\Exceptions\BankAccount\DuplicateIbanException;
 use App\Exceptions\Business\DuplicateKvkNumberException;
 use App\Exceptions\Http\IfMatchMalformedException;
 use App\Exceptions\Http\IfMatchMissingException;
+use App\Exceptions\Http\StaleVersionException;
 use App\Exceptions\Invoice\InvoiceReferenceGoneException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -79,5 +80,12 @@ return Application::configure(basePath: dirname(__DIR__))
         );
         $exceptions->render(
             fn (IfMatchMalformedException $exception) => new JsonResponse(['message' => $exception->getMessage()], JsonResponse::HTTP_BAD_REQUEST),
+        );
+
+        // A 412 (precondition failed), not a 409: HTTP's own answer to an If-Match that no longer matches. Expected
+        // whenever two tabs edit one draft, so it isn't reported.
+        $exceptions->dontReport(StaleVersionException::class);
+        $exceptions->render(
+            fn (StaleVersionException $exception) => new JsonResponse(['message' => $exception->getMessage()], JsonResponse::HTTP_PRECONDITION_FAILED),
         );
     })->create();
