@@ -1,0 +1,88 @@
+<?php
+
+declare(strict_types = 1);
+
+namespace App\Models;
+
+use App\Enums\InvoiceStatus;
+use App\Enums\VatTreatment;
+use Database\Factories\InvoiceFactory;
+use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+
+/**
+ * An invoice of a business, reached through /api/businesses/{business}/invoices/{invoice}. While it's a draft, it
+ * stores no totals: they're computed from its lines on every read.
+ */
+// business_id, status and number are left out on purpose: the owner is set by the relation
+// ($business->invoices()->create()), and the status and number by the code that creates or sends an invoice, never
+// from input. Factories ignore the list.
+#[Fillable([
+    'client_id',
+    'bank_account_id',
+    'vat_treatment',
+    'payment_term_days',
+])]
+class Invoice extends Model
+{
+    /** @use HasFactory<InvoiceFactory> */
+    use HasFactory;
+
+    /**
+     * Get the attributes that should be cast.
+     *
+     * Explicit integer casts on the keys, as on Client: they are compared with === when an invoice checks that its
+     * client and bank account belong to its business.
+     *
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'business_id' => 'integer',
+            'client_id' => 'integer',
+            'bank_account_id' => 'integer',
+            'status' => InvoiceStatus::class,
+            'vat_treatment' => VatTreatment::class,
+            'payment_term_days' => 'integer',
+        ];
+    }
+
+    /**
+     * @return BelongsTo<Business, $this>
+     */
+    public function business(): BelongsTo
+    {
+        return $this->belongsTo(Business::class);
+    }
+
+    /**
+     * @return BelongsTo<Client, $this>
+     */
+    public function client(): BelongsTo
+    {
+        return $this->belongsTo(Client::class);
+    }
+
+    /**
+     * @return BelongsTo<BankAccount, $this>
+     */
+    public function bankAccount(): BelongsTo
+    {
+        return $this->belongsTo(BankAccount::class);
+    }
+
+    /**
+     * Ordered by position in the relation itself, so no read can forget the order: without an ORDER BY the database
+     * may return rows in any order.
+     *
+     * @return HasMany<InvoiceLine, $this>
+     */
+    public function lines(): HasMany
+    {
+        return $this->hasMany(InvoiceLine::class)->orderBy('position');
+    }
+}
