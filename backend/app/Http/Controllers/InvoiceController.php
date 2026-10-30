@@ -58,7 +58,8 @@ final class InvoiceController extends Controller
 
     /**
      * Deletes the draft if the client's If-Match still names its current version. The header is read before the action
-     * runs, so a missing or malformed one is refused before any query.
+     * runs, so a missing or malformed one is refused before the delete. The route bindings have queried by then, so
+     * another business's invoice is a 404 whatever the header says.
      */
     public function destroy(DeleteInvoiceAction $action, Request $request, Business $business, Invoice $invoice): NoContentResponse
     {

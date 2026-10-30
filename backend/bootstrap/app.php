@@ -72,8 +72,8 @@ return Application::configure(basePath: dirname(__DIR__))
             fn (BankAccountInUseException $exception) => new JsonResponse(['message' => $exception->getMessage()], JsonResponse::HTTP_CONFLICT),
         );
 
-        // Refused before any query. A 428 (precondition required) says the header is missing, a 400 (bad request) that
-        // it can't be read. Neither is reported: the response tells the caller everything there is to know.
+        // Refused before the write runs. A 428 (precondition required) says the header is missing, a 400 (bad request)
+        // that it can't be read. Neither is reported: the response tells the caller everything there is to know.
         $exceptions->dontReport([IfMatchMissingException::class, IfMatchMalformedException::class]);
         $exceptions->render(
             fn (IfMatchMissingException $exception) => new JsonResponse(['message' => $exception->getMessage()], JsonResponse::HTTP_PRECONDITION_REQUIRED),
