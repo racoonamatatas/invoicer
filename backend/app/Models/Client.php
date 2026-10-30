@@ -13,6 +13,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 /**
  * Someone a business invoices, reached through /api/businesses/{business}/clients/{client}. The address can be in
  * any country; an invoice copies it into its snapshot on send, so editing a client never changes a sent invoice.
+ *
+ * @property-read Business $business NOT NULL foreign key, so never null once loaded
  */
 // business_id is left out on purpose: the owner is set by the relation ($business->clients()->create()), never
 // from input, so no request can move a client to another business. Factories ignore the list.
