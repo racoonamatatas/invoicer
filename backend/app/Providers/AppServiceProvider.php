@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace App\Providers;
 
 use App\Models\Business;
+use App\Models\User;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Cache\RateLimiter;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -126,7 +127,7 @@ class AppServiceProvider extends ServiceProvider
         $rateLimiter->for('reset-password', static fn (Request $request): Limit => Limit::perMinute(5)->by('ip:'.$request->ip()));
 
         // Per-user: caps current-password guesses from a taken-over session; switching IPs buys no extra guesses.
-        $rateLimiter->for('change-password', static fn (Request $request): Limit => Limit::perMinute(5)->by('user:'.$request->user()?->getAuthIdentifier()));
+        $rateLimiter->for('change-password', static fn (Request $request): Limit => Limit::perMinute(5)->by(self::userBucketKey($request)));
 
         // Per-IP stops one client guessing many accounts; per-email stops many IPs guessing one account.
         $rateLimiter->for('login', static fn (Request $request): array => [
@@ -144,5 +145,21 @@ class AppServiceProvider extends ServiceProvider
         $email = $request->input('email');
 
         return is_string($email) ? 'email:'.Str::lower($email) : 'email:';
+    }
+
+    /**
+     * Only for limiters on routes behind auth:sanctum, which has already turned a guest away with a 401. A guest
+     * reaching one anyway throws instead of sharing one empty 'user:' bucket with every other guest.
+     */
+    private static function userBucketKey(Request $request): string
+    {
+        $user = $request->user();
+
+        if (! $user instanceof User)
+        {
+            throw new AuthenticationException;
+        }
+
+        return 'user:'.$user->id;
     }
 }
