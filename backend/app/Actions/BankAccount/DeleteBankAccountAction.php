@@ -6,13 +6,14 @@ namespace App\Actions\BankAccount;
 
 use App\Exceptions\BankAccount\BankAccountInUseException;
 use App\Models\BankAccount;
+use Illuminate\Database\QueryException;
 
 final readonly class DeleteBankAccountAction
 {
     /**
-     * Refuses an account an invoice uses before the foreign key would: the key's restrictOnDelete throws a raw
-     * QueryException, which would be a 500. The key stays as the last line: an invoice created between this check
-     * and the delete still can't lose its account, it only gets the 500.
+     * Refuses an account an invoice uses. Asking first answers the common case without relying on a driver's error
+     * message. The foreign key's restrictOnDelete still has the last word: an invoice created between the check and the
+     * delete makes the delete fail, and that failure is turned into the same refusal rather than a raw 500.
      *
      * @throws BankAccountInUseException
      */
@@ -23,6 +24,19 @@ final readonly class DeleteBankAccountAction
             throw new BankAccountInUseException;
         }
 
-        $bankAccount->delete();
+        try
+        {
+            $bankAccount->delete();
+        }
+        catch (QueryException $exception)
+        {
+            // Only the foreign key's refusal: any other failure is a real error and stays a 500.
+            if (! BankAccountInUseException::isCausedBy($exception))
+            {
+                throw $exception;
+            }
+
+            throw new BankAccountInUseException($exception);
+        }
     }
 }
