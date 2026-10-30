@@ -28,6 +28,7 @@ final readonly class DeleteBankAccountAction
         {
             $bankAccount->delete();
         }
+        // @phpstan-ignore catch.neverThrown (Model::delete() declares only LogicException, but the foreign key's refusal arrives as a QueryException)
         catch (QueryException $exception)
         {
             // Only the foreign key's refusal: any other failure is a real error and stays a 500.
