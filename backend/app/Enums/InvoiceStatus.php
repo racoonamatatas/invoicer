@@ -14,4 +14,17 @@ namespace App\Enums;
 enum InvoiceStatus: int
 {
     case Draft = 1;
+
+    /**
+     * What the API sends and accepts for this status. Not the backing integer, which is a storage format, and not
+     * derived from the case name, so renaming a case can't change the API.
+     */
+    public function apiName(): string
+    {
+        // No default arm: a new case throws an UnhandledMatchError until it has a name on the wire.
+        return match ($this)
+        {
+            self::Draft => 'draft',
+        };
+    }
 }
