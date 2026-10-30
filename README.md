@@ -113,3 +113,7 @@ can't read it, and CSRF is covered by Sanctum's XSRF cookie.
 - [`docs/database.dbml`](docs/database.dbml): the database schema
 - [`backend/CLAUDE.md`](backend/CLAUDE.md) and
   [`frontend/CLAUDE.md`](frontend/CLAUDE.md): conventions per side
+
+## License
+
+[MIT](LICENSE)
