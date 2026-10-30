@@ -267,8 +267,8 @@ describe('Setting a password through the set-password link', function (): void {
         ]);
         $this->assertDatabaseCount('pending_registrations', 0);
         $this->assertDatabaseCount('users', 1);
-        expect($existing->fresh()->name)->toBe($existing->name)
-            ->and($existing->fresh()->password)->toBe($existing->password);
+        expect(reloaded($existing)->name)->toBe($existing->name)
+            ->and(reloaded($existing)->password)->toBe($existing->password);
     });
 
     it('should throttle verification after 5 attempts per minute', function (): void {

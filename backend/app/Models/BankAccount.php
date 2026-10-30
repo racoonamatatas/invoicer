@@ -16,6 +16,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  *
  * The IBAN never changes after creation; only the label does. An invoice points at the row, so editing the IBAN
  * in place would quietly send every draft's payments somewhere else. A new IBAN is a new account.
+ *
+ * @property-read Business $business NOT NULL foreign key, so never null once loaded
  */
 // business_id is left out on purpose: the owner is set by the relation ($business->bankAccounts()->create()),
 // never from input, so no request can move an account to another business. Factories ignore the list.

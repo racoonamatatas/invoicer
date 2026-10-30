@@ -18,6 +18,10 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 /**
  * An invoice of a business, reached through /api/businesses/{business}/invoices/{invoice}. While it's a draft, it
  * stores no totals: they're computed from its lines on every read.
+ *
+ * @property-read Business $business NOT NULL foreign key, so never null once loaded
+ * @property-read Client $client NOT NULL foreign key, so never null once loaded
+ * @property-read BankAccount $bankAccount NOT NULL foreign key, so never null once loaded
  */
 // business_id, status, number and version are left out on purpose: the owner is set by the relation
 // ($business->invoices()->create()), and the status, number and version by the code that creates, saves or sends an
@@ -66,7 +70,8 @@ class Invoice extends Model
     {
         return InvoiceTotals::fromLines(
             $this->vat_treatment,
-            $this->lines->map(static fn (InvoiceLine $line): InvoiceLineAmounts => $line->toAmounts())->values()->all(),
+            // array_values(), not ->values()->all(): only the former is typed as a list.
+            array_values($this->lines->map(static fn (InvoiceLine $line): InvoiceLineAmounts => $line->toAmounts())->all()),
         );
     }
 

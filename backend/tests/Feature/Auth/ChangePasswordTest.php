@@ -27,7 +27,7 @@ describe('Changing the password', function (): void {
         // Assert
         $response->assertNoContent();
         $this->assertAuthenticatedAs($user, 'web');
-        expect(Hash::check('new-horse-battery2', $user->fresh()->password))->toBeTrue();
+        expect(Hash::check('new-horse-battery2', reloaded($user)->password))->toBeTrue();
     });
 
     it('should return 422 (unprocessable) with a current_password error and keep the old password when the current password is wrong', function (): void {
@@ -45,7 +45,7 @@ describe('Changing the password', function (): void {
         // Assert
         $response->assertUnprocessable()
             ->assertOnlyJsonValidationErrors(['current_password']);
-        expect(Hash::check('old-horse-battery1', $user->fresh()->password))->toBeTrue();
+        expect(Hash::check('old-horse-battery1', reloaded($user)->password))->toBeTrue();
     });
 
     it('should return 401 (unauthorized) for a guest', function (): void {
@@ -94,13 +94,11 @@ describe('Changing the password', function (): void {
         $user = User::factory()->create(['password' => 'old-horse-battery1']);
         $this->actingAs($user, 'web');
         // A Referer from the SPA makes the requests stateful, so Sanctum runs its session checks.
-        $this->withHeader('Referer', config('app.url'));
+        $this->withHeader('Referer', config()->string('app.url'));
         // What another device's session holds since its login: a fingerprint of the old password.
         $guard = Auth::guard('web');
-        if (! $guard instanceof SessionGuard)
-        {
-            throw new LogicException('The web guard must be session-based for this test.');
-        }
+        // PHPStan already knows the type from config/auth.php; this names the cause if the guard ever changes.
+        expect($guard)->toBeInstanceOf(SessionGuard::class);
         $otherSessionPasswordHash = $guard->hashPasswordForCookie($user->password);
         $this->putJson('/api/auth/password', [
             'current_password' => 'old-horse-battery1',
@@ -123,13 +121,11 @@ describe('Changing the password', function (): void {
         $user = User::factory()->create(['password' => 'old-horse-battery1']);
         $this->actingAs($user, 'web');
         // A Referer from the SPA makes the requests stateful, so Sanctum runs its session checks.
-        $this->withHeader('Referer', config('app.url'));
+        $this->withHeader('Referer', config()->string('app.url'));
         // What this session holds since its login: a fingerprint of the old password.
         $guard = Auth::guard('web');
-        if (! $guard instanceof SessionGuard)
-        {
-            throw new LogicException('The web guard must be session-based for this test.');
-        }
+        // PHPStan already knows the type from config/auth.php; this names the cause if the guard ever changes.
+        expect($guard)->toBeInstanceOf(SessionGuard::class);
         $this->withSession(['password_hash_web' => $guard->hashPasswordForCookie($user->password)]);
         $this->putJson('/api/auth/password', [
             'current_password' => 'old-horse-battery1',
@@ -162,7 +158,7 @@ describe('Changing the password', function (): void {
         $response->assertNoContent();
         Mail::assertQueuedCount(1);
         Mail::assertQueued(PasswordChanged::class, function (PasswordChanged $mail) use ($email): bool {
-            $mail->assertSeeInHtml(config('app.url').'/forgot-password');
+            $mail->assertSeeInHtml(config()->string('app.url').'/forgot-password');
 
             return $mail->hasTo($email);
         });
@@ -195,6 +191,30 @@ describe('Changing the password', function (): void {
         $response->assertTooManyRequests();
     });
 
+    it('should return 422 (unprocessable), not 429 (too many requests), on another user\'s first attempt after one user used up the limit, even from the same IP', function (): void {
+        // Arrange
+        $guess = [
+            'current_password' => 'wrong-horse-battery1',
+            'password' => 'new-horse-battery2',
+            'password_confirmation' => 'new-horse-battery2',
+        ];
+        $this->actingAs(User::factory()->create(['password' => 'old-horse-battery1']), 'web');
+        for ($attempt = 1; $attempt <= 5; $attempt++)
+        {
+            $this->putJson('/api/auth/password', $guess)->assertUnprocessable();
+        }
+
+        // Act
+        // Same IP as the first user: only a per-user key keeps the two apart. forgetGuards(): the app lives on between
+        // requests in a test, and Sanctum's guard would still hand out the first user it resolved.
+        Auth::forgetGuards();
+        $this->actingAs(User::factory()->create(['password' => 'old-horse-battery1']), 'web');
+        $response = $this->putJson('/api/auth/password', $guess);
+
+        // Assert
+        $response->assertUnprocessable();
+    });
+
     it('should return 422 (unprocessable) with the must-be-different message and keep the old password when the new password equals the current one', function (): void {
         // Arrange
         $user = User::factory()->create(['password' => 'old-horse-battery1']);
@@ -210,7 +230,7 @@ describe('Changing the password', function (): void {
         // Assert
         $response->assertUnprocessable()
             ->assertOnlyJsonValidationErrors(['password' => 'The password field and current password must be different.']);
-        expect(Hash::check('old-horse-battery1', $user->fresh()->password))->toBeTrue();
+        expect(Hash::check('old-horse-battery1', reloaded($user)->password))->toBeTrue();
     });
 
     // One test per route that the shared rules are wired: the unit (bytes, not characters) is proven on verify-email.
@@ -230,7 +250,7 @@ describe('Changing the password', function (): void {
         // Assert
         $response->assertUnprocessable()
             ->assertOnlyJsonValidationErrors(['password']);
-        expect(Hash::check('old-horse-battery1', $user->fresh()->password))->toBeTrue();
+        expect(Hash::check('old-horse-battery1', reloaded($user)->password))->toBeTrue();
     });
 
     it('should return 422 (unprocessable) with a password error and keep the old password when the confirmation does not match', function (): void {
@@ -248,6 +268,6 @@ describe('Changing the password', function (): void {
         // Assert
         $response->assertUnprocessable()
             ->assertOnlyJsonValidationErrors(['password']);
-        expect(Hash::check('old-horse-battery1', $user->fresh()->password))->toBeTrue();
+        expect(Hash::check('old-horse-battery1', reloaded($user)->password))->toBeTrue();
     });
 });

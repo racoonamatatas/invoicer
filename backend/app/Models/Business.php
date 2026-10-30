@@ -21,6 +21,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * The attribute only holds a class name, so a renamed or moved policy is not caught at boot; but the first
  * Gate::allows() check then throws, because the container can't build the class, instead of silently denying, which
  * is what auto-discovery does once the policy is no longer where the convention looks.
+ *
+ * @property-read User $user NOT NULL foreign key, so never null once loaded
  */
 #[UsePolicy(BusinessPolicy::class)]
 // user_id is left out on purpose: the owner is set by the relation ($user->businesses()->create()), never from

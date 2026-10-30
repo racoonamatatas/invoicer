@@ -10,6 +10,7 @@ describe('InvoiceTotals', function (): void {
 
     it("should compute VAT once on each group's base, rounding half a cent up", function (array $lines, int $baseCents, int $vatCents): void {
         // Act
+        // @phpstan-ignore argument.type (a dataset value: PHPStan can't follow ->with() into the closure)
         $totals = InvoiceTotals::fromLines(VatTreatment::Domestic, $lines);
 
         // Assert
@@ -106,6 +107,7 @@ describe('InvoiceTotals', function (): void {
         // Act
         // The keys break the list<> the docblock asks for, which PHP doesn't check: an array_filter() result keeps
         // its old keys, and a caller can pass string keys.
+        // @phpstan-ignore argument.type (the keys break list<> on purpose, see above)
         $build = static fn (): InvoiceTotals => InvoiceTotals::fromLines(VatTreatment::Domestic, $lines);
 
         // Assert

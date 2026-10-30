@@ -112,6 +112,7 @@ describe('Creating a business', function (): void {
         $this->actingAs(User::factory()->create(), 'web');
 
         // Act
+        // @phpstan-ignore argument.type (a dataset value: PHPStan can't follow ->with() into the closure)
         $response = $this->postJson('/api/businesses', businessPayload($changes));
 
         // Assert

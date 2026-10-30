@@ -11,6 +11,7 @@ describe('The leak-check verifier behind Password::uncompromised()', function ()
         // Arrange
         $fake = new class implements UncompromisedVerifier
         {
+            /** @param array<string, mixed> $data */
             public function verify($data): bool
             {
                 return true;

@@ -122,6 +122,7 @@ describe('Creating a client', function (): void {
         $this->actingAs($business->user, 'web');
 
         // Act
+        // @phpstan-ignore argument.type (a dataset value: PHPStan can't follow ->with() into the closure)
         $response = $this->postJson("/api/businesses/{$business->id}/clients", clientPayload($changes));
 
         // Assert

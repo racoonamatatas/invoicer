@@ -15,6 +15,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 /**
  * One billed item on an invoice. A draft's lines are deleted and recreated on every save, so a line's id means
  * nothing until the invoice is sent; position is what orders them.
+ *
+ * @property-read Invoice $invoice NOT NULL foreign key, so never null once loaded
  */
 // invoice_id is left out on purpose: the owner is set by the relation ($invoice->lines()->create()), never from
 // input. Factories ignore the list.

@@ -3,6 +3,7 @@
 declare(strict_types = 1);
 
 use App\Models\PendingRegistration;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
 
 describe('Pruning pending registrations', function (): void {
@@ -13,7 +14,7 @@ describe('Pruning pending registrations', function (): void {
         $live = PendingRegistration::factory()->create();
 
         // Act
-        $this->artisan('model:prune')->assertSuccessful();
+        expect(Artisan::call('model:prune'))->toBe(0); // exit code 0: success
 
         // Assert
         $this->assertDatabaseMissing('pending_registrations', ['id' => $expired->id]);
@@ -27,6 +28,6 @@ describe('Pruning pending registrations', function (): void {
 
         // Assert
         expect($events)->toHaveCount(1)
-            ->and($events->first()->expression)->toBe('0 0 * * *'); // daily(): midnight, every day
+            ->and($events->sole()->expression)->toBe('0 0 * * *'); // daily(): midnight, every day
     });
 });

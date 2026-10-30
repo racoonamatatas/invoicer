@@ -8,6 +8,7 @@ use App\Models\BankAccount;
 use App\Models\Business;
 use Closure;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Translation\PotentiallyTranslatedString;
 use LogicException;
 
 /**
@@ -22,7 +23,7 @@ abstract class BankAccountRequest extends FormRequest
     abstract protected function existingBankAccount(): ?BankAccount;
 
     /**
-     * @return list<string|Closure(string, mixed, Closure(string): mixed): void>
+     * @return list<string|Closure(string, mixed, Closure(string, ?string=): PotentiallyTranslatedString): void>
      */
     protected function labelRules(): array
     {
@@ -34,23 +35,29 @@ abstract class BankAccountRequest extends FormRequest
             // MySQL, so "Main" next to "main" would pass the rule here and hit the index as a 500 there. lower() on
             // both sides decides it the same way on every driver. SQLite's lower() folds ASCII only, so "Één" and
             // "één" still count as two labels there; fine for a name only the user sees.
-            function (string $attribute, mixed $value, Closure $fail): void {
-                if (! is_string($value))
-                {
-                    return; // the string rule above has already failed
-                }
-
-                $taken = $this->business()->bankAccounts()
-                    ->whereRaw('lower(label) = lower(?)', [$value])
-                    ->when($this->existingBankAccount(), fn ($query, BankAccount $account) => $query->whereKeyNot($account->id))
-                    ->exists();
-
-                if ($taken)
-                {
-                    $fail('validation.unique')->translate();
-                }
-            },
+            $this->failWhenLabelTaken(...),
         ];
+    }
+
+    /**
+     * @param  Closure(string, ?string=): PotentiallyTranslatedString  $fail  typed as in ValidationRule::validate()
+     */
+    private function failWhenLabelTaken(string $attribute, mixed $value, Closure $fail): void
+    {
+        if (! is_string($value))
+        {
+            return; // the string rule above has already failed
+        }
+
+        $taken = $this->business()->bankAccounts()
+            ->whereRaw('lower(label) = lower(?)', [$value])
+            ->when($this->existingBankAccount(), fn ($query, BankAccount $account) => $query->whereKeyNot($account->id))
+            ->exists();
+
+        if ($taken)
+        {
+            $fail('validation.unique')->translate();
+        }
     }
 
     /**

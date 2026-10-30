@@ -26,8 +26,9 @@ final readonly class ResetPasswordAction
 
     public function execute(ResetPasswordData $data): bool
     {
-        $status = $this->db->transaction(function () use ($data): string {
-            return $this->passwordBroker->reset(
+        // Compared inside the closure: reset() is typed `mixed`, and the comparison is all the caller needs from it.
+        return $this->db->transaction(function () use ($data): bool {
+            $status = $this->passwordBroker->reset(
                 ['token' => $data->token, 'password' => $data->password, 'email' => $data->email],
                 function (User $user, string $password): void {
                     $user->password = $password; // No Hash::make(): the 'hashed' cast on User does it.
@@ -43,8 +44,8 @@ final readonly class ResetPasswordAction
                     $this->mailer->to($user->email)->send(new PasswordChanged($user, $forgotPasswordUrl));
                 }
             );
-        });
 
-        return $status === PasswordBroker::PASSWORD_RESET;
+            return $status === PasswordBroker::PASSWORD_RESET;
+        });
     }
 }

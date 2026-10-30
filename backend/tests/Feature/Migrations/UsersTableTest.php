@@ -13,7 +13,7 @@ describe('The users table', function (): void {
         $columns = collect(Schema::getColumns('users'))->keyBy('name');
 
         // Assert
-        expect($columns)->toHaveKey('email_verified_at')
-            ->and($columns['email_verified_at']['nullable'])->toBeFalse();
+        // ?? null: a missing column fails the check instead of erroring. toBeFalse is strict, unlike toMatchArray.
+        expect($columns->get('email_verified_at')['nullable'] ?? null)->toBeFalse();
     });
 });

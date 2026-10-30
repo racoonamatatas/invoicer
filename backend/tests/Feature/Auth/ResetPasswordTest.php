@@ -27,7 +27,7 @@ describe('Resetting a password', function (): void {
 
         // Assert
         $response->assertNoContent();
-        expect(Hash::check('new-password-123', $user->fresh()->password))->toBeTrue();
+        expect(Hash::check('new-password-123', reloaded($user)->password))->toBeTrue();
     });
 
     it('should return 204 (no content) and queue a password-changed mail to the user with a link to request a new reset', function (): void {
@@ -48,7 +48,7 @@ describe('Resetting a password', function (): void {
         // Assert
         $response->assertNoContent();
         Mail::assertQueued(PasswordChanged::class, function (PasswordChanged $mail) use ($email): bool {
-            $mail->assertSeeInHtml(config('app.url').'/forgot-password');
+            $mail->assertSeeInHtml(config()->string('app.url').'/forgot-password');
 
             return $mail->hasTo($email);
         });
@@ -74,7 +74,7 @@ describe('Resetting a password', function (): void {
         $response->assertJsonValidationErrors([
             'token' => 'This reset link is invalid or has expired.',
         ]);
-        expect(Hash::check('old-password-123', $user->fresh()->password))->toBeTrue();
+        expect(Hash::check('old-password-123', reloaded($user)->password))->toBeTrue();
     });
 
     it('should return 422 (unprocessable) and queue no mail when the token is wrong', function (): void {
@@ -117,7 +117,7 @@ describe('Resetting a password', function (): void {
         $response->assertJsonValidationErrors([
             'token' => 'This reset link is invalid or has expired.',
         ]);
-        expect(Hash::check('old-password-123', $user->fresh()->password))->toBeTrue();
+        expect(Hash::check('old-password-123', reloaded($user)->password))->toBeTrue();
     });
 
     it('should return 204 (no content), delete every session of the user and keep the sessions of other users', function (): void {
@@ -199,7 +199,7 @@ describe('Resetting a password', function (): void {
         $response->assertJsonValidationErrors([
             'token' => 'This reset link is invalid or has expired.',
         ]);
-        expect(Hash::check('first-password-123', $user->fresh()->password))->toBeTrue();
+        expect(Hash::check('first-password-123', reloaded($user)->password))->toBeTrue();
     });
 
     it('should return 422 (unprocessable) with a password error and leave the password unchanged when the confirmation does not match', function (): void {
@@ -220,7 +220,7 @@ describe('Resetting a password', function (): void {
         // Assert
         $response->assertUnprocessable();
         $response->assertJsonValidationErrors(['password']);
-        expect(Hash::check('old-password-123', $user->fresh()->password))->toBeTrue();
+        expect(Hash::check('old-password-123', reloaded($user)->password))->toBeTrue();
     });
 
     // One test per route that the shared rules are wired: the unit (bytes, not characters) is proven on verify-email.
@@ -242,7 +242,7 @@ describe('Resetting a password', function (): void {
         // Assert
         $response->assertUnprocessable()
             ->assertOnlyJsonValidationErrors(['password']);
-        expect(Hash::check('old-horse-battery1', $user->fresh()->password))->toBeTrue();
+        expect(Hash::check('old-horse-battery1', reloaded($user)->password))->toBeTrue();
     });
 
     it('should return 429 (too many requests) on the 6th request from one IP within a minute, even for different emails', function (): void {
