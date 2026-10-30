@@ -144,6 +144,7 @@ describe('Creating an invoice', function (): void {
         {
             'client_id' => Client::factory()->for($otherBusiness)->create()->id,
             'bank_account_id' => BankAccount::factory()->for($otherBusiness)->create()->id,
+            default => throw new LogicException("The dataset has no foreign key {$field}."),
         };
         $this->actingAs($business->user, 'web');
 

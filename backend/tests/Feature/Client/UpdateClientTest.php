@@ -83,7 +83,13 @@ describe('Updating a client', function (): void {
     it('should return 404 (not found) and change nothing for a client the URL does not reach', function (Closure $target): void {
         // Arrange
         $business = Business::factory()->create();
-        ['url' => $url, 'client' => $client] = $target($business);
+        // The closure comes from the dataset, so PHPStan sees only `mixed` coming back.
+        $reached = $target($business);
+        if (! is_array($reached) || ! is_string($reached['url'] ?? null) || ! ($reached['client'] ?? null) instanceof Client)
+        {
+            throw new LogicException('Each dataset closure returns a url and a client.');
+        }
+        ['url' => $url, 'client' => $client] = $reached;
         $this->actingAs($business->user, 'web');
 
         // Act
@@ -91,7 +97,7 @@ describe('Updating a client', function (): void {
 
         // Assert
         $response->assertNotFound();
-        expect($client?->fresh()?->name)->not->toBe('Overwritten');
+        expect(reloaded($client)->name)->not->toBe('Overwritten');
     })->with([
         'a client of another user\'s business' => [function (Business $business): array {
             $client = Client::factory()->create();
