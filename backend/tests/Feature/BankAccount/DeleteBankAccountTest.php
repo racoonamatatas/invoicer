@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 use App\Models\BankAccount;
 use App\Models\Business;
+use App\Models\Invoice;
 
 describe('Deleting a bank account', function (): void {
 
@@ -19,6 +20,22 @@ describe('Deleting a bank account', function (): void {
         // Assert
         $response->assertNoContent();
         expect(BankAccount::query()->whereKey($account->id)->exists())->toBeFalse();
+    });
+
+    it('should return 409 (conflict) for an account an invoice uses, and keep it', function (): void {
+        // Arrange
+        $business = Business::factory()->create();
+        $account = BankAccount::factory()->for($business)->create();
+        Invoice::factory()->for($business)->create(['bank_account_id' => $account->id]);
+        $this->actingAs($business->user, 'web');
+
+        // Act
+        $response = $this->deleteJson("/api/businesses/{$business->id}/bank-accounts/{$account->id}");
+
+        // Assert
+        $response->assertConflict()
+            ->assertExactJson(['message' => 'This bank account is on an invoice, so it can\'t be deleted.']);
+        expect(BankAccount::query()->whereKey($account->id)->exists())->toBeTrue();
     });
 
     it('should return 404 (not found) for an account of the user\'s other business, and keep it', function (): void {
