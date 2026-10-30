@@ -3,6 +3,7 @@
 declare(strict_types = 1);
 
 use App\Enums\VatOption;
+use App\Enums\VatTreatment;
 use App\Models\Business;
 use App\Models\Invoice;
 use App\Models\InvoiceLine;
@@ -72,6 +73,90 @@ describe('Showing an invoice', function (): void {
                 'total_cents' => 20875,
             ],
         ]);
+    });
+
+    it('should return 200 (ok) with a null vat_option on each line and no VAT groups for a reverse-charge or outside-scope invoice', function (VatTreatment $treatment, string $apiName): void {
+        // Arrange
+        $business = Business::factory()->create();
+        $invoice = Invoice::factory()->for($business)->create(['vat_treatment' => $treatment]);
+        InvoiceLine::factory()->for($invoice)->create([
+            'description' => 'Advieswerk',
+            'quantity_hundredths' => 200,
+            'unit_price_cents' => 7500,
+            'vat_option' => null,
+        ]);
+        $this->actingAs($business->user, 'web');
+
+        // Act
+        $response = $this->getJson("/api/businesses/{$business->id}/invoices/{$invoice->id}");
+
+        // Assert
+        $response->assertOk()
+            ->assertJsonPath('vat_treatment', $apiName)
+            ->assertJsonPath('lines', [[
+                'description' => 'Advieswerk',
+                'quantity_hundredths' => 200,
+                'unit_price_cents' => 7500,
+                'vat_option' => null,
+                'total_cents' => 15000,
+            ]])
+            ->assertJsonPath('totals', [
+                'subtotal_cents' => 15000,
+                'vat_groups' => [],
+                'vat_cents' => 0,
+                'total_cents' => 15000,
+            ]);
+    })->with([
+        'ReverseCharge' => [VatTreatment::ReverseCharge, 'reverse_charge'],
+        'OutsideScope' => [VatTreatment::OutsideScope, 'outside_scope'],
+    ]);
+
+    it('should return 200 (ok) with a null rate_percent for the VAT group of an exempt line', function (): void {
+        // Arrange
+        // Exempt has no rate at all, unlike Zero's 0%, so the group must say null rather than 0.
+        $business = Business::factory()->create();
+        $invoice = Invoice::factory()->for($business)->create();
+        InvoiceLine::factory()->for($invoice)->create([
+            'quantity_hundredths' => 100,
+            'unit_price_cents' => 4000,
+            'vat_option' => VatOption::Exempt,
+        ]);
+        $this->actingAs($business->user, 'web');
+
+        // Act
+        $response = $this->getJson("/api/businesses/{$business->id}/invoices/{$invoice->id}");
+
+        // Assert
+        $response->assertOk()
+            ->assertJsonPath('lines.0.vat_option', 'exempt')
+            ->assertJsonPath('totals', [
+                'subtotal_cents' => 4000,
+                'vat_groups' => [
+                    ['vat_option' => 'exempt', 'rate_percent' => null, 'base_cents' => 4000, 'vat_cents' => 0],
+                ],
+                'vat_cents' => 0,
+                'total_cents' => 4000,
+            ]);
+    });
+
+    it('should return 200 (ok) with no lines and zero totals for an invoice without lines', function (): void {
+        // Arrange. A new draft has no lines until the first one is added.
+        $business = Business::factory()->create();
+        $invoice = Invoice::factory()->for($business)->create();
+        $this->actingAs($business->user, 'web');
+
+        // Act
+        $response = $this->getJson("/api/businesses/{$business->id}/invoices/{$invoice->id}");
+
+        // Assert
+        $response->assertOk()
+            ->assertJsonPath('lines', [])
+            ->assertJsonPath('totals', [
+                'subtotal_cents' => 0,
+                'vat_groups' => [],
+                'vat_cents' => 0,
+                'total_cents' => 0,
+            ]);
     });
 
     it('should return 404 (not found) for the id of an invoice under the user\'s other business', function (): void {
