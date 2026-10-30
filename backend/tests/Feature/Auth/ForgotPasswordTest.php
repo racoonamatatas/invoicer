@@ -28,7 +28,7 @@ describe('Requesting a password reset link', function (): void {
         $response->assertNoContent();
         Mail::assertQueued(ResetPassword::class, function (ResetPassword $mail) use ($email, $user): bool {
             $html = $mail->render();
-            $linkPattern = '#'.preg_quote(config('app.url'), '#').'/reset-password\?token=([0-9a-f]+)&amp;email=jan%40example\.com"#';
+            $linkPattern = '#'.preg_quote(config()->string('app.url'), '#').'/reset-password\?token=([0-9a-f]+)&amp;email=jan%40example\.com"#';
 
             expect($html)->toMatch($linkPattern)
                 ->and($html)->toContain('30 minutes');
@@ -46,7 +46,7 @@ describe('Requesting a password reset link', function (): void {
         $email = 'jan@example.com';
         PendingRegistration::factory()->create(['email' => $email, 'token' => hash('sha256', 'first-token')]);
         Str::createRandomStringsUsing(fn (): string => 'fresh-token');
-        $setPasswordUrl = config('app.url').'/verify-email?token=fresh-token';
+        $setPasswordUrl = config()->string('app.url').'/verify-email?token=fresh-token';
 
         // Act
         $response = $this->postJson('/api/auth/forgot-password', ['email' => $email]);

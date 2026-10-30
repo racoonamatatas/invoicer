@@ -40,7 +40,7 @@ describe('Registering', function (): void {
         $email = 'jan@example.com';
         $token = 'fixed-set-password-token';
         Str::createRandomStringsUsing(fn (): string => $token);
-        $setPasswordUrl = config('app.url').'/verify-email?token='.$token;
+        $setPasswordUrl = config()->string('app.url').'/verify-email?token='.$token;
 
         // Act
         $this->postJson('/api/auth/register', ['email' => $email]);
@@ -53,8 +53,8 @@ describe('Registering', function (): void {
             // The link is the only way in: a login or reset link would send the owner to a form that can't work yet.
             expect($html)->toContain($setPasswordUrl)
                 ->and($html)->toContain('48 hours')
-                ->and($html)->not->toContain(config('app.url').'/login')
-                ->and($html)->not->toContain(config('app.url').'/forgot-password');
+                ->and($html)->not->toContain(config()->string('app.url').'/login')
+                ->and($html)->not->toContain(config()->string('app.url').'/forgot-password');
 
             return $mail->hasTo($email);
         });
@@ -112,8 +112,8 @@ describe('Registering', function (): void {
         Mail::assertQueued(AccountAlreadyExists::class, function (AccountAlreadyExists $mail) use ($email): bool {
             $html = $mail->render();
 
-            expect($html)->toContain(config('app.url').'/login')
-                ->and($html)->toContain(config('app.url').'/forgot-password');
+            expect($html)->toContain(config()->string('app.url').'/login')
+                ->and($html)->toContain(config()->string('app.url').'/forgot-password');
 
             return $mail->hasTo($email);
         });

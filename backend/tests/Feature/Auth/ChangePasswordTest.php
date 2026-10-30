@@ -94,7 +94,7 @@ describe('Changing the password', function (): void {
         $user = User::factory()->create(['password' => 'old-horse-battery1']);
         $this->actingAs($user, 'web');
         // A Referer from the SPA makes the requests stateful, so Sanctum runs its session checks.
-        $this->withHeader('Referer', config('app.url'));
+        $this->withHeader('Referer', config()->string('app.url'));
         // What another device's session holds since its login: a fingerprint of the old password.
         $guard = Auth::guard('web');
         if (! $guard instanceof SessionGuard)
@@ -123,7 +123,7 @@ describe('Changing the password', function (): void {
         $user = User::factory()->create(['password' => 'old-horse-battery1']);
         $this->actingAs($user, 'web');
         // A Referer from the SPA makes the requests stateful, so Sanctum runs its session checks.
-        $this->withHeader('Referer', config('app.url'));
+        $this->withHeader('Referer', config()->string('app.url'));
         // What this session holds since its login: a fingerprint of the old password.
         $guard = Auth::guard('web');
         if (! $guard instanceof SessionGuard)
@@ -162,7 +162,7 @@ describe('Changing the password', function (): void {
         $response->assertNoContent();
         Mail::assertQueuedCount(1);
         Mail::assertQueued(PasswordChanged::class, function (PasswordChanged $mail) use ($email): bool {
-            $mail->assertSeeInHtml(config('app.url').'/forgot-password');
+            $mail->assertSeeInHtml(config()->string('app.url').'/forgot-password');
 
             return $mail->hasTo($email);
         });

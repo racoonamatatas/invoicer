@@ -48,7 +48,7 @@ describe('Resetting a password', function (): void {
         // Assert
         $response->assertNoContent();
         Mail::assertQueued(PasswordChanged::class, function (PasswordChanged $mail) use ($email): bool {
-            $mail->assertSeeInHtml(config('app.url').'/forgot-password');
+            $mail->assertSeeInHtml(config()->string('app.url').'/forgot-password');
 
             return $mail->hasTo($email);
         });
