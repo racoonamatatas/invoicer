@@ -39,6 +39,7 @@ final readonly class InvoiceTotals
     {
         // array_values() because the list<> type is only a docblock: PHP doesn't check it, and an array_filter() result
         // or a keyed array would otherwise name the wrong line, or fail on a string key.
+        // @phpstan-ignore arrayValues.list (kept on purpose, see above)
         foreach (array_values($lines) as $index => $line)
         {
             // Counted from 1, so the message names the line the way a person sees it on the invoice.
