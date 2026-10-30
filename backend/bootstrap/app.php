@@ -3,11 +3,13 @@
 declare(strict_types = 1);
 
 use App\Exceptions\Auth\InvalidCredentialsException;
+use App\Exceptions\BankAccount\BankAccountInUseException;
 use App\Exceptions\BankAccount\DuplicateIbanException;
 use App\Exceptions\Business\DuplicateKvkNumberException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 
@@ -45,5 +47,12 @@ return Application::configure(basePath: dirname(__DIR__))
             fn (DuplicateIbanException $exception) => ValidationException::withMessages([
                 'iban' => __('validation.unique', ['attribute' => 'iban']),
             ]),
+        );
+
+        // A 409 (conflict), not a 422: the request is fine, the account's state is what refuses it. An expected
+        // outcome, so it isn't reported either.
+        $exceptions->dontReport(BankAccountInUseException::class);
+        $exceptions->render(
+            fn (BankAccountInUseException $exception) => new JsonResponse(['message' => $exception->getMessage()], JsonResponse::HTTP_CONFLICT),
         );
     })->create();
