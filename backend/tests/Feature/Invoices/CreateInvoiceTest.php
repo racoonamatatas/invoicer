@@ -116,7 +116,7 @@ describe('Creating an invoice', function (): void {
         $response = $this->postJson("/api/businesses/{$business->id}/invoices", invoicePayload($client, $account, [
             'vat_treatment' => $treatment,
             'lines' => [
-                ['description' => 'Advieswerk', 'quantity_hundredths' => 100, 'unit_price_cents' => 10000],
+                ['description' => 'Advieswerk', 'quantity_hundredths' => 100, 'unit_price_cents' => 10000, 'vat_option' => null],
             ],
         ]));
 
@@ -164,7 +164,7 @@ describe('Creating an invoice', function (): void {
         $response = $this->postJson("/api/businesses/{$business->id}/invoices", invoicePayload($client, $account, [
             'vat_treatment' => $treatment,
             'lines' => [
-                ['description' => 'Advieswerk', 'quantity_hundredths' => 100, 'unit_price_cents' => 10000],
+                ['description' => 'Advieswerk', 'quantity_hundredths' => 100, 'unit_price_cents' => 10000, 'vat_option' => null],
             ],
         ]));
 
@@ -189,7 +189,7 @@ describe('Creating an invoice', function (): void {
         ],
     ]);
 
-    it('should return 422 (unprocessable) on a line\'s vat_option when a domestic line has none or a non-domestic line has one', function (string $treatment, array $line): void {
+    it('should return 422 (unprocessable) on a line\'s vat_option when a domestic line has none, or a non-domestic line has anything but null', function (string $treatment, array $line): void {
         // Arrange
         // A German client with a VAT number fits every treatment, so only the line can fail.
         $business = Business::factory()->create();
@@ -208,13 +208,21 @@ describe('Creating an invoice', function (): void {
         $this->assertDatabaseCount('invoices', 0);
     })->with([
         'domestic without a VAT option' => [
-            'domestic', ['description' => 'Advieswerk', 'quantity_hundredths' => 100, 'unit_price_cents' => 10000],
+            'domestic', ['description' => 'Advieswerk', 'quantity_hundredths' => 100, 'unit_price_cents' => 10000, 'vat_option' => null],
         ],
         'domestic with an unknown VAT option' => [
             'domestic', ['description' => 'Advieswerk', 'quantity_hundredths' => 100, 'unit_price_cents' => 10000, 'vat_option' => 'High'],
         ],
         'reverse charge with a VAT option' => [
             'reverse_charge', ['description' => 'Advieswerk', 'quantity_hundredths' => 100, 'unit_price_cents' => 10000, 'vat_option' => 'high'],
+        ],
+        // [] is empty, so a prohibited rule would let it through to toDto() and a 500.
+        'reverse charge with an empty array as the VAT option' => [
+            'reverse_charge', ['description' => 'Advieswerk', 'quantity_hundredths' => 100, 'unit_price_cents' => 10000, 'vat_option' => []],
+        ],
+        // An empty field is sent as null, never left out.
+        'reverse charge with the VAT option left out' => [
+            'reverse_charge', ['description' => 'Advieswerk', 'quantity_hundredths' => 100, 'unit_price_cents' => 10000],
         ],
     ]);
 
