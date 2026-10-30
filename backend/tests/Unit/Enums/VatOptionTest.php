@@ -50,4 +50,18 @@ describe('VatOption', function (): void {
         // Assert
         expect($ratePercent)->not->toThrow(UnhandledMatchError::class);
     })->with(VatOption::cases());
+
+    it('should name High, Low, Zero and Exempt "high", "low", "zero" and "exempt" in the API', function (VatOption $option, string $apiName): void {
+        // Act
+        $name = $option->apiName();
+
+        // Assert
+        // These strings are what the frontend sends and checks, so a renamed one must break this test.
+        expect($name)->toBe($apiName);
+    })->with([
+        'High' => [VatOption::High, 'high'],
+        'Low' => [VatOption::Low, 'low'],
+        'Zero' => [VatOption::Zero, 'zero'],
+        'Exempt' => [VatOption::Exempt, 'exempt'],
+    ]);
 });
