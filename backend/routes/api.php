@@ -59,6 +59,7 @@ Route::middleware('auth:sanctum')->prefix('businesses')->group(function (): void
             Route::get('/', [InvoiceController::class, 'index']);
             Route::post('/', [InvoiceController::class, 'store']);
             Route::get('{invoice}', [InvoiceController::class, 'show'])->whereNumber('invoice');
+            Route::delete('{invoice}', [InvoiceController::class, 'destroy'])->whereNumber('invoice');
         });
     });
 });
