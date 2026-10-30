@@ -38,6 +38,26 @@ describe('Deleting a bank account', function (): void {
         expect(BankAccount::query()->whereKey($account->id)->exists())->toBeTrue();
     });
 
+    it('should return 409 (conflict) for an account an invoice starts using after the in-use check, and keep it', function (): void {
+        // Arrange
+        $business = Business::factory()->create();
+        $account = BankAccount::factory()->for($business)->create();
+        // The deleting event fires inside delete(), after the action's exists() check and before the DELETE runs:
+        // an invoice created there is the race, an invoice saved by another request in between.
+        BankAccount::deleting(static function (BankAccount $deleting): void {
+            Invoice::factory()->for($deleting->business)->create(['bank_account_id' => $deleting->id]);
+        });
+        $this->actingAs($business->user, 'web');
+
+        // Act
+        $response = $this->deleteJson("/api/businesses/{$business->id}/bank-accounts/{$account->id}");
+
+        // Assert
+        $response->assertConflict()
+            ->assertExactJson(['message' => 'This bank account is on an invoice, so it can\'t be deleted.']);
+        expect(BankAccount::query()->whereKey($account->id)->exists())->toBeTrue();
+    });
+
     it('should return 404 (not found) for an account of the user\'s other business, and keep it', function (): void {
         // Arrange. Both businesses are the user's, so only the scoped binding refuses this.
         $business = Business::factory()->create();
