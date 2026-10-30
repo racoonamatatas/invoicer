@@ -57,6 +57,7 @@ Route::middleware('auth:sanctum')->prefix('businesses')->group(function (): void
         // 404, even when that business is the user's own.
         Route::prefix('invoices')->scopeBindings()->group(function (): void {
             Route::get('/', [InvoiceController::class, 'index']);
+            Route::post('/', [InvoiceController::class, 'store']);
             Route::get('{invoice}', [InvoiceController::class, 'show'])->whereNumber('invoice');
         });
     });

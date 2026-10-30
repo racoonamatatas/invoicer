@@ -37,6 +37,7 @@ class InvoiceFactory extends Factory
             'vat_treatment' => VatTreatment::Domestic,
             'number' => null,
             'payment_term_days' => null,
+            'version' => 1,
         ];
     }
 }

@@ -79,4 +79,25 @@ describe('VatTreatment', function (): void {
         // Two cases with one name would read back as the same case.
         expect(array_unique($apiNames))->toHaveCount(count(VatTreatment::cases()));
     });
+
+    it('should read every case back from its own API name', function (VatTreatment $treatment): void {
+        // Act
+        $readBack = VatTreatment::tryFromApiName($treatment->apiName());
+
+        // Assert
+        // The dataset is cases() itself, so a new case is in this test the moment it exists.
+        expect($readBack)->toBe($treatment);
+    })->with(VatTreatment::cases());
+
+    it('should read no case (null) from a name the API doesn\'t use', function (string $name): void {
+        // Act
+        $readBack = VatTreatment::tryFromApiName($name);
+
+        // Assert
+        expect($readBack)->toBeNull();
+    })->with([
+        'the case name' => ['Domestic'],
+        'the backing integer' => ['1'],
+        'an empty string' => [''],
+    ]);
 });

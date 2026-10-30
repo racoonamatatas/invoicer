@@ -19,9 +19,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * An invoice of a business, reached through /api/businesses/{business}/invoices/{invoice}. While it's a draft, it
  * stores no totals: they're computed from its lines on every read.
  */
-// business_id, status and number are left out on purpose: the owner is set by the relation
-// ($business->invoices()->create()), and the status and number by the code that creates or sends an invoice, never
-// from input. Factories ignore the list.
+// business_id, status, number and version are left out on purpose: the owner is set by the relation
+// ($business->invoices()->create()), and the status, number and version by the code that creates, saves or sends an
+// invoice, never from input. Factories ignore the list.
 #[Fillable([
     'client_id',
     'bank_account_id',
@@ -54,6 +54,7 @@ class Invoice extends Model
             'status' => InvoiceStatus::class,
             'vat_treatment' => VatTreatment::class,
             'payment_term_days' => 'integer',
+            'version' => 'integer',
         ];
     }
 

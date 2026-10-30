@@ -53,4 +53,22 @@ enum VatOption: int
             self::Exempt => 'exempt',
         };
     }
+
+    /**
+     * The case the API calls $name, or null for a name it doesn't know. The inbound side of apiName(), built from it so
+     * the two can't disagree. Null rather than a throw: a request rule calls this, and there an unknown name is a 422,
+     * not a bug.
+     */
+    public static function tryFromApiName(string $name): ?self
+    {
+        foreach (self::cases() as $case)
+        {
+            if ($case->apiName() === $name)
+            {
+                return $case;
+            }
+        }
+
+        return null;
+    }
 }

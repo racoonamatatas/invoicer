@@ -6,6 +6,8 @@ use App\Enums\VatOption;
 use App\Invoicing\InvoiceLineAmounts;
 use App\Invoicing\InvoiceTotals;
 use App\Invoicing\VatGroupTotal;
+use App\Models\BankAccount;
+use App\Models\Client;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -105,6 +107,31 @@ function clientPayload(array $changes = []): array
         'country_code' => 'NL',
         ...$changes,
     ], static fn (mixed $value): bool => $value !== null);
+}
+
+/**
+ * A valid create or update body for a domestic draft with one line at 21%, billed to $client and paid into $account,
+ * with $changes on top. Unlike clientPayload(), a null in $changes is sent as null: payment_term_days must be present,
+ * and null is a value it takes.
+ *
+ * The default line carries vat_option "high", which only a domestic invoice takes: a test that changes vat_treatment
+ * replaces lines too, with lines whose vat_option is null.
+ *
+ * @param  array<string, mixed>  $changes
+ * @return array<string, mixed>
+ */
+function invoicePayload(Client $client, BankAccount $account, array $changes = []): array
+{
+    return [
+        'client_id' => $client->id,
+        'bank_account_id' => $account->id,
+        'vat_treatment' => 'domestic',
+        'payment_term_days' => 14,
+        'lines' => [
+            ['description' => 'Advieswerk', 'quantity_hundredths' => 150, 'unit_price_cents' => 10000, 'vat_option' => 'high'],
+        ],
+        ...$changes,
+    ];
 }
 
 /**

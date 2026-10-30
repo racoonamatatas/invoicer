@@ -92,6 +92,7 @@ Table invoices
   vat_treatment integer [not null, note: 'VatTreatment: domestic / reverse charge / outside scope. No default: the creator sets it']
   number varchar [note: 'null while draft']
   payment_term_days integer [note: 'override; null = use business default']
+  version integer [not null, default: 1, note: 'optimistic lock: 1 on create, +1 on every save, sent as the ETag']
   created_at timestamp
   updated_at timestamp
 
