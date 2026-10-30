@@ -6,6 +6,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BankAccountController;
 use App\Http\Controllers\BusinessController;
 use App\Http\Controllers\ClientController;
+use App\Http\Controllers\InvoiceController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('auth')->group(function (): void {
@@ -50,6 +51,12 @@ Route::middleware('auth:sanctum')->prefix('businesses')->group(function (): void
             Route::post('/', [ClientController::class, 'store']);
             Route::get('{client}', [ClientController::class, 'show'])->whereNumber('client');
             Route::put('{client}', [ClientController::class, 'update'])->whereNumber('client');
+        });
+
+        // scopeBindings(): {invoice} resolves through $business->invoices(), so an invoice of another business is a
+        // 404, even when that business is the user's own.
+        Route::prefix('invoices')->scopeBindings()->group(function (): void {
+            Route::get('/', [InvoiceController::class, 'index']);
         });
     });
 });
