@@ -47,9 +47,7 @@ describe('The businesses table', function (): void {
         $index = collect(Schema::getIndexes('businesses'))->firstWhere('name', 'businesses_user_id_kvk_number_unique');
 
         // Assert
-        expect($index)->not->toBeNull()
-            ->and($index['columns'])->toBe(['user_id', 'kvk_number'])
-            ->and($index['unique'])->toBeTrue();
+        expect($index)->toMatchArray(['columns' => ['user_id', 'kvk_number'], 'unique' => true]);
     });
 
     it('should allow one user to own several businesses (user_id is not unique)', function (): void {

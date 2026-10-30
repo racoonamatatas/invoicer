@@ -61,9 +61,7 @@ describe('The bank_accounts table', function (): void {
         $index = collect(Schema::getIndexes('bank_accounts'))->firstWhere('name', 'bank_accounts_business_id_iban_unique');
 
         // Assert
-        expect($index)->not->toBeNull()
-            ->and($index['columns'])->toBe(['business_id', 'iban'])
-            ->and($index['unique'])->toBeTrue();
+        expect($index)->toMatchArray(['columns' => ['business_id', 'iban'], 'unique' => true]);
     });
 
     it('should have an index that leads with business_id (SQLite does not index a foreign key by itself)', function (): void {

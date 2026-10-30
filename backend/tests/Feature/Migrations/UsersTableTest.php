@@ -13,7 +13,6 @@ describe('The users table', function (): void {
         $columns = collect(Schema::getColumns('users'))->keyBy('name');
 
         // Assert
-        expect($columns)->toHaveKey('email_verified_at')
-            ->and($columns['email_verified_at']['nullable'])->toBeFalse();
+        expect($columns->get('email_verified_at'))->toMatchArray(['nullable' => false]);
     });
 });
