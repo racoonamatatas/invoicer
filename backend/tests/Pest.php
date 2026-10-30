@@ -69,7 +69,7 @@ expect()->extend('toBeOne', function () {
  */
 function reloaded(Model $model): Model
 {
-    return $model->fresh() ?? throw new LogicException($model::class.' '.$model->getKey().' is no longer in the database.');
+    return $model->fresh() ?? throw new LogicException($model::class.' is no longer in the database.');
 }
 
 /**
