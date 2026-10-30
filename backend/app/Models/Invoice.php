@@ -66,7 +66,8 @@ class Invoice extends Model
     {
         return InvoiceTotals::fromLines(
             $this->vat_treatment,
-            $this->lines->map(static fn (InvoiceLine $line): InvoiceLineAmounts => $line->toAmounts())->values()->all(),
+            // array_values(), not ->values()->all(): only the former is typed as a list.
+            array_values($this->lines->map(static fn (InvoiceLine $line): InvoiceLineAmounts => $line->toAmounts())->all()),
         );
     }
 

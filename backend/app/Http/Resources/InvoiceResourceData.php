@@ -34,7 +34,8 @@ final readonly class InvoiceResourceData implements JsonSerializable, Responsabl
     {
         return new self(
             summary: InvoiceSummaryResourceData::from($invoice),
-            lines: $invoice->lines->map(static fn (InvoiceLine $line): InvoiceLineResourceData => InvoiceLineResourceData::from($line))->values()->all(),
+            // array_values(), not ->values()->all(): only the former is typed as a list.
+            lines: array_values($invoice->lines->map(static fn (InvoiceLine $line): InvoiceLineResourceData => InvoiceLineResourceData::from($line))->all()),
             totals: InvoiceTotalsResourceData::from($invoice->totals()),
         );
     }
