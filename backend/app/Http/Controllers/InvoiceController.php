@@ -5,13 +5,17 @@ declare(strict_types = 1);
 namespace App\Http\Controllers;
 
 use App\Actions\Invoice\CreateInvoiceAction;
+use App\Actions\Invoice\DeleteInvoiceAction;
 use App\Actions\Invoice\ListInvoicesAction;
+use App\Http\IfMatch;
 use App\Http\Requests\InvoiceRequest;
 use App\Http\Resources\InvoiceResourceData;
 use App\Http\Resources\InvoiceSummaryResourceData;
+use App\Http\Responses\NoContentResponse;
 use App\Models\Business;
 use App\Models\Invoice;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 /**
  * The {business} binding has already proven the business is the user's. Every query starts from that business, so
@@ -50,6 +54,18 @@ final class InvoiceController extends Controller
     {
         // Loaded here rather than on first read inside the resource: the same one query, but in sight.
         return self::withVersion(new JsonResponse(InvoiceResourceData::from($invoice->load('lines'))), $invoice);
+    }
+
+    /**
+     * Deletes the draft if the client's If-Match still names its current version. The header is read before the action
+     * runs, so a missing or malformed one is refused before the delete. The route bindings have queried by then, so
+     * another business's invoice is a 404 whatever the header says.
+     */
+    public function destroy(DeleteInvoiceAction $action, Request $request, Business $business, Invoice $invoice): NoContentResponse
+    {
+        $action->execute($invoice, IfMatch::fromRequest($request));
+
+        return new NoContentResponse;
     }
 
     /**

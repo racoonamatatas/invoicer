@@ -13,8 +13,8 @@ return new class extends Migration
         // One billed item on an invoice: what, how much, at what price, and at which VAT option.
         Schema::create('invoice_lines', static function (Blueprint $table): void {
             $table->id();
-            // cascadeOnDelete: a line has no meaning without its invoice. Only a draft can be deleted, and the request
-            // guards that, not this key.
+            // cascadeOnDelete: a line has no meaning without its invoice. Only a draft may be deleted: the delete action
+            // gets that guard with sending, once an invoice can be anything but a draft. Not this key's job.
             // No ->index(): the unique index below leads with invoice_id, which serves "where invoice_id = ?".
             $table->foreignId('invoice_id')->constrained()->cascadeOnDelete();
             // The line's place on the invoice, from 1. Stored rather than taken from the id, so the order is data the
