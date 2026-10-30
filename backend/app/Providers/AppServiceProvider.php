@@ -21,6 +21,7 @@ use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
 use Illuminate\Validation\NotPwnedVerifier;
 use Illuminate\Validation\Rules\Password;
+use LogicException;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -149,7 +150,8 @@ class AppServiceProvider extends ServiceProvider
 
     /**
      * Only for limiters on routes behind auth:sanctum, which has already turned a guest away with a 401. A guest
-     * reaching one anyway throws instead of sharing one empty 'user:' bucket with every other guest.
+     * reaching one anyway is a route missing that middleware: a 500 says so, where a 401 would blame the client, and
+     * it beats every guest sharing one empty 'user:' bucket.
      */
     private static function userBucketKey(Request $request): string
     {
@@ -157,7 +159,7 @@ class AppServiceProvider extends ServiceProvider
 
         if (! $user instanceof User)
         {
-            throw new AuthenticationException;
+            throw new LogicException('A per-user rate limiter runs on a route without auth:sanctum.');
         }
 
         return 'user:'.$user->id;
