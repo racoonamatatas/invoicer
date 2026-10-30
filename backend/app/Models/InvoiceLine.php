@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace App\Models;
 
 use App\Enums\VatOption;
+use App\Invoicing\InvoiceLineAmounts;
 use Database\Factories\InvoiceLineFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -46,6 +47,14 @@ class InvoiceLine extends Model
             'unit_price_cents' => 'integer',
             'vat_option' => VatOption::class,
         ];
+    }
+
+    /**
+     * The numbers of this line that the totals need.
+     */
+    public function toAmounts(): InvoiceLineAmounts
+    {
+        return new InvoiceLineAmounts($this->quantity_hundredths, $this->unit_price_cents, $this->vat_option);
     }
 
     /**

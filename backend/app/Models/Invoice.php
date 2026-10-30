@@ -6,6 +6,8 @@ namespace App\Models;
 
 use App\Enums\InvoiceStatus;
 use App\Enums\VatTreatment;
+use App\Invoicing\InvoiceLineAmounts;
+use App\Invoicing\InvoiceTotals;
 use Database\Factories\InvoiceFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -49,6 +51,18 @@ class Invoice extends Model
             'vat_treatment' => VatTreatment::class,
             'payment_term_days' => 'integer',
         ];
+    }
+
+    /**
+     * Computed on every call, never stored: a draft's lines change on every save, and a stored total could drift from
+     * them. Reads the lines relation, so a caller that eager-loaded the lines pays no extra query.
+     */
+    public function totals(): InvoiceTotals
+    {
+        return InvoiceTotals::fromLines(
+            $this->vat_treatment,
+            $this->lines->map(static fn (InvoiceLine $line): InvoiceLineAmounts => $line->toAmounts())->values()->all(),
+        );
     }
 
     /**
