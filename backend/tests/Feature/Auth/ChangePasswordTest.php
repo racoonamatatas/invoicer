@@ -191,6 +191,30 @@ describe('Changing the password', function (): void {
         $response->assertTooManyRequests();
     });
 
+    it('should return 422 (unprocessable), not 429 (too many requests), on another user\'s first attempt after one user used up the limit, even from the same IP', function (): void {
+        // Arrange
+        $guess = [
+            'current_password' => 'wrong-horse-battery1',
+            'password' => 'new-horse-battery2',
+            'password_confirmation' => 'new-horse-battery2',
+        ];
+        $this->actingAs(User::factory()->create(['password' => 'old-horse-battery1']), 'web');
+        for ($attempt = 1; $attempt <= 5; $attempt++)
+        {
+            $this->putJson('/api/auth/password', $guess)->assertUnprocessable();
+        }
+
+        // Act
+        // Same IP as the first user: only a per-user key keeps the two apart. forgetGuards(): the app lives on between
+        // requests in a test, and Sanctum's guard would still hand out the first user it resolved.
+        Auth::forgetGuards();
+        $this->actingAs(User::factory()->create(['password' => 'old-horse-battery1']), 'web');
+        $response = $this->putJson('/api/auth/password', $guess);
+
+        // Assert
+        $response->assertUnprocessable();
+    });
+
     it('should return 422 (unprocessable) with the must-be-different message and keep the old password when the new password equals the current one', function (): void {
         // Arrange
         $user = User::factory()->create(['password' => 'old-horse-battery1']);
