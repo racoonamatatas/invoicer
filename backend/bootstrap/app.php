@@ -6,6 +6,7 @@ use App\Exceptions\Auth\InvalidCredentialsException;
 use App\Exceptions\BankAccount\BankAccountInUseException;
 use App\Exceptions\BankAccount\DuplicateIbanException;
 use App\Exceptions\Business\DuplicateKvkNumberException;
+use App\Exceptions\Invoice\InvoiceReferenceGoneException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -47,6 +48,18 @@ return Application::configure(basePath: dirname(__DIR__))
             fn (DuplicateIbanException $exception) => ValidationException::withMessages([
                 'iban' => __('validation.unique', ['attribute' => 'iban']),
             ]),
+        );
+
+        // The same 422 the exists rule gives for an unknown id: the user named a client or account that isn't there,
+        // whether the rule or the foreign key noticed first.
+        $exceptions->map(
+            fn (InvoiceReferenceGoneException $exception) => ValidationException::withMessages(array_combine(
+                $exception->fields,
+                array_map(
+                    static fn (string $field): string => __('validation.exists', ['attribute' => str_replace('_', ' ', $field)]),
+                    $exception->fields,
+                ),
+            )),
         );
 
         // A 409 (conflict), not a 422: the request is fine, the account's state is what refuses it. An expected
