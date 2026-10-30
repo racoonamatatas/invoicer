@@ -114,6 +114,9 @@ function clientPayload(array $changes = []): array
  * with $changes on top. Unlike clientPayload(), a null in $changes is sent as null: payment_term_days must be present,
  * and null is a value it takes.
  *
+ * The default line carries vat_option "high", which only a domestic invoice takes: a test that changes vat_treatment
+ * replaces lines too, with lines whose vat_option is null.
+ *
  * @param  array<string, mixed>  $changes
  * @return array<string, mixed>
  */

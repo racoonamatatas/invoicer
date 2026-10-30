@@ -2,11 +2,14 @@
 
 declare(strict_types = 1);
 
+use App\Actions\Invoice\CreateInvoiceAction;
 use App\Enums\InvoiceStatus;
 use App\Models\BankAccount;
 use App\Models\Business;
 use App\Models\Client;
 use App\Models\Invoice;
+use App\Models\InvoiceLine;
+use Illuminate\Support\Facades\DB;
 
 describe('Creating an invoice', function (): void {
 
@@ -243,6 +246,7 @@ describe('Creating an invoice', function (): void {
         // Assert
         // The server numbers the lines, so a position from the client is refused rather than silently ignored.
         $response->assertUnprocessable()->assertOnlyJsonValidationErrors(['lines.0']);
+        $this->assertDatabaseCount('invoices', 0);
     });
 
     it('should return 422 (unprocessable) when payment_term_days is left out, rather than taking it as null', function (): void {
@@ -260,6 +264,7 @@ describe('Creating an invoice', function (): void {
         // Assert
         // null means "the business's default", so it has to be sent on purpose.
         $response->assertUnprocessable()->assertOnlyJsonValidationErrors(['payment_term_days']);
+        $this->assertDatabaseCount('invoices', 0);
     });
 
     it('should return 422 (unprocessable), not 500, for an amount one over its cap', function (string $field, int $value): void {
@@ -278,6 +283,7 @@ describe('Creating an invoice', function (): void {
 
         // Assert
         $response->assertUnprocessable()->assertOnlyJsonValidationErrors(["lines.0.{$field}"]);
+        $this->assertDatabaseCount('invoices', 0);
     })->with([
         'quantity_hundredths' => ['quantity_hundredths', 10_000_001],
         'unit_price_cents' => ['unit_price_cents', 100_000_001],
@@ -300,6 +306,7 @@ describe('Creating an invoice', function (): void {
 
         // Assert
         $response->assertUnprocessable()->assertOnlyJsonValidationErrors(['lines']);
+        $this->assertDatabaseCount('invoices', 0);
     });
 
     it('should return 201 (created) with a total of 1 210 000 000 000 000 cents for the largest invoice the caps allow', function (): void {
@@ -322,6 +329,134 @@ describe('Creating an invoice', function (): void {
             ->assertJsonPath('totals.subtotal_cents', 1_000_000_000_000_000)
             ->assertJsonPath('totals.vat_cents', 210_000_000_000_000)
             ->assertJsonPath('totals.total_cents', 1_210_000_000_000_000);
+    });
+
+    it('should return 201 (created) for a payment_term_days of 1 and of 365, the edges of its range', function (int $days): void {
+        // Arrange
+        $business = Business::factory()->create();
+        $client = Client::factory()->for($business)->create();
+        $account = BankAccount::factory()->for($business)->create();
+        $this->actingAs($business->user, 'web');
+
+        // Act
+        $response = $this->postJson("/api/businesses/{$business->id}/invoices", invoicePayload($client, $account, ['payment_term_days' => $days]));
+
+        // Assert
+        $response->assertCreated()->assertJsonPath('payment_term_days', $days);
+    })->with([1, 365]);
+
+    it('should return 422 (unprocessable) on the field, and store nothing, for a value out of range or a number sent as a string', function (array $changes, string $field): void {
+        // Arrange
+        // The strings: integer:strict refuses "14", which a loose integer rule accepts and toDto() would then refuse as a
+        // bug, with a 500.
+        $business = Business::factory()->create();
+        $client = Client::factory()->for($business)->create();
+        $account = BankAccount::factory()->for($business)->create();
+        $payload = invoicePayload($client, $account);
+        $this->actingAs($business->user, 'web');
+
+        // Act
+        $response = $this->postJson("/api/businesses/{$business->id}/invoices", array_replace_recursive($payload, $changes));
+
+        // Assert
+        $response->assertUnprocessable()->assertOnlyJsonValidationErrors([$field]);
+        $this->assertDatabaseCount('invoices', 0);
+    })->with([
+        'payment_term_days of 0' => [['payment_term_days' => 0], 'payment_term_days'],
+        'payment_term_days of 366' => [['payment_term_days' => 366], 'payment_term_days'],
+        'payment_term_days as a string' => [['payment_term_days' => '14'], 'payment_term_days'],
+        'quantity_hundredths as a string' => [['lines' => [['quantity_hundredths' => '100']]], 'lines.0.quantity_hundredths'],
+        'unit_price_cents as a string' => [['lines' => [['unit_price_cents' => '10000']]], 'lines.0.unit_price_cents'],
+        'a description of 256 characters' => [['lines' => [['description' => str_repeat('a', 256)]]], 'lines.0.description'],
+    ]);
+
+    it('should return 422 (unprocessable) on client_id or bank_account_id sent as its id in a string, and store nothing', function (string $field): void {
+        // Arrange
+        // The real id, so only integer:strict refuses it: a loose integer rule would accept "12".
+        $business = Business::factory()->create();
+        $client = Client::factory()->for($business)->create();
+        $account = BankAccount::factory()->for($business)->create();
+        $id = $field === 'client_id' ? $client->id : $account->id;
+        $this->actingAs($business->user, 'web');
+
+        // Act
+        $response = $this->postJson("/api/businesses/{$business->id}/invoices", invoicePayload($client, $account, [$field => (string) $id]));
+
+        // Assert
+        $response->assertUnprocessable()->assertOnlyJsonValidationErrors([$field]);
+        $this->assertDatabaseCount('invoices', 0);
+    })->with(['client_id', 'bank_account_id']);
+
+    it('should return 422 (unprocessable) on vat_treatment, and on each line\'s vat_option, for an unknown treatment', function (): void {
+        // Arrange
+        $business = Business::factory()->create();
+        $client = Client::factory()->for($business)->create();
+        $account = BankAccount::factory()->for($business)->create();
+        $this->actingAs($business->user, 'web');
+
+        // Act
+        // "Domestic", the case name, not its API name "domestic".
+        $response = $this->postJson("/api/businesses/{$business->id}/invoices", invoicePayload($client, $account, ['vat_treatment' => 'Domestic']));
+
+        // Assert
+        // An unknown treatment charges no VAT as far as the lines know, so a line's "high" is refused too. Noisy, but
+        // the vat_treatment error is the one that explains it.
+        $response->assertUnprocessable()->assertOnlyJsonValidationErrors(['vat_treatment', 'lines.0.vat_option']);
+        $this->assertDatabaseCount('invoices', 0);
+    });
+
+    it('should return 422 (unprocessable) on the field, and store nothing, when the client or bank account is deleted after validation', function (string $field, string $table): void {
+        // Arrange
+        $business = Business::factory()->create();
+        $client = Client::factory()->for($business)->create();
+        $account = BankAccount::factory()->for($business)->create();
+        $deletedId = $field === 'client_id' ? $client->id : $account->id;
+        // The controller's parameters resolve in order, so the action is built after the request has validated: a
+        // delete there is the race, another request deleting the row between the exists rule and the insert.
+        $this->app->resolving(CreateInvoiceAction::class, static function () use ($table, $deletedId): void {
+            DB::table($table)->where('id', $deletedId)->delete();
+        });
+        $this->actingAs($business->user, 'web');
+
+        // Act
+        $response = $this->postJson("/api/businesses/{$business->id}/invoices", invoicePayload($client, $account));
+
+        // Assert
+        // The same message the exists rule gives, so the user can't tell which check caught it.
+        $attribute = str_replace('_', ' ', $field);
+        $response->assertUnprocessable()->assertOnlyJsonValidationErrors([$field => "The selected {$attribute} is invalid."]);
+        $this->assertDatabaseCount('invoices', 0);
+    })->with([
+        'client' => ['client_id', 'clients'],
+        'bank account' => ['bank_account_id', 'bank_accounts'],
+    ]);
+
+    it('should store neither the invoice nor any line when a line fails to insert', function (): void {
+        // Arrange
+        $business = Business::factory()->create();
+        $client = Client::factory()->for($business)->create();
+        $account = BankAccount::factory()->for($business)->create();
+        // The second line fails after the invoice and the first line are in, so only a rollback removes them.
+        InvoiceLine::creating(static function (InvoiceLine $line): void {
+            if ($line->position === 2)
+            {
+                throw new RuntimeException('A line insert fails.');
+            }
+        });
+        $this->actingAs($business->user, 'web');
+
+        // Act
+        $response = $this->postJson("/api/businesses/{$business->id}/invoices", invoicePayload($client, $account, [
+            'lines' => [
+                ['description' => 'Advieswerk', 'quantity_hundredths' => 100, 'unit_price_cents' => 10000, 'vat_option' => 'high'],
+                ['description' => 'Lesmateriaal', 'quantity_hundredths' => 100, 'unit_price_cents' => 2500, 'vat_option' => 'low'],
+            ],
+        ]));
+
+        // Assert
+        $response->assertInternalServerError();
+        $this->assertDatabaseCount('invoices', 0);
+        $this->assertDatabaseCount('invoice_lines', 0);
     });
 
     it('should return 404 (not found) for a business of another user, and store nothing', function (): void {
