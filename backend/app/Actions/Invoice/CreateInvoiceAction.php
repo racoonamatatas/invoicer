@@ -23,6 +23,8 @@ final readonly class CreateInvoiceAction
             // is set here; only this code decides that a new invoice is a draft.
             $invoice = $business->invoices()->make($data->toAttributes());
             $invoice->status = InvoiceStatus::Draft;
+            // Set rather than left to the column default, so the model holds it for the ETag without reading it back.
+            $invoice->version = 1;
             $invoice->save();
 
             $invoice->lines()->createMany($data->lineAttributes());
