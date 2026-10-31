@@ -12,6 +12,8 @@ parameters:
         # Arch tests are declarative chains on arch(), which reach expect() through Pest's __call, so PHPStan can't see
         # them. They hold no logic to type-check.
         - tests/Arch/
+        # Code that breaks the custom rules on purpose, for their RuleTestCase tests.
+        - tests/PHPStan/RateLimiter/Fixtures/
 
 services:
     -
