@@ -18,3 +18,14 @@ services:
         class: Tests\PHPStan\PestClosureThisExtension
         tags:
             - phpstan.functionParameterClosureThisExtension
+    -
+        class: Tests\PHPStan\RateLimiter\RequestCastCollector
+        tags:
+            - phpstan.collector
+    -
+        class: Tests\PHPStan\RateLimiter\LimiterHelperCallCollector
+        tags:
+            - phpstan.collector
+
+rules:
+    - Tests\PHPStan\RateLimiter\RequestCastInRateLimiterRule
