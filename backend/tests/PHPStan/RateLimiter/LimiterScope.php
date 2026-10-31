@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace Tests\PHPStan\RateLimiter;
 
 use Illuminate\Cache\RateLimiter;
+use Illuminate\Support\Facades\RateLimiter as RateLimiterFacade;
 use PHPStan\Analyser\Scope;
 use PHPStan\Reflection\MethodReflection;
 
@@ -13,6 +14,12 @@ use PHPStan\Reflection\MethodReflection;
  */
 final class LimiterScope
 {
+    /**
+     * Larastan resolves a facade's static `for()` as a method of the facade class itself, so a closure given to the
+     * facade finds the facade on the stack, not the RateLimiter it forwards to.
+     */
+    private const array LIMITER_CLASSES = [RateLimiter::class, RateLimiterFacade::class];
+
     /**
      * While PHPStan analyses a call's arguments, it pushes that call onto the scope's function call stack. A closure
      * passed to for() is one of those arguments, so every node inside it finds RateLimiter::for on the stack.
@@ -23,7 +30,7 @@ final class LimiterScope
         {
             if (
                 $reflection instanceof MethodReflection
-                && $reflection->getDeclaringClass()->getName() === RateLimiter::class
+                && in_array($reflection->getDeclaringClass()->getName(), self::LIMITER_CLASSES, true)
                 && $reflection->getName() === 'for'
             ) {
                 return true;
