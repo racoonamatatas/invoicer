@@ -6,7 +6,6 @@ namespace App\Actions\Invoice;
 
 use App\DataTransferObjects\Input\Invoice\InvoiceData;
 use App\Enums\InvoiceStatus;
-use App\Exceptions\ForeignKeyViolation;
 use App\Exceptions\Invoice\InvoiceReferenceGoneException;
 use App\Models\Business;
 use App\Models\Invoice;
@@ -44,31 +43,8 @@ final readonly class CreateInvoiceAction
         }
         catch (QueryException $exception)
         {
-            // The request checked that the client and the account exist, but another request can delete one before
-            // the insert, and the foreign key then refuses it. Asked after the rollback, outside the transaction, so
-            // the answer is what the other request committed. Any other failure is a real error and stays a 500.
-            if (! ForeignKeyViolation::matches($exception))
-            {
-                throw $exception;
-            }
-
-            $gone = [];
-            if (! $business->clients()->whereKey($data->clientId)->exists())
-            {
-                $gone[] = 'client_id';
-            }
-            if (! $business->bankAccounts()->whereKey($data->bankAccountId)->exists())
-            {
-                $gone[] = 'bank_account_id';
-            }
-
-            // Both still there: the violation came from somewhere else, so it isn't this case.
-            if ($gone === [])
-            {
-                throw $exception;
-            }
-
-            throw new InvoiceReferenceGoneException($gone, $exception);
+            // Outside the transaction, so it has rolled back before the check asks what is still there.
+            InvoiceReferenceGoneException::rethrow($exception, $business, $data);
         }
     }
 }

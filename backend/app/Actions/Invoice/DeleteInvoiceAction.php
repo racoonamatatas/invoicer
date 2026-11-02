@@ -31,19 +31,9 @@ final readonly class DeleteInvoiceAction
             ->where('version', $ifMatch->version)
             ->delete();
 
-        if ($deleted !== 0)
+        if ($deleted === 0)
         {
-            return;
+            StaleVersionException::throwForMissedWrite($invoice);
         }
-
-        // 0 rows has two causes, told apart only now that the delete has failed, so the check and the delete stay one
-        // statement. Gone: a double-click or a second tab deleted it first, and "changed elsewhere" would be untrue.
-        // The same 404 as an unknown id in the URL.
-        if (! Invoice::query()->whereKey($invoice->getKey())->exists())
-        {
-            throw (new ModelNotFoundException)->setModel(Invoice::class, [$invoice->id]);
-        }
-
-        throw new StaleVersionException;
     }
 }
