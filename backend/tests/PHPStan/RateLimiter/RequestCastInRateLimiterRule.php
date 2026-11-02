@@ -60,7 +60,7 @@ final class RequestCastInRateLimiterRule implements Rule
                 }
 
                 $errors[] = RuleErrorBuilder::message(sprintf(
-                    'Rate limiters run before validation, so request input can be any type: read it with input() and check the type instead of calling %s().',
+                    'Rate limiters run before validation, so request input can be any type: read it with $request->input() and check the type instead of calling %s().',
                     $cast,
                 ))
                     ->identifier('invoicer.rateLimiterRequestCast')

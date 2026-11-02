@@ -18,7 +18,7 @@ use PHPUnit\Framework\Attributes\Test;
  */
 final class RequestCastInRateLimiterRuleTest extends RuleTestCase
 {
-    private const string MESSAGE = 'Rate limiters run before validation, so request input can be any type: read it with input() and check the type instead of calling %s().';
+    private const string MESSAGE = 'Rate limiters run before validation, so request input can be any type: read it with $request->input() and check the type instead of calling %s().';
 
     // The line of the first for() call in AccessorsInClosure.php: lines 1-10 hold the file header and its imports, and
     // lines 11-14 open the class and boot().
