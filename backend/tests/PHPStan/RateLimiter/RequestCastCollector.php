@@ -13,6 +13,7 @@ use PhpParser\Node\Identifier;
 use PhpParser\Node\Name;
 use PHPStan\Analyser\Scope;
 use PHPStan\Collectors\Collector;
+use PHPStan\Type\ObjectType;
 
 /**
  * Records every call to a typed accessor on a Request, such as `$request->string('email')`.
@@ -59,9 +60,9 @@ final class RequestCastCollector implements Collector
     /**
      * The typed accessor's name, lower-cased, when the call reads request input through one; otherwise null.
      *
-     * Covers `$request->string()`, `$request?->string()` and the Request facade's `Request::string()`. A nullsafe call
-     * needs no case of its own: PHPStan analyses `$request?->string()` as a MethodCall on the non-null `$request` too,
-     * so a NullsafeMethodCall case would report it twice.
+     * Covers `$request->string()`, `$request?->string()` and the Request facade's `Request::string()`, its `\Request`
+     * alias included. A nullsafe call needs no case of its own: PHPStan analyses `$request?->string()` as a MethodCall
+     * on the non-null `$request` too, so a NullsafeMethodCall case would report it twice.
      */
     private function accessorCalledOnARequest(CallLike $node, Scope $scope): ?string
     {
@@ -71,7 +72,9 @@ final class RequestCastCollector implements Collector
         }
         elseif ($node instanceof StaticCall && $node->class instanceof Name)
         {
-            $isOnARequest = $scope->resolveName($node->class) === RequestFacade::class;
+            // Compared as types, not names: Laravel's default aliases make a bare `\Request` the facade too.
+            $class = new ObjectType($scope->resolveName($node->class));
+            $isOnARequest = new ObjectType(RequestFacade::class)->isSuperTypeOf($class)->yes();
         }
         else
         {
