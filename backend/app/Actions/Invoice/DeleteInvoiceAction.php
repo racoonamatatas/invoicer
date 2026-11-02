@@ -22,7 +22,8 @@ final readonly class DeleteInvoiceAction
      *
      * A query, not $invoice->delete(): the model's delete() matches on the id alone, so it can't carry the version.
      *
-     * @throws StaleVersionException when the invoice's version is no longer the one the client saw
+     * @throws StaleVersionException when the invoice's version is no longer the one the client saw, or, once a second
+     *                               status exists, when it is no longer a draft (see InvoiceStatusTest)
      * @throws ModelNotFoundException when the invoice was deleted after the route found it
      */
     public function execute(Invoice $invoice, IfMatch $ifMatch): void

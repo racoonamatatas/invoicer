@@ -33,7 +33,8 @@ final readonly class UpdateInvoiceAction
      *
      * @param  Business  $business  the business that owns $invoice
      *
-     * @throws StaleVersionException when the invoice's version is no longer the one the client saw
+     * @throws StaleVersionException when the invoice's version is no longer the one the client saw, or, once a second
+     *                               status exists, when it is no longer a draft (see InvoiceStatusTest)
      * @throws ModelNotFoundException when the invoice was deleted after the route found it
      * @throws InvoiceReferenceGoneException when the client or bank account was deleted after the request checked it
      * @throws LogicException when $invoice belongs to another business
