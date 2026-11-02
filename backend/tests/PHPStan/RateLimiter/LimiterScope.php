@@ -31,7 +31,7 @@ final class LimiterScope
             if (
                 $reflection instanceof MethodReflection
                 && in_array($reflection->getDeclaringClass()->getName(), self::LIMITER_CLASSES, true)
-                && $reflection->getName() === 'for'
+                && strtolower($reflection->getName()) === 'for'
             ) {
                 return true;
             }
@@ -41,19 +41,25 @@ final class LimiterScope
     }
 
     /**
-     * The 'Class::method' a node sits in, or null outside a class method. Inside a closure this is the method that
+     * The key of the method a node sits in, or null outside a class method. Inside a closure this is the method that
      * defines the closure.
      */
     public static function enclosingMethod(Scope $scope): ?string
     {
-        $class = $scope->getClassReflection();
         $function = $scope->getFunction();
 
-        if ($class === null || ! $function instanceof MethodReflection)
-        {
-            return null;
-        }
+        return $function instanceof MethodReflection ? self::methodKey($function) : null;
+    }
 
-        return $class->getName().'::'.$function->getName();
+    /**
+     * 'DeclaringClass::method', the same for a call and for the body it runs, however the call names it.
+     *
+     * The class is the one that declares the method, not the one the call goes through: `self::emailKey()` in a child
+     * class runs the body its parent declares. The method name is lower-cased because PHP's are case-insensitive, so
+     * `self::EmailKey()` runs `emailKey()`.
+     */
+    public static function methodKey(MethodReflection $method): string
+    {
+        return $method->getDeclaringClass()->getName().'::'.strtolower($method->getName());
     }
 }

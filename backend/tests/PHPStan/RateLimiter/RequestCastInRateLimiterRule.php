@@ -38,9 +38,12 @@ final class RequestCastInRateLimiterRule implements Rule
 
         foreach ($node->get(LimiterHelperCallCollector::class) as $helpersInFile)
         {
-            foreach ($helpersInFile as $helper)
+            foreach ($helpersInFile as $helpersOfOneCall)
             {
-                $helpers[$helper] = true;
+                foreach ($helpersOfOneCall as $helper)
+                {
+                    $helpers[$helper] = true;
+                }
             }
         }
 
