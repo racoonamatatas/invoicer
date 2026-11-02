@@ -23,11 +23,14 @@ use PHPStan\Rules\RuleErrorBuilder;
  * Known limits, where a cast goes unreported:
  * - a helper's helper: it follows one level;
  * - a helper declared on an interface or as an abstract method: its body lives in a class only the runtime knows;
+ * - a subclass's override of a helper: `$this->key()` in the parent resolves to the parent's key();
  * - a limiter closure held in a variable, or built with Closure::fromCallable(), before it reaches for();
+ * - a limiter that is a function, `for('login', loginLimit(...))`, or arrives through an unpacked `for(...$args)`;
  * - a helper that is a function, a constructor (`new Key($request)`), or reads `request()` itself.
  *
  * In the other direction, every typed accessor in a helper's body is reported, including one on a different Request or
- * in a closure the helper only defines. Those may be safe, but input() plus a type check is safe as well.
+ * in a closure the helper only defines. fluent() counts on its own, even when only safe reads follow it. Those may be
+ * safe, but $request->input() plus a type check is safe as well.
  *
  * @implements Rule<CollectedDataNode>
  */

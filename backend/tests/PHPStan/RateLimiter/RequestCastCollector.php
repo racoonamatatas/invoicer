@@ -18,8 +18,9 @@ use PHPStan\Type\ObjectType;
 /**
  * Records every call to a typed accessor on a Request, such as `$request->string('email')`.
  *
- * Each record is [inside a limiter closure, enclosing 'Class::method' or null, accessor name, line]. Whether a record
- * is an error depends on calls elsewhere in the code base, so RequestCastInRateLimiterRule decides once it has them all.
+ * Each record is [inside a limiter closure, the enclosing method's LimiterScope::methodKey() or null, accessor name,
+ * line]. Whether a record is an error depends on calls elsewhere in the code base, so RequestCastInRateLimiterRule
+ * decides once it has them all.
  *
  * @implements Collector<CallLike, array{bool, string|null, string, int}>
  */
