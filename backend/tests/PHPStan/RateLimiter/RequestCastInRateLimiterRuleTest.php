@@ -170,6 +170,29 @@ final class RequestCastInRateLimiterRuleTest extends RuleTestCase
     }
 
     #[Test]
+    public function should_report_a_typed_accessor_in_a_limiter_closure_read_through_the_request_alias_of_the_facade(): void
+    {
+        // Arrange: Laravel creates its `\Request` alias of the facade the first time something asks for that class. A
+        // real PHPStan run asks the autoloader for it; PHPStan's test reflection doesn't, so the alias is made here.
+        class_exists('Request');
+        $expectedErrors = [[sprintf(self::MESSAGE, 'string'), 16]];
+
+        // Act & Assert
+        $this->analyse([__DIR__.'/Fixtures/RequestAliasCall.php'], $expectedErrors);
+    }
+
+    #[Test]
+    public function should_report_a_typed_accessor_in_a_limiter_method_passed_to_the_rate_limiter_facade_and_in_its_helper(): void
+    {
+        // Arrange: the facade's for() is a different reflection from the injected limiter's: it comes from the facade's
+        // @method docblock. loginLimit() calls string() on line 20 and hands its Request to deviceKey(), line 25.
+        $expectedErrors = [[sprintf(self::MESSAGE, 'string'), 20], [sprintf(self::MESSAGE, 'string'), 25]];
+
+        // Act & Assert
+        $this->analyse([__DIR__.'/Fixtures/FacadeLimiterMethod.php'], $expectedErrors);
+    }
+
+    #[Test]
     public function should_report_nothing_for_input_with_a_type_check_ip_or_a_typed_accessor_no_limiter_calls(): void
     {
         // Arrange: the limiter reads input() and checks it with is_string(), and calls ip(). Another method of the
