@@ -40,6 +40,9 @@ final readonly class UpdateInvoiceAction
             return DB::transaction(static function () use ($invoice, $data, $ifMatch): Invoice {
                 // increment() with extra columns is one UPDATE ... SET version = version + 1, ... WHERE version = ?.
                 // It bumps the version on every save, a lines-only one too, whose invoice columns don't change.
+                // It is a query, not a model save, so the extra columns skip the model's casts, its fillable list and
+                // its events: they reach the database as given. toAttributes() must keep handing it plain scalars and
+                // backed enums, which the query builder writes as their values.
                 $updated = Invoice::query()
                     ->whereKey($invoice->getKey())
                     ->where('version', $ifMatch->version)
