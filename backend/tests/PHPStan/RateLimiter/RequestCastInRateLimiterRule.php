@@ -18,7 +18,16 @@ use PHPStan\Rules\RuleErrorBuilder;
  * array is a 500. Reading it with input() gives `mixed`, and Larastan's max level then forces a type check first.
  *
  * Covered: the limiter, written as a closure or as a method passed to for() as `$this->loginLimit(...)`, and the
- * methods it hands its Request to. Known limit: it follows one level, so a cast in a helper's helper goes unreported.
+ * methods it hands its Request to, by `self::`, `static::`, `$this->` or any object whose class is known.
+ *
+ * Known limits, where a cast goes unreported:
+ * - a helper's helper: it follows one level;
+ * - a helper declared on an interface or as an abstract method: its body lives in a class only the runtime knows;
+ * - a limiter closure held in a variable, or built with Closure::fromCallable(), before it reaches for();
+ * - a helper that is a function, a constructor (`new Key($request)`), or reads `request()` itself.
+ *
+ * In the other direction, every typed accessor in a helper's body is reported, including one on a different Request or
+ * in a closure the helper only defines. Those may be safe, but input() plus a type check is safe as well.
  *
  * @implements Rule<CollectedDataNode>
  */

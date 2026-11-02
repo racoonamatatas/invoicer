@@ -25,8 +25,9 @@ use PHPStan\Collectors\Collector;
 final class RequestCastCollector implements Collector
 {
     /**
-     * Every accessor that turns raw input into a type. Before validation the input can be an array: string(), enum()
-     * and date() crash on one with a 500, and the others quietly turn it into a made-up value such as 0 or false.
+     * Every accessor that turns raw input into a type. Before validation the input can be any type: string(), enum()
+     * and date() crash on the wrong one with a 500, and the others quietly coerce it into a made-up value, such as 0
+     * from integer() on an array or ['x'] from array() on a string.
      * fluent() wraps the raw input, so its own string() crashes the same way, on a receiver that isn't a Request.
      */
     private const array CAST_METHODS = [
