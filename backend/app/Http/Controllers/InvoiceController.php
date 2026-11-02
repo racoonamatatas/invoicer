@@ -66,7 +66,7 @@ final class InvoiceController extends Controller
      */
     public function update(InvoiceRequest $request, UpdateInvoiceAction $action, Business $business, Invoice $invoice): JsonResponse
     {
-        $invoice = $action->execute($invoice, $request->toDto(), IfMatch::fromRequest($request));
+        $invoice = $action->execute($business, $invoice, $request->toDto(), IfMatch::fromRequest($request));
 
         return self::withVersion(new JsonResponse(InvoiceResourceData::from($invoice)), $invoice);
     }

@@ -416,7 +416,7 @@ describe('UpdateInvoiceAction', function (): void {
         $ifMatch = IfMatch::fromRequest(Request::create('/', 'PUT', server: ['HTTP_IF_MATCH' => '"1"']));
 
         // Act
-        $act = fn () => app(UpdateInvoiceAction::class)->execute($invoice, $data, $ifMatch);
+        $act = fn () => app(UpdateInvoiceAction::class)->execute($invoice->business, $invoice, $data, $ifMatch);
 
         // Assert
         // Not StaleVersionException: its "changed elsewhere, load the latest version" would send the user to a draft

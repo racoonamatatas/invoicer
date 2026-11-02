@@ -8,6 +8,7 @@ use App\DataTransferObjects\Input\Invoice\InvoiceData;
 use App\Exceptions\Http\StaleVersionException;
 use App\Exceptions\Invoice\InvoiceReferenceGoneException;
 use App\Http\IfMatch;
+use App\Models\Business;
 use App\Models\Invoice;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\QueryException;
@@ -32,7 +33,7 @@ final readonly class UpdateInvoiceAction
      * @throws ModelNotFoundException when the invoice was deleted after the route found it
      * @throws InvoiceReferenceGoneException when the client or bank account was deleted after the request checked it
      */
-    public function execute(Invoice $invoice, InvoiceData $data, IfMatch $ifMatch): Invoice
+    public function execute(Business $business, Invoice $invoice, InvoiceData $data, IfMatch $ifMatch): Invoice
     {
         try
         {
@@ -60,8 +61,9 @@ final readonly class UpdateInvoiceAction
         }
         catch (QueryException $exception)
         {
-            // Outside the transaction, so it has rolled back before the check asks what is still there.
-            InvoiceReferenceGoneException::rethrow($exception, $invoice->business, $data);
+            // Outside the transaction, so it has rolled back before the check asks what is still there. The bound
+            // business, not $invoice->business, which would be one more query to load what the route already has.
+            InvoiceReferenceGoneException::rethrow($exception, $business, $data);
         }
     }
 }
