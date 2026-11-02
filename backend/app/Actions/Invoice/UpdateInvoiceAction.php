@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace App\Actions\Invoice;
 
 use App\DataTransferObjects\Input\Invoice\InvoiceData;
+use App\Enums\InvoiceStatus;
 use App\Exceptions\Http\StaleVersionException;
 use App\Exceptions\Invoice\InvoiceReferenceGoneException;
 use App\Http\IfMatch;
@@ -43,8 +44,12 @@ final readonly class UpdateInvoiceAction
                 // It is a query, not a model save, so the extra columns skip the model's casts, its fillable list and
                 // its events: they reach the database as given. toAttributes() must keep handing it plain scalars and
                 // backed enums, which the query builder writes as their values.
+                // The status is checked in the same statement, so no save can slip in between a draft check and the
+                // write. Only Draft exists today; a second status needs its own refusal for a non-draft, since
+                // throwForMissedWrite() would call it "changed elsewhere". InvoiceStatusTest fails until it has one.
                 $updated = Invoice::query()
                     ->whereKey($invoice->getKey())
+                    ->where('status', InvoiceStatus::Draft)
                     ->where('version', $ifMatch->version)
                     ->increment('version', 1, $data->toAttributes());
 

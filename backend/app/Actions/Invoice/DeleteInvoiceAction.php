@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace App\Actions\Invoice;
 
+use App\Enums\InvoiceStatus;
 use App\Exceptions\Http\StaleVersionException;
 use App\Http\IfMatch;
 use App\Models\Invoice;
@@ -26,8 +27,12 @@ final readonly class DeleteInvoiceAction
      */
     public function execute(Invoice $invoice, IfMatch $ifMatch): void
     {
+        // The status is checked in the same statement, so no send can slip in between a draft check and the delete.
+        // Only Draft exists today; a second status needs its own refusal for a non-draft, since throwForMissedWrite()
+        // would call it "changed elsewhere". InvoiceStatusTest fails until it has one.
         $deleted = Invoice::query()
             ->whereKey($invoice->getKey())
+            ->where('status', InvoiceStatus::Draft)
             ->where('version', $ifMatch->version)
             ->delete();
 
