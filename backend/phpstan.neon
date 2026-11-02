@@ -28,6 +28,10 @@ services:
         class: Tests\PHPStan\RateLimiter\LimiterHelperCallCollector
         tags:
             - phpstan.collector
+    -
+        class: Tests\PHPStan\RateLimiter\LimiterMethodCollector
+        tags:
+            - phpstan.collector
 
 rules:
     - Tests\PHPStan\RateLimiter\RequestCastInRateLimiterRule

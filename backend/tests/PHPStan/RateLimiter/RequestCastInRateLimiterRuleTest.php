@@ -101,6 +101,6 @@ final class RequestCastInRateLimiterRuleTest extends RuleTestCase
     #[Override]
     protected function getCollectors(): array
     {
-        return [new RequestCastCollector, new LimiterHelperCallCollector];
+        return [new RequestCastCollector, new LimiterHelperCallCollector, new LimiterMethodCollector];
     }
 }

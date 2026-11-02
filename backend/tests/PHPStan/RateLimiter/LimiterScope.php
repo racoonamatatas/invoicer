@@ -7,7 +7,13 @@ namespace Tests\PHPStan\RateLimiter;
 use Illuminate\Cache\RateLimiter;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter as RateLimiterFacade;
+use PhpParser\Node\Expr\CallLike;
+use PhpParser\Node\Expr\MethodCall;
+use PhpParser\Node\Expr\StaticCall;
+use PhpParser\Node\Identifier;
+use PhpParser\Node\Name;
 use PHPStan\Analyser\Scope;
+use PHPStan\Reflection\ExtendedMethodReflection;
 use PHPStan\Reflection\MethodReflection;
 use PHPStan\Type\ObjectType;
 use PHPStan\Type\Type;
@@ -32,16 +38,59 @@ final class LimiterScope
     {
         foreach ($scope->getFunctionCallStack() as $reflection)
         {
-            if (
-                $reflection instanceof MethodReflection
-                && in_array($reflection->getDeclaringClass()->getName(), self::LIMITER_CLASSES, true)
-                && strtolower($reflection->getName()) === 'for'
-            ) {
+            if ($reflection instanceof MethodReflection && self::isLimiterFor($reflection))
+            {
                 return true;
             }
         }
 
         return false;
+    }
+
+    /**
+     * Whether this method is RateLimiter::for(), called on the limiter or on its facade.
+     */
+    public static function isLimiterFor(MethodReflection $method): bool
+    {
+        return in_array($method->getDeclaringClass()->getName(), self::LIMITER_CLASSES, true)
+            && strtolower($method->getName()) === 'for';
+    }
+
+    /**
+     * The methods a call can run: one for `self::x()`, one per class for `$object->x()` on a union type, since any of
+     * them could be the one at runtime. Empty for a call that names no method, such as a function call or a method name
+     * held in a variable.
+     *
+     * @return list<ExtendedMethodReflection>
+     */
+    public static function calledMethods(CallLike $node, Scope $scope): array
+    {
+        if ($node instanceof StaticCall && $node->class instanceof Name && $node->name instanceof Identifier)
+        {
+            $receiver = new ObjectType($scope->resolveName($node->class));
+        }
+        elseif ($node instanceof MethodCall && $node->name instanceof Identifier)
+        {
+            $receiver = $scope->getType($node->var);
+        }
+        else
+        {
+            return [];
+        }
+
+        $methods = [];
+
+        foreach ($receiver->getObjectClassNames() as $className)
+        {
+            $method = $scope->getMethodReflection(new ObjectType($className), $node->name->name);
+
+            if ($method !== null)
+            {
+                $methods[] = $method;
+            }
+        }
+
+        return $methods;
     }
 
     /**
