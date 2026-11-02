@@ -440,6 +440,30 @@ describe('Updating an invoice', function (): void {
 
 describe('UpdateInvoiceAction', function (): void {
 
+    it('should throw LogicException, and leave the stored draft as it was, for an invoice of another business than the one given', function (): void {
+        // Arrange
+        // Called directly: over HTTP the scoped binding can't produce this pair. Both businesses are one user's, so
+        // only the business check stands between them.
+        $business = Business::factory()->create();
+        $invoice = draftWithTwoLines(Business::factory()->for($business->user)->create());
+        $before = storedDraft($invoice);
+        $data = new InvoiceData(
+            clientId: $invoice->client_id,
+            bankAccountId: $invoice->bank_account_id,
+            vatTreatment: VatTreatment::Domestic,
+            paymentTermDays: 30,
+            lines: [],
+        );
+        $ifMatch = IfMatch::fromRequest(Request::create('/', 'PUT', server: ['HTTP_IF_MATCH' => '"3"']));
+
+        // Act
+        $act = fn () => app(UpdateInvoiceAction::class)->execute($business, $invoice, $data, $ifMatch);
+
+        // Assert
+        expect($act)->toThrow(LogicException::class, "Invoice {$invoice->id} does not belong to business {$business->id}.");
+        expect(storedDraft($invoice))->toBe($before);
+    });
+
     it('should throw ModelNotFoundException, a 404 (not found), when the invoice was deleted after the route found it', function (): void {
         // Arrange
         // The action is called directly: over HTTP the binding would find the row gone and answer 404 itself, so the
