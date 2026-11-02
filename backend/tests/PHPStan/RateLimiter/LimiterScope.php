@@ -53,7 +53,7 @@ final class LimiterScope
     public static function isLimiterFor(MethodReflection $method): bool
     {
         return in_array($method->getDeclaringClass()->getName(), self::LIMITER_CLASSES, true)
-            && strtolower($method->getName()) === 'for';
+            && $method->getName() === 'for';
     }
 
     /**
@@ -116,11 +116,11 @@ final class LimiterScope
      * 'DeclaringClass::method', the same for a call and for the body it runs, however the call names it.
      *
      * The class is the one that declares the method, not the one the call goes through: `self::emailKey()` in a child
-     * class runs the body its parent declares. The method name is lower-cased because PHP's are case-insensitive, so
-     * `self::EmailKey()` runs `emailKey()`.
+     * class runs the body its parent declares. The name comes from reflection, which gives the method's declared name
+     * however the call spells it: PHP method names are case-insensitive, so `self::EmailKey()` runs `emailKey()`.
      */
     public static function methodKey(MethodReflection $method): string
     {
-        return $method->getDeclaringClass()->getName().'::'.strtolower($method->getName());
+        return $method->getDeclaringClass()->getName().'::'.$method->getName();
     }
 }
