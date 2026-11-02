@@ -86,4 +86,41 @@ describe('InvoiceReferenceGoneException::throwForFailedWrite', function (): void
         // above, so it fails the test on its own.
         expect($thrown)->toBe($violation);
     });
+
+    it('should throw itself, naming the gone fields in body order and keeping the violation as its previous, when a reference is gone', function (bool $clientGone, bool $accountGone, array $expectedFields): void {
+        // Arrange
+        // Neither row is referenced by an invoice, so deleting it is allowed.
+        $business = Business::factory()->create();
+        $client = Client::factory()->for($business)->create();
+        $account = BankAccount::factory()->for($business)->create();
+        if ($clientGone)
+        {
+            $client->delete();
+        }
+        if ($accountGone)
+        {
+            $account->delete();
+        }
+        $violation = sqliteQueryException('SQLSTATE[23000]: Integrity constraint violation: 19 FOREIGN KEY constraint failed');
+
+        // Act
+        $thrown = null;
+        try
+        {
+            InvoiceReferenceGoneException::throwForFailedWrite($violation, $business, invoiceDataNaming($client->id, $account->id));
+        }
+        catch (InvoiceReferenceGoneException $caught)
+        {
+            $thrown = $caught;
+        }
+
+        // Assert
+        // The fields are the 422's keys, and the previous keeps the driver's error for the log.
+        expect($thrown->fields)->toBe($expectedFields)
+            ->and($thrown->getPrevious())->toBe($violation);
+    })->with([
+        'the client' => [true, false, ['client_id']],
+        'the bank account' => [false, true, ['bank_account_id']],
+        'both' => [true, true, ['client_id', 'bank_account_id']],
+    ]);
 });
