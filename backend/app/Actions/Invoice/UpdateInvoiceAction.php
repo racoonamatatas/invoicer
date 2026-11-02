@@ -14,6 +14,7 @@ use App\Models\Invoice;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
+use LogicException;
 
 /**
  * Replaces a draft's fields and its whole list of lines. The request carries no line ids, so the old lines are deleted
@@ -30,12 +31,22 @@ final readonly class UpdateInvoiceAction
      * could land, and this one would overwrite it unseen. The row is written first, so a stale save stops before it
      * touches a line.
      *
+     * @param  Business  $business  the business that owns $invoice
+     *
      * @throws StaleVersionException when the invoice's version is no longer the one the client saw
      * @throws ModelNotFoundException when the invoice was deleted after the route found it
      * @throws InvoiceReferenceGoneException when the client or bank account was deleted after the request checked it
+     * @throws LogicException when $invoice belongs to another business
      */
     public function execute(Business $business, Invoice $invoice, InvoiceData $data, IfMatch $ifMatch): Invoice
     {
+        // Over HTTP the scoped binding found $invoice through $business, so they always match. A direct caller could
+        // pass any pair, and a failed write would then be checked against the wrong business's clients and accounts.
+        if ($invoice->business_id !== $business->id)
+        {
+            throw new LogicException("Invoice {$invoice->id} does not belong to business {$business->id}.");
+        }
+
         try
         {
             return DB::transaction(static function () use ($invoice, $data, $ifMatch): Invoice {
