@@ -23,10 +23,6 @@ final class AccessorsInClosure
         $rateLimiter->for('array', static fn (Request $request): Limit => Limit::perMinute(5)->by((string) count($request->array('key'))));
         $rateLimiter->for('collect', static fn (Request $request): Limit => Limit::perMinute(5)->by((string) $request->collect('key')->count()));
         $rateLimiter->for('clamp', static fn (Request $request): Limit => Limit::perMinute(5)->by((string) $request->clamp('key', 1, 10)));
+        $rateLimiter->for('fluent', static fn (Request $request): Limit => Limit::perMinute(5)->by((string) $request->fluent()->string('key')));
     }
-}
-
-enum Plan: string
-{
-    case Free = 'free';
 }
