@@ -111,7 +111,7 @@ describe('Updating an invoice', function (): void {
         expect(storedDraft($bystander))->toBe($bystanderBefore);
     });
 
-    it('should return 200 (ok) and bump the version when only the lines change', function (): void {
+    it('should return 200 (ok), store the new lines and bump the version when only the lines change', function (): void {
         // Arrange
         // The payload repeats the stored invoice's own fields, so its row has nothing to change but the version.
         $business = Business::factory()->create();
@@ -128,7 +128,29 @@ describe('Updating an invoice', function (): void {
 
         // Assert
         $response->assertOk()->assertHeader('ETag', '"4"');
-        expect(reloaded($invoice)->version)->toBe(4);
+        $stored = reloaded($invoice);
+        expect($stored->version)->toBe(4)
+            ->and($stored->lines()->pluck('description', 'position')->all())->toBe([1 => 'Advieswerk']);
+    });
+
+    it('should return 200 (ok) with no lines and zero totals, and store no lines, for an empty list of lines', function (): void {
+        // Arrange
+        // An empty list is a valid draft: "at least one line" is a rule for sending.
+        $business = Business::factory()->create();
+        $invoice = draftWithTwoLines($business);
+        $this->actingAs($business->user, 'web');
+
+        // Act
+        $response = $this->putJson("/api/businesses/{$business->id}/invoices/{$invoice->id}", invoicePayload($invoice->client, $invoice->bankAccount, [
+            'lines' => [],
+        ]), ['If-Match' => '"3"']);
+
+        // Assert
+        $response->assertOk()
+            ->assertJsonPath('lines', [])
+            ->assertJsonPath('totals.vat_groups', [])
+            ->assertJsonPath('totals.total_cents', 0);
+        expect(InvoiceLine::query()->where('invoice_id', $invoice->id)->count())->toBe(0);
     });
 
     it('should return 200 (ok) for a switch from domestic to reverse charge whose lines have no VAT option, and the next show is 200 (ok) with its totals', function (): void {
@@ -216,6 +238,25 @@ describe('Updating an invoice', function (): void {
         $response->assertStatus(428)->assertExactJson([
             'message' => 'This request needs an If-Match header with the version it was based on.',
         ]);
+        expect(storedDraft($invoice))->toBe($before);
+    });
+
+    it('should return 422 (unprocessable), not 428, for an invalid body without If-Match, and leave the stored draft as it was', function (): void {
+        // Arrange
+        $business = Business::factory()->create();
+        $invoice = draftWithTwoLines($business);
+        $before = storedDraft($invoice);
+        $this->actingAs($business->user, 'web');
+
+        // Act
+        $response = $this->putJson("/api/businesses/{$business->id}/invoices/{$invoice->id}", invoicePayload($invoice->client, $invoice->bankAccount, [
+            'payment_term_days' => 0,
+        ]));
+
+        // Assert
+        // The body is checked first: the FormRequest validates before the controller reads the header. This pins that
+        // order, so a change to it is a decision rather than an accident.
+        $response->assertUnprocessable()->assertOnlyJsonValidationErrors(['payment_term_days']);
         expect(storedDraft($invoice))->toBe($before);
     });
 
