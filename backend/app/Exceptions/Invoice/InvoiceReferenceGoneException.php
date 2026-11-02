@@ -35,7 +35,7 @@ final class InvoiceReferenceGoneException extends Exception
      * @throws self when the client or the bank account the data names is no longer in the business
      * @throws QueryException when the failure was anything else
      */
-    public static function rethrow(QueryException $exception, Business $business, InvoiceData $data): never
+    public static function throwForFailedWrite(QueryException $exception, Business $business, InvoiceData $data): never
     {
         if (! ForeignKeyViolation::matches($exception))
         {

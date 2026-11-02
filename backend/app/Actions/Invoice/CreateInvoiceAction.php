@@ -44,7 +44,7 @@ final readonly class CreateInvoiceAction
         catch (QueryException $exception)
         {
             // Outside the transaction, so it has rolled back before the check asks what is still there.
-            InvoiceReferenceGoneException::rethrow($exception, $business, $data);
+            InvoiceReferenceGoneException::throwForFailedWrite($exception, $business, $data);
         }
     }
 }

@@ -63,7 +63,7 @@ final readonly class UpdateInvoiceAction
         {
             // Outside the transaction, so it has rolled back before the check asks what is still there. The bound
             // business, not $invoice->business, which would be one more query to load what the route already has.
-            InvoiceReferenceGoneException::rethrow($exception, $business, $data);
+            InvoiceReferenceGoneException::throwForFailedWrite($exception, $business, $data);
         }
     }
 }
