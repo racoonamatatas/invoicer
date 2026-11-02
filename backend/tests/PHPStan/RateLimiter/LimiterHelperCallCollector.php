@@ -4,7 +4,6 @@ declare(strict_types = 1);
 
 namespace Tests\PHPStan\RateLimiter;
 
-use Illuminate\Http\Request;
 use PhpParser\Node;
 use PhpParser\Node\Expr\CallLike;
 use PhpParser\Node\Expr\MethodCall;
@@ -89,11 +88,9 @@ final class LimiterHelperCallCollector implements Collector
 
     private function passesARequest(CallLike $node, Scope $scope): bool
     {
-        $request = new ObjectType(Request::class);
-
         foreach ($node->getArgs() as $arg)
         {
-            if ($request->isSuperTypeOf($scope->getType($arg->value))->yes())
+            if (LimiterScope::isRequest($scope->getType($arg->value)))
             {
                 return true;
             }

@@ -5,9 +5,13 @@ declare(strict_types = 1);
 namespace Tests\PHPStan\RateLimiter;
 
 use Illuminate\Cache\RateLimiter;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter as RateLimiterFacade;
 use PHPStan\Analyser\Scope;
 use PHPStan\Reflection\MethodReflection;
+use PHPStan\Type\ObjectType;
+use PHPStan\Type\Type;
+use PHPStan\Type\TypeCombinator;
 
 /**
  * Tells whether code runs inside a closure registered with RateLimiter::for().
@@ -38,6 +42,14 @@ final class LimiterScope
         }
 
         return false;
+    }
+
+    /**
+     * Whether a value of this type is a Request. A `?Request` counts: when it isn't null, it is one.
+     */
+    public static function isRequest(Type $type): bool
+    {
+        return new ObjectType(Request::class)->isSuperTypeOf(TypeCombinator::removeNull($type))->yes();
     }
 
     /**
