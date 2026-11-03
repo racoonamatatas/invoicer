@@ -181,12 +181,11 @@ final class ValidatedKeyNotInRulesRuleTest extends RuleTestCase
     public function should_check_a_read_on_another_request_against_that_requests_rules_also_outside_a_request(): void
     {
         // Arrange: OtherRequest declares only y. ReadsAnotherRequest declares own but reads it from an OtherRequest on
-        // line 21. SomeController reads z and, through the trait helper written with capitals, w on its line 14.
+        // line 21. SomeController reads z on its line 14.
         $other = 'Tests\PHPStan\FormRequest\Fixtures\OtherRequest';
         $expectedErrors = [
             [sprintf(self::NOT_IN_RULES, 'own', 'validated()', $other), 21],
             [sprintf(self::NOT_IN_RULES, 'z', 'validated()', $other), 14],
-            [sprintf(self::NOT_IN_RULES, 'w', 'ValidatedStringOrNull()', $other), 14],
         ];
 
         // Act & Assert
@@ -394,16 +393,18 @@ final class ValidatedKeyNotInRulesRuleTest extends RuleTestCase
     #[Test]
     public function should_read_static_calls_aliased_helpers_union_receivers_and_nullsafe_calls_but_not_writes(): void
     {
-        // Arrange: rules() declares only name. Line 31 writes a key, which reads nothing. Lines 34-38 read p through
-        // parent::, s through self::, alias through the trait helper under an alias, u on an OtherRequest|stdClass
-        // (checked against OtherRequest), and n through a nullsafe call.
+        // Arrange: rules() declares only name. Line 31 writes a key, which reads nothing. Lines 34-39 read p through
+        // parent::, s through self::, alias through the trait helper under an alias, capitals through its own name in
+        // other capitals (PHP method names are case-insensitive), u on an OtherRequest|stdClass (checked against
+        // OtherRequest), and n through a nullsafe call.
         $class = 'Tests\PHPStan\FormRequest\Fixtures\ReadShapes';
         $expectedErrors = [
             [sprintf(self::NOT_IN_RULES, 'p', 'parent::validated()', $class), 34],
             [sprintf(self::NOT_IN_RULES, 's', 'self::validated()', $class), 35],
             [sprintf(self::NOT_IN_RULES, 'alias', 'stringOrNull()', $class), 36],
-            [sprintf(self::NOT_IN_RULES, 'u', 'validated()', 'Tests\PHPStan\FormRequest\Fixtures\OtherRequest'), 37],
-            [sprintf(self::NOT_IN_RULES, 'n', 'string()', $class), 38],
+            [sprintf(self::NOT_IN_RULES, 'capitals', 'ValidatedStringOrNull()', $class), 37],
+            [sprintf(self::NOT_IN_RULES, 'u', 'validated()', 'Tests\PHPStan\FormRequest\Fixtures\OtherRequest'), 38],
+            [sprintf(self::NOT_IN_RULES, 'n', 'string()', $class), 39],
         ];
 
         // Act & Assert
