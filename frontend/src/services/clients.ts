@@ -1,21 +1,22 @@
 import { isAxiosError } from 'axios';
 
 import { isAddress, isNullableString, type Address } from '@/services/address';
+import type { Identified, New } from '@/services/entity';
 import { checkResponse, getRequest, postRequest, putRequest } from '@/services/http';
 
-// What the create and edit forms send. Keys match the request's validation
-// rules, so they are also the keys of a 422's errors. Built up with `&`,
-// which applies to each half of the `Address` union separately: a Dutch
-// client and a foreign client stay two shapes, each with its own postcode
-// and region rules.
-export type ClientPayload = {
+// A client as the backend sends it. `&` applies to each half of the `Address`
+// union separately, so a Dutch client and a foreign client stay two shapes,
+// each with its own postcode and region rules.
+export type Client = Identified & {
     name: string;
     email: string;
     vat_number: string | null; // only accepted for a client in the EU
 } & Address;
 
-// A client as the backend sends it: the payload plus its server-assigned id.
-export type Client = { id: number } & ClientPayload;
+// What the create and edit forms send. Keys match the request's validation
+// rules, so they are also the keys of a 422's errors. `New<T>` strips the id
+// from each half on its own, so the payload is still two shapes.
+export type ClientPayload = New<Client>;
 
 // The body came over the network, so it is checked at runtime: TypeScript
 // trusts the `value is` claim without verifying it. The address checks
