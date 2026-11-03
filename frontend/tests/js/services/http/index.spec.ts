@@ -2,7 +2,7 @@ import { http as route, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, it, expect, vi } from 'vitest';
 
-import { checkResponse, getRequest, SessionEndedError, setUnauthenticatedHandler, UnexpectedResponseError } from '@/services/http';
+import { checkResponse, deleteRequest, getRequest, putRequest, SessionEndedError, setUnauthenticatedHandler, UnexpectedResponseError, versionFrom } from '@/services/http';
 
 // msw answers the real axios instance's requests, so the interceptor runs
 // exactly as in the app, and src/ exports nothing just for this test.
@@ -14,31 +14,32 @@ const server = setupServer();
 const respondWith = (status: number) =>
     server.use(route.get('/api/probe', () => HttpResponse.json({ message: 'Response' }, { status })));
 
+// File level: every describe below sends real requests through msw.
+beforeAll(() =>
+{
+    server.listen({ onUnhandledRequest: 'error' });
+});
+
+afterEach(() =>
+{
+    server.resetHandlers();
+});
+
+afterAll(() =>
+{
+    server.close();
+});
+
 describe('http', () =>
 {
     // Returns whether it ended a session; each test sets the answer it needs.
     const handler = vi.fn<() => boolean>();
-
-    beforeAll(() =>
-    {
-        server.listen({ onUnhandledRequest: 'error' });
-    });
 
     beforeEach(() =>
     {
         vi.resetAllMocks();
         // One slot, so this replaces whatever an earlier test set.
         setUnauthenticatedHandler(handler);
-    });
-
-    afterEach(() =>
-    {
-        server.resetHandlers();
-    });
-
-    afterAll(() =>
-    {
-        server.close();
     });
 
     it('should reject with a SessionEndedError carrying the 401 (unauthenticated) when the handler ended the session', async () =>
@@ -114,5 +115,118 @@ describe('checkResponse', () =>
 
         // Assert: no cause either, where the console and error reporters would find the body
         expect(() => checkResponse('/probe', body, isNumber)).toThrow(expect.not.objectContaining({ cause: expect.anything() }));
+    });
+});
+
+describe('versionFrom', () =>
+{
+    // A real response through the real axios instance, so the header arrives
+    // the way axios hands it over: name lowercased, value a string.
+    const responseWithEtag = async (etag: string | null) =>
+    {
+        const headers: Record<string, string> = etag === null ? {} : { ETag: etag };
+        server.use(route.get('/api/probe', () => HttpResponse.json({}, { headers })));
+
+        return getRequest<unknown>('/probe');
+    };
+
+    it.each([
+        ['"42"', 42],
+        ['"0"', 0], // the regex's own branch: zero is the one number allowed to start with 0
+    ])('should return the version an ETag of %s names', async (etag, expected) =>
+    {
+        // Arrange
+        const response = await responseWithEtag(etag);
+
+        // Act
+        const version = versionFrom('/probe', response);
+
+        // Assert
+        expect(version).toBe(expected);
+    });
+
+    it.each([
+        ['no ETag', null], // the backend forgot to send one
+        ['a weak ETag', 'W/"42"'], // never names one exact version
+        ['the wildcard', '*'], // means any version, the opposite of a check
+        ['a leading zero', '"042"'], // compared byte for byte, so not the "42" the backend sent
+        ['an unquoted version', '42'],
+        ['a version past Number.MAX_SAFE_INTEGER', '"9007199254740993"'], // 2^53 + 1: Number() would round it to 2^53
+    ])('should throw an UnexpectedResponseError naming the endpoint for %s', async (_case, etag) =>
+    {
+        // Arrange
+        const response = await responseWithEtag(etag);
+
+        // Act + Assert
+        expect(() => versionFrom('/probe', response)).toThrow(expect.objectContaining({
+            name: 'UnexpectedResponseError',
+            message: 'Unexpected response from /probe',
+        }));
+    });
+});
+
+describe('If-Match', () =>
+{
+    // What the server received as If-Match, or null when the header wasn't sent.
+    const recordIfMatch = (): { received: string | null | undefined } =>
+    {
+        const record: { received: string | null | undefined } = { received: undefined };
+        const remember = ({ request }: { request: Request }) =>
+        {
+            record.received = request.headers.get('If-Match');
+
+            return new HttpResponse(null, { status: 204 });
+        };
+        server.use(route.put('/api/probe', remember), route.delete('/api/probe', remember));
+
+        return record;
+    };
+
+    it.each([
+        ['putRequest', () => putRequest('/probe', {}, 7)],
+        ['deleteRequest', () => deleteRequest('/probe', 7)],
+    ])('should send version 7 as If-Match: "7" from %s', async (_name, send) =>
+    {
+        // Arrange
+        const record = recordIfMatch();
+
+        // Act
+        await send();
+
+        // Assert: quoted, a strong ETag, which is all the backend accepts
+        expect(record.received).toBe('"7"');
+    });
+
+    it.each([
+        ['putRequest', () => putRequest('/probe', {})],
+        ['deleteRequest', () => deleteRequest('/probe')],
+    ])('should send no If-Match from %s without a version', async (_name, send) =>
+    {
+        // Arrange
+        const record = recordIfMatch();
+
+        // Act
+        await send();
+
+        // Assert: null, not undefined, so the request did arrive; the header is simply absent, as for clients and bank accounts
+        expect(record.received).toBeNull();
+    });
+
+    it.each([
+        ['NaN from putRequest', () => putRequest('/probe', {}, Number.NaN)],
+        ['-1 from putRequest', () => putRequest('/probe', {}, -1)],
+        ['1.5 from putRequest', () => putRequest('/probe', {}, 1.5)],
+        ['2^53 from putRequest', () => putRequest('/probe', {}, 2 ** 53)], // past the integers a number holds exactly
+        ['NaN from deleteRequest', () => deleteRequest('/probe', Number.NaN)],
+    ])('should throw a RangeError and send nothing for version %s', (_case, send) =>
+    {
+        // Arrange
+        const record = recordIfMatch();
+
+        // Act + Assert: thrown before the request, so it's synchronous
+        expect(send).toThrow(RangeError);
+
+        // Assert: undefined, not null: no request reached the server at all
+        expect(record.received).toBeUndefined();
     });
 });

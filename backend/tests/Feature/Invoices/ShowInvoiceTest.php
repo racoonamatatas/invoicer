@@ -90,6 +90,23 @@ describe('Showing an invoice', function (): void {
         $response->assertOk()->assertHeader('ETag', '"7"');
     });
 
+    it('should return 200 (ok) with ETag listed in Access-Control-Expose-Headers for a request from another allowed origin', function (): void {
+        // Arrange
+        // Guards third-party code: Laravel's HandleCors middleware sends the header, from config/cors.php.
+        $business = Business::factory()->create();
+        $invoice = Invoice::factory()->for($business)->create();
+        $this->actingAs($business->user, 'web');
+
+        // Act
+        // Vite's dev origin, allowed by default: a page served from there is cross-origin to the API.
+        $response = $this->withHeaders(['Origin' => 'http://localhost:3000'])
+            ->getJson("/api/businesses/{$business->id}/invoices/{$invoice->id}");
+
+        // Assert
+        // Without it a browser hides the ETag from the SPA on another origin, and the SPA can't send it back.
+        $response->assertOk()->assertHeader('Access-Control-Expose-Headers', 'ETag');
+    });
+
     it('should return 200 (ok) with a null vat_option on each line and no VAT groups for a reverse-charge or outside-scope invoice', function (VatTreatment $treatment, string $apiName): void {
         // Arrange
         $business = Business::factory()->create();
