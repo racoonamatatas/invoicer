@@ -31,12 +31,15 @@ use PHPStan\Rules\RuleErrorBuilder;
  * Known limits, where a missing key goes unreported:
  * - a read from a plain array that came out of the validated input: a line from `$safe->array('lines')`,
  *   `$this->validated()['x']` or `$safe->all()['x']`;
- * - a nullsafe property read, `$safe?->x`;
- * - a read on a `ValidatedInput` outside a request, which doesn't say which request it came from;
+ * - a read on a `ValidatedInput` outside a request, which doesn't say which request it came from; inside one, it is
+ *   checked against the request the code is in, even for `$other->safe()->string('x')`;
+ * - a read on a receiver typed as the base `FormRequest`, which names no `rules()`;
  * - a read of the raw input, such as `$this->integer('x')` in `after()`: that isn't validated input.
  *
- * And one where a key is reported that doesn't need to be: a subclass that overrides both `rules()` and the method that
- * reads is still checked against the parent method's reads.
+ * And where a key is reported that doesn't need to be:
+ * - a subclass that overrides both `rules()` and the method that reads is still checked against the parent method's
+ *   reads;
+ * - a key added with `$safe->merge([...])`, which a read after it sees but `rules()` doesn't declare.
  *
  * @implements Rule<CollectedDataNode>
  */
@@ -56,8 +59,10 @@ final class ValidatedKeyNotInRulesRule implements Rule
         $rulesByClass = $this->rulesByClass($node);
         $errors = [];
 
-        // A `rules()` with unknown keys is reported once, and only when a read is checked against it.
+        // A `rules()` with unknown keys is reported once, and only when a read is checked against it. A class with no
+        // `rules()` is reported once too, at its first read.
         $unknownRules = [];
+        $withoutRules = [];
 
         foreach ($node->get(ValidatedKeyReadCollector::class) as $file => $readsInFile)
         {
@@ -71,7 +76,7 @@ final class ValidatedKeyNotInRulesRule implements Rule
 
                     if ($rulesIn === null)
                     {
-                        $errors[] = $this->error(
+                        $withoutRules[$runner] ??= $this->error(
                             sprintf('Reads validated input with %s, but %s has no rules() to declare its keys.', $how, $runner),
                             'invoicer.validatedReadWithoutRules',
                             $file,
@@ -124,6 +129,8 @@ final class ValidatedKeyNotInRulesRule implements Rule
                 }
             }
         }
+
+        array_push($errors, ...array_values($withoutRules));
 
         foreach (array_keys($unknownRules) as $class)
         {
@@ -250,6 +257,8 @@ final class ValidatedKeyNotInRulesRule implements Rule
      * - `lines.0.description` is kept by a rule for `lines.*.description`: `*` stands for any one segment.
      * - `meta` is kept by a rule for `meta.*.x` alone: validated input holds every parent of a key with a rule, so the
      *   read sees the array of what passed.
+     * - `meta.foo` is kept by a rule for `meta` that has no rules below it: validated() keeps that whole value. With a
+     *   rule below it, such as `meta.*.x`, only the children with rules are kept.
      *
      * @param  list<string>  $declared
      */
@@ -260,14 +269,15 @@ final class ValidatedKeyNotInRulesRule implements Rule
         foreach ($declared as $declaredKey)
         {
             $declaredSegments = explode('.', $declaredKey);
+            $isShorter = count($declaredSegments) < count($readSegments);
 
-            if (count($declaredSegments) < count($readSegments))
+            if ($isShorter && self::hasChildRules($declaredKey, $declared))
             {
                 continue;
             }
 
-            // Segment by segment along the read key: a longer declared key leaves the read as its parent.
-            foreach ($readSegments as $position => $segment)
+            // Segment by segment along the shorter of the two: the one left longer is the other's child.
+            foreach (array_slice($readSegments, 0, count($declaredSegments)) as $position => $segment)
             {
                 if ($declaredSegments[$position] !== '*' && $declaredSegments[$position] !== $segment)
                 {
@@ -276,6 +286,22 @@ final class ValidatedKeyNotInRulesRule implements Rule
             }
 
             return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * @param  list<string>  $declared
+     */
+    private static function hasChildRules(string $declaredKey, array $declared): bool
+    {
+        foreach ($declared as $other)
+        {
+            if (str_starts_with($other, $declaredKey.'.'))
+            {
+                return true;
+            }
         }
 
         return false;
