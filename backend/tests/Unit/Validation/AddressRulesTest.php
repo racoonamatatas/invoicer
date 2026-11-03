@@ -170,6 +170,8 @@ describe('AddressRules::forAddress() and its @return shape', function (): void {
     it('should return exactly the keys its @return array shape names', function (): void {
         // Arrange: the shape is what tells PHPStan which keys a request spreads in. PHPStan flags a key the shape names
         // but the array lacks, not one the array has but the shape lacks, so that direction is checked here.
+        // Known limit: the key regex reads every `name:` line, so a nested `array{…}` value would add its keys as
+        // top-level ones. The shape is flat, and a nested one makes this test fail loudly rather than pass.
         $docComment = new ReflectionMethod(AddressRules::class, 'forAddress')->getDocComment();
         if ($docComment === false || preg_match('/@return array\{(.*?)\}\s*\*\//s', $docComment, $shape) !== 1)
         {
