@@ -39,15 +39,15 @@ final class ValidatedKeyReadCollector implements Collector
      * `ValidatedInput` methods whose first argument is one key. Lower-cased, as PHP method names are case-insensitive.
      */
     private const array ONE_KEY_METHODS = [
-        'input', 'file', 'exists', 'has', 'filled', 'isnotfilled', 'missing', 'whenhas', 'whenfilled', 'whenenum',
-        'whenmissing', 'str', 'string', 'boolean', 'integer', 'float', 'clamp', 'date', 'interval', 'enum', 'enums',
-        'array', 'collect',
+        'input', 'file', 'exists', 'whenhas', 'whenfilled', 'whenenum', 'whenmissing', 'str', 'string', 'boolean',
+        'integer', 'float', 'clamp', 'date', 'interval', 'enum', 'enums', 'array', 'collect',
     ];
 
     /**
-     * `ValidatedInput` methods that take a list of keys, as one array or as several arguments.
+     * `ValidatedInput` methods that take a list of keys, as one array or as several arguments: has() and its kin read
+     * `func_get_args()`, so `has('a', 'b')` checks both. Not except(): leaving a key out reads nothing.
      */
-    private const array KEY_LIST_METHODS = ['all', 'hasany', 'anyfilled', 'only', 'except'];
+    private const array KEY_LIST_METHODS = ['all', 'has', 'hasany', 'filled', 'isnotfilled', 'anyfilled', 'missing', 'only'];
 
     public function getNodeType(): string
     {
@@ -78,7 +78,7 @@ final class ValidatedKeyReadCollector implements Collector
     {
         if ($node instanceof ArrayDimFetch && $node->dim !== null && $this->isValidatedInput($node->var, $scope))
         {
-            return [FormRequestScope::keysNamedBy($scope->getType($node->dim)), '[]'];
+            return self::readOf(FormRequestScope::keysNamedBy($scope->getType($node->dim)), '[]');
         }
 
         if ($node instanceof PropertyFetch && $this->isValidatedInput($node->var, $scope))
@@ -87,7 +87,7 @@ final class ValidatedKeyReadCollector implements Collector
                 ? [$node->name->name]
                 : FormRequestScope::keysNamedBy($scope->getType($node->name));
 
-            return [$keys, '->property'];
+            return self::readOf($keys, '->property');
         }
 
         if (! $node instanceof MethodCall || ! $node->name instanceof Identifier)
@@ -98,12 +98,6 @@ final class ValidatedKeyReadCollector implements Collector
         $name = strtolower($node->name->name);
         $keyArgs = $this->keyArguments($node, $name, $scope);
 
-        if ($keyArgs === [])
-        {
-            // No key given, such as `$safe->all()` or `$this->validated()`: the whole input, so nothing to check.
-            return null;
-        }
-
         $keys = [];
 
         foreach ($keyArgs as $arg)
@@ -111,7 +105,18 @@ final class ValidatedKeyReadCollector implements Collector
             array_push($keys, ...FormRequestScope::keysNamedBy($scope->getType($arg->value)));
         }
 
-        return [$keys, $node->name->name.'()'];
+        return self::readOf($keys, $node->name->name.'()');
+    }
+
+    /**
+     * No keys is no read: `$safe->all()`, `$this->validated()` or `$safe->only([])` leave nothing to check.
+     *
+     * @param  list<string|null>  $keys
+     * @return array{non-empty-list<string|null>, string}|null
+     */
+    private static function readOf(array $keys, string $how): ?array
+    {
+        return $keys === [] ? null : [$keys, $how];
     }
 
     /**

@@ -36,10 +36,10 @@ final class FormRequestScope
 
     /**
      * The keys a key argument names: one for `'email'`, several for a union like `'a'|'b'` or a list like
-     * `['a', 'b']`. A null in the list means a key that isn't known before the code runs, which the rule reports
-     * rather than skips.
+     * `['a', 'b']`, none for `[]`. A null in the list means a key that isn't known before the code runs, which the rule
+     * reports rather than skips.
      *
-     * @return non-empty-list<string|null>
+     * @return list<string|null>
      */
     public static function keysNamedBy(Type $type): array
     {
@@ -66,7 +66,7 @@ final class FormRequestScope
         }
 
         // An empty list names no key at all, so nothing in it can be missing from rules().
-        return $keys === [] ? [null] : $keys;
+        return $keys;
     }
 
     /**
