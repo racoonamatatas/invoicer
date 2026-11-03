@@ -299,6 +299,27 @@ final class ValidatedKeyNotInRulesRuleTest extends RuleTestCase
         $this->analyse([self::FIXTURES.'DeclaresOwnHelper.php'], $expectedErrors);
     }
 
+    #[Test]
+    public function should_read_a_key_list_as_one_path_or_as_several_keys_the_way_each_method_does(): void
+    {
+        // Arrange: rules() declares a.b and c. Guards third-party code: Laravel's data_get() takes a list as one
+        // dotted path, so lines 27-29 read a.b, and line 30's empty list reads the whole input. safe() passes its list
+        // to only(), so line 31 reads a and c, a being a.b's parent. Line 32 reads the path a.x, and lines 33-34 the
+        // keys x and y. whenHas() on line 35 checks a and b as keys, then reads a.b: only b is missing. Line 36's
+        // second segment isn't known, so neither is the path.
+        $class = 'Tests\PHPStan\FormRequest\Fixtures\ArrayKeyArguments';
+        $expectedErrors = [
+            [sprintf(self::NOT_IN_RULES, 'a.x', 'string()', $class), 32],
+            [sprintf(self::NOT_IN_RULES, 'x', 'only()', $class), 33],
+            [sprintf(self::NOT_IN_RULES, 'y', 'collect()', $class), 34],
+            [sprintf(self::NOT_IN_RULES, 'b', 'whenHas()', $class), 35],
+            ['The key read with string() can\'t be known before it runs, so it can\'t be checked against rules(): pass it as a literal.', 36],
+        ];
+
+        // Act & Assert
+        $this->analyse([self::FIXTURES.'ArrayKeyArguments.php'], $expectedErrors);
+    }
+
     /**
      * @return array<string, array{string, int}>
      */
