@@ -90,6 +90,20 @@ describe('formatCents', () =>
         expect(formatCents(cents as Cents)).toBe(expected);
     });
 
+    it('should format the largest safe integer to the cent, where dividing it by 100 as a float loses the last digit', () =>
+    {
+        // Arrange: 9007199254740991 / 100 has no exact float; the nearest one
+        // formats as ,90. Small amounts round back to the right cent, so only
+        // a value this large tells a string route from a float one.
+        const cents = Number.MAX_SAFE_INTEGER as Cents;
+
+        // Act
+        const formatted = formatCents(cents);
+
+        // Assert
+        expect(formatted).toBe(`€${NBSP}90.071.992.547.409,91`);
+    });
+
     // oxlint-disable-next-line vitest/expect-expect -- the assertion is the @ts-expect-error inside, checked by vue-tsc, not by vitest
     it('should fail type-check when given hundredths', () =>
     {
@@ -108,6 +122,8 @@ describe('formatHundredths', () =>
         [700, '7'],
         [5, '0,05'],
         [123456, '1234,56'],
+        // As in formatCents: a float would show ,9 here.
+        [Number.MAX_SAFE_INTEGER, '90071992547409,91'],
     ])('should format %i hundredths as %j, with trailing zeros dropped and no grouping', (hundredths, expected) =>
     {
         // Act & Assert
