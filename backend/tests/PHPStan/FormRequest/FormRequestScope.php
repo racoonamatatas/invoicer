@@ -94,7 +94,21 @@ final class FormRequestScope
      */
     private static function keysOfOneArray(ConstantArrayType $array): array
     {
-        // (string): an integer key, as in `[0 => …]`, is a key PHP stores as an int, and a read names it as a string.
-        return array_map(static fn ($key): string => (string) $key->getValue(), $array->getKeyTypes());
+        $keys = [];
+
+        foreach ($array->getKeyTypes() as $position => $key)
+        {
+            // An optional key, such as one added under an `if`, is missing from some requests' rules, and a read of
+            // it there gets the default instead of what was sent.
+            if ($array->isOptionalKey($position))
+            {
+                continue;
+            }
+
+            // (string): an integer key, as in `[0 => …]`, is a key PHP stores as an int, and a read names it as a string.
+            $keys[] = (string) $key->getValue();
+        }
+
+        return $keys;
     }
 }

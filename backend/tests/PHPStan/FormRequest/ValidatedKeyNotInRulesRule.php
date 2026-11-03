@@ -148,7 +148,7 @@ final class ValidatedKeyNotInRulesRule implements Rule
             foreach ($applicable as $class => $declared)
             {
                 // null: rules() with unknown keys, which is reported once at rules() itself rather than at every read.
-                if ($declared !== null && ! in_array($key, $declared, true))
+                if ($declared !== null && ! self::isDeclared($key, $declared))
                 {
                     $errors[] = [
                         sprintf(
@@ -164,6 +164,43 @@ final class ValidatedKeyNotInRulesRule implements Rule
         }
 
         return $errors;
+    }
+
+    /**
+     * Whether validation keeps a key, read the way Laravel's dot notation reads it.
+     *
+     * - `lines.0.description` is kept by a rule for `lines.*.description`: `*` stands for any one segment.
+     * - `meta` is kept by a rule for `meta.*.x` alone: validated input holds every parent of a key with a rule, so the
+     *   read sees the array of what passed.
+     *
+     * @param  list<string>  $declared
+     */
+    private static function isDeclared(string $key, array $declared): bool
+    {
+        $readSegments = explode('.', $key);
+
+        foreach ($declared as $declaredKey)
+        {
+            $declaredSegments = explode('.', $declaredKey);
+
+            if (count($declaredSegments) < count($readSegments))
+            {
+                continue;
+            }
+
+            // Segment by segment along the read key: a longer declared key leaves the read as its parent.
+            foreach ($readSegments as $position => $segment)
+            {
+                if ($declaredSegments[$position] !== '*' && $declaredSegments[$position] !== $segment)
+                {
+                    continue 2;
+                }
+            }
+
+            return true;
+        }
+
+        return false;
     }
 
     /**
