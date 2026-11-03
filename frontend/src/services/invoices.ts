@@ -1,3 +1,4 @@
+import { isNullableString } from '@/services/address';
 import type { Identified } from '@/services/entity';
 
 // How VAT applies to a whole invoice. The strings are the backend's
@@ -144,3 +145,99 @@ export type InvoiceTotals = InvoiceTotalsUnder<VatRules>;
 // A whole invoice (InvoiceResourceData): the summary, its lines and its
 // totals, all under the same treatment's rules.
 export type Invoice = InvoiceUnder<VatRules>;
+
+// `some` with ===, not includes(): includes() on an `as const` tuple only
+// accepts its own literals, and `value` could be anything at this point.
+const isVatTreatment = (value: unknown): value is VatTreatment =>
+{
+    return VAT_TREATMENTS.some((treatment) => treatment === value);
+};
+
+const isVatOption = (value: unknown): value is VatOption =>
+{
+    return VAT_OPTIONS.some((option) => option === value);
+};
+
+const isInvoiceStatus = (value: unknown): value is InvoiceStatus =>
+{
+    return INVOICE_STATUSES.some((status) => status === value);
+};
+
+// Number.isInteger rather than typeof: an amount in cents or a count of days
+// is never 7.5, and a fraction would mean the backend changed units.
+const isNullableInteger = (value: unknown): value is number | null =>
+{
+    return value === null || Number.isInteger(value);
+};
+
+const isVatGroup = (value: unknown): value is VatGroup =>
+{
+    return typeof value === 'object'
+           && value !== null // typeof null is 'object'
+           && 'vat_option' in value && isVatOption(value.vat_option)
+           && 'rate_percent' in value && isNullableInteger(value.rate_percent)
+           && 'base_cents' in value && Number.isInteger(value.base_cents)
+           && 'vat_cents' in value && Number.isInteger(value.vat_cents);
+};
+
+// The treatment is passed in, not read from the line: a line doesn't carry
+// it, and checking each line against its invoice's treatment is what makes a
+// vat_option on a reverse-charge line fail here rather than pass as
+// `VatOption | null`.
+const isLineUnder = (treatment: VatTreatment, value: unknown): value is InvoiceLine =>
+{
+    return typeof value === 'object'
+           && value !== null
+           && 'description' in value && typeof value.description === 'string'
+           && 'quantity_hundredths' in value && Number.isInteger(value.quantity_hundredths)
+           && 'unit_price_cents' in value && Number.isInteger(value.unit_price_cents)
+           && 'total_cents' in value && Number.isInteger(value.total_cents)
+           && 'vat_option' in value
+           && (treatment === 'domestic' ? isVatOption(value.vat_option) : value.vat_option === null);
+};
+
+// The same rules for the totals: VAT groups on a domestic invoice, and on the
+// others none at all and zero VAT, as InvoiceTotals::fromLines() sends them.
+const isTotalsUnder = (treatment: VatTreatment, value: unknown): value is InvoiceTotals =>
+{
+    if (typeof value !== 'object'
+        || value === null
+        || !('subtotal_cents' in value && Number.isInteger(value.subtotal_cents))
+        || !('total_cents' in value && Number.isInteger(value.total_cents))
+        || !('vat_groups' in value && Array.isArray(value.vat_groups))
+        || !('vat_cents' in value))
+    {
+        return false;
+    }
+
+    return treatment === 'domestic'
+        ? value.vat_groups.every(isVatGroup) && Number.isInteger(value.vat_cents)
+        : value.vat_groups.length === 0 && value.vat_cents === 0;
+};
+
+// The body came over the network, so it is checked at runtime: TypeScript
+// trusts the `value is` claim without verifying it. Extra keys pass, a
+// missing key or a wrong type doesn't.
+export const isInvoiceSummary = (value: unknown): value is InvoiceSummary =>
+{
+    return typeof value === 'object'
+           && value !== null
+           && 'id' in value && Number.isInteger(value.id)
+           && 'status' in value && isInvoiceStatus(value.status)
+           && 'vat_treatment' in value && isVatTreatment(value.vat_treatment)
+           && 'number' in value && isNullableString(value.number)
+           && 'client_id' in value && Number.isInteger(value.client_id)
+           && 'bank_account_id' in value && Number.isInteger(value.bank_account_id)
+           && 'payment_term_days' in value && isNullableInteger(value.payment_term_days);
+};
+
+// Built on the summary, as the type is. Once the summary has passed,
+// `value.vat_treatment` is known, and every line and the totals are checked
+// against that one treatment.
+export const isInvoice = (value: unknown): value is Invoice =>
+{
+    return isInvoiceSummary(value)
+           && 'lines' in value && Array.isArray(value.lines)
+           && value.lines.every((line: unknown) => isLineUnder(value.vat_treatment, line))
+           && 'totals' in value && isTotalsUnder(value.vat_treatment, value.totals);
+};
