@@ -43,3 +43,4 @@ services:
 
 rules:
     - Tests\PHPStan\RateLimiter\RequestCastInRateLimiterRule
+    - Tests\PHPStan\FormRequest\ValidatedKeyNotInRulesRule
