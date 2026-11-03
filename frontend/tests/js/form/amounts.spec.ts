@@ -4,7 +4,7 @@ import { formatCents, formatHundredths, parseCents, parseHundredths, type Cents,
 
 // The no-break space `Intl` puts between the euro sign and the amount, so the
 // sign never wraps onto a line of its own. A plain space would not match.
-const NBSP = ' ';
+const NBSP = '\u00A0';
 
 describe('parseCents', () =>
 {
@@ -36,25 +36,6 @@ describe('parseCents', () =>
         expect(result).toStrictEqual({ ok: true, value: exact });
     });
 
-    it.each([
-        ['an empty string', '', 'empty'],
-        ['only spaces', '   ', 'empty'],
-        ['a minus sign', '-5', 'negative'],
-        ['three decimals', '1,005', 'too_many_decimals'],
-        ['a thousands point, read as three decimals', '1.000', 'too_many_decimals'],
-        ['a thousands point with decimals', '1.000,50', 'not_a_number'],
-        ['letters', '12abc', 'not_a_number'],
-        ['a euro sign', '€ 10', 'not_a_number'],
-        ['an exponent', '1e3', 'not_a_number'],
-        ['a separator without digits after it', '10,', 'not_a_number'],
-        ['a separator without digits before it', ',50', 'not_a_number'],
-        ['a plus sign', '+5', 'not_a_number'],
-        ['more digits than a safe integer holds', '99999999999999999', 'not_a_number'],
-    ])('should reject %s: %j is %s', (_description, input, reason) =>
-    {
-        // Act & Assert
-        expect(parseCents(input)).toStrictEqual({ ok: false, reason });
-    });
 });
 
 describe('parseHundredths', () =>
@@ -69,10 +50,40 @@ describe('parseHundredths', () =>
         expect(parseHundredths(input)).toStrictEqual({ ok: true, value: hundredths });
     });
 
-    it('should reject three decimals with too_many_decimals', () =>
+});
+
+// Both parsers share one implementation, but each is run through every case,
+// so a wrapper that drops or changes a reason fails too.
+describe.each([
+    ['parseCents', parseCents],
+    ['parseHundredths', parseHundredths],
+])('%s', (_name, parse) =>
+{
+    it.each([
+        ['an empty string', '', 'empty'],
+        ['only spaces', '   ', 'empty'],
+        ['a minus sign', '-5', 'negative'],
+        ['three decimals', '1,005', 'too_many_decimals'],
+        ['a thousands point, read as three decimals', '1.000', 'too_many_decimals'],
+        ['a thousands point with decimals', '1.000,50', 'not_a_number'],
+        ['letters', '12abc', 'not_a_number'],
+        ['a euro sign', '€ 10', 'not_a_number'],
+        ['an exponent', '1e3', 'not_a_number'],
+        ['a separator without digits after it', '10,', 'not_a_number'],
+        ['a separator without digits before it', ',50', 'not_a_number'],
+        ['a plus sign', '+5', 'not_a_number'],
+        ['one more than the largest safe integer', '90071992547409,92', 'too_large'],
+        ['a well-formed number far past it', '99999999999999999', 'too_large'],
+    ])('should reject %s: %j is %s', (_description, input, reason) =>
     {
-        // Act & Assert: the same parser as parseCents, so one case shows the wiring
-        expect(parseHundredths('0,125')).toStrictEqual({ ok: false, reason: 'too_many_decimals' });
+        // Act & Assert
+        expect(parse(input)).toStrictEqual({ ok: false, reason });
+    });
+
+    it('should accept the largest safe integer, one below the first too_large', () =>
+    {
+        // Act & Assert: pins the boundary exactly, so an off-by-one cap fails
+        expect(parse('90071992547409,91')).toStrictEqual({ ok: true, value: Number.MAX_SAFE_INTEGER });
     });
 });
 
@@ -120,6 +131,7 @@ describe('formatHundredths', () =>
     it.each([
         [750, '7,5'],
         [700, '7'],
+        [0, '0'],
         [5, '0,05'],
         [123456, '1234,56'],
         // As in formatCents: a float would show ,9 here.
@@ -131,9 +143,29 @@ describe('formatHundredths', () =>
     });
 });
 
+// The brands are compile-time only, so a number cast from API data reaches
+// the formatters unchecked. Sliced as digits, -5 would become `0.-5` and
+// `Intl` would show `NaN`, so they throw instead.
+describe.each([
+    ['formatCents', (value: number): string => formatCents(value as Cents)],
+    ['formatHundredths', (value: number): string => formatHundredths(value as Hundredths)],
+])('%s', (_name, format) =>
+{
+    it.each([
+        ['a negative amount', -5],
+        ['a fractional amount', 1.5],
+        ['NaN', Number.NaN],
+        ['an amount past the largest safe integer', Number.MAX_SAFE_INTEGER + 1],
+    ])('should throw a RangeError for %s', (_description, value) =>
+    {
+        // Act & Assert
+        expect(() => format(value)).toThrow(RangeError);
+    });
+});
+
 describe('round trip', () =>
 {
-    it.each(['7', '7,5', '0,05', '1234,56', '10000000'])('should parse back what formatHundredths gives for %j', (input) =>
+    it.each(['0', '7', '7,5', '0,05', '1234,56', '10000000'])('should parse back what formatHundredths gives for %j', (input) =>
     {
         // Arrange
         const parsed = parseHundredths(input);
