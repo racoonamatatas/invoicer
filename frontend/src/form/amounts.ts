@@ -10,7 +10,7 @@ declare const brand: unique symbol;
 export type Cents = number & { readonly [brand]: 'Cents' };
 export type Hundredths = number & { readonly [brand]: 'Hundredths' };
 
-export type ParseFailure = 'empty' | 'not_a_number' | 'too_many_decimals' | 'negative';
+export type ParseFailure = 'empty' | 'not_a_number' | 'too_many_decimals' | 'negative' | 'too_large';
 
 export type ParseResult<T> = { ok: true; value: T } | { ok: false; reason: ParseFailure };
 
@@ -52,7 +52,9 @@ const parseTimesHundred = (input: string): ParseResult<number> =>
     const value = Number(whole + decimals.padEnd(2, '0'));
 
     // A longer digit string would lose precision and store a different amount.
-    return Number.isSafeInteger(value) ? { ok: true, value } : { ok: false, reason: 'not_a_number' };
+    // Its own reason, not `not_a_number`: the input is a well-formed number,
+    // so the fix is a smaller one, not a different way of writing it.
+    return Number.isSafeInteger(value) ? { ok: true, value } : { ok: false, reason: 'too_large' };
 };
 
 export const parseCents = (input: string): ParseResult<Cents> =>
