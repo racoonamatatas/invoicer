@@ -11,4 +11,6 @@ export interface Identified
 // (`extends unknown` is always true; it's there to make TypeScript distribute).
 // A plain `Omit` on a union would merge the members: a Dutch address with a
 // `region` would compile, and a key only one member has would be dropped.
-export type New<T> = T extends unknown ? Omit<T, keyof Identified> : never;
+// Constrained to `Identified`: on a type without those fields there is
+// nothing to strip, and the misuse should be an error, not a silent no-op.
+export type New<T extends Identified> = T extends unknown ? Omit<T, keyof Identified> : never;
