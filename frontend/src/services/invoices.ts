@@ -275,7 +275,8 @@ export const listInvoices = async (businessId: number): Promise<InvoiceSummary[]
     return checkResponse(endpoint, response.data, isInvoiceSummaryList);
 };
 
-// A fetch's 404: the invoice isn't one of the business's. Its own class, so
+// A 404 (not found): the invoice isn't one of the business's, or it was
+// deleted, e.g. in another tab or by a second click on Delete. Its own class, so
 // the page can tell it from other failures with instanceof and never reads a
 // status code itself. The original 404 is kept as `cause`.
 export class InvoiceNotFoundError extends Error
@@ -301,17 +302,22 @@ export class InvoiceVersionConflictError extends Error
     }
 }
 
-// Rethrows `error`, as `wrapped` when it is a failed request with `status`.
-// Returns never: every path throws, so a catch block that calls it ends there.
-const rethrow = (error: unknown, status: number, wrapped: (cause: unknown) => Error): never =>
-{
-    if (isAxiosError(error) && error.response?.status === status)
-    {
-        throw wrapped(error);
-    }
+// Which failed statuses a function turns into its own error class. A status
+// not listed is thrown as it is.
+type ErrorFor = Partial<Record<number, (cause: unknown) => Error>>;
 
-    throw error;
+// Rethrows `error`, wrapped when it is a failed request with a status in
+// `wrappers`. Returns never: every path throws, so a catch block that calls
+// it ends there.
+const rethrow = (error: unknown, wrappers: ErrorFor): never =>
+{
+    const wrap = isAxiosError(error) && error.response !== undefined ? wrappers[error.response.status] : undefined;
+
+    throw wrap === undefined ? error : wrap(error);
 };
+
+const notFound = (cause: unknown): Error => new InvoiceNotFoundError(cause);
+const versionConflict = (cause: unknown): Error => new InvoiceVersionConflictError(cause);
 
 // The body checked against isInvoice and the ETag read as its version.
 const versionedInvoiceFrom = (endpoint: string, response: AxiosResponse<unknown>): VersionedInvoice =>
@@ -335,7 +341,7 @@ export const fetchInvoice = async (businessId: number, invoiceId: number): Promi
     }
     catch (error) // unknown: anything can be thrown
     {
-        return rethrow(error, 404, (cause) => new InvoiceNotFoundError(cause));
+        return rethrow(error, { 404: notFound });
     }
 };
 
@@ -350,8 +356,8 @@ export const createInvoice = async (businessId: number, payload: InvoicePayload)
 
 // Replaces the draft, lines included, if `version` is still its current one:
 // 200 (ok) with the result and its next version. A 412 (precondition failed)
-// is thrown as an InvoiceVersionConflictError; a 422 for the form and a 404
-// (not found) for the page are thrown as they are. `version` is required here
+// is thrown as an InvoiceVersionConflictError and a 404 (not found) as an
+// InvoiceNotFoundError; a 422 is thrown as it is, for the form. `version` is required here
 // although putRequest() makes it optional: an invoice is always versioned.
 export const updateInvoice = async (businessId: number, invoiceId: number, payload: InvoicePayload, version: number): Promise<VersionedInvoice> =>
 {
@@ -363,13 +369,14 @@ export const updateInvoice = async (businessId: number, invoiceId: number, paylo
     }
     catch (error)
     {
-        return rethrow(error, 412, (cause) => new InvoiceVersionConflictError(cause));
+        return rethrow(error, { 404: notFound, 412: versionConflict });
     }
 };
 
 // Deletes the draft, lines included, if `version` is still its current one:
 // 204 (no content). A 412 (precondition failed) is thrown as an
-// InvoiceVersionConflictError, anything else as it is.
+// InvoiceVersionConflictError and a 404 (not found), a draft already deleted,
+// as an InvoiceNotFoundError. Anything else is thrown as it is.
 export const deleteInvoice = async (businessId: number, invoiceId: number, version: number): Promise<void> =>
 {
     const endpoint = `${endpointFor(businessId)}/${invoiceId}`;
@@ -380,6 +387,6 @@ export const deleteInvoice = async (businessId: number, invoiceId: number, versi
     }
     catch (error)
     {
-        rethrow(error, 412, (cause) => new InvoiceVersionConflictError(cause));
+        return rethrow(error, { 404: notFound, 412: versionConflict });
     }
 };
