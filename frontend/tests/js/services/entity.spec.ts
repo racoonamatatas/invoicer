@@ -43,4 +43,19 @@ describe('New<T>', () =>
         // Assert
         expect(line).toEqual({ kind: 'hourly', hours_hundredths: 750 });
     });
+
+    it('should refuse a type without the server-assigned fields', () =>
+    {
+        // Arrange
+        // A payload has no id, so `New` of one has nothing to strip: without
+        // the constraint it would return the type unchanged.
+        type NotAnEntity = { label: string };
+
+        // Act
+        // @ts-expect-error `NotAnEntity` has no `id`, so it doesn't satisfy `Identified`
+        const value: New<NotAnEntity> = { label: 'Zakelijk' };
+
+        // Assert
+        expect(value).toEqual({ label: 'Zakelijk' });
+    });
 });
