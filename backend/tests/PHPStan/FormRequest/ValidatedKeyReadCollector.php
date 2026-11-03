@@ -248,6 +248,10 @@ final class ValidatedKeyReadCollector implements Collector
             if ($keyParameter !== null)
             {
                 $readers[] = $class->getName();
+                // Known limit: one key argument for every reader, the last one's. That holds while every class names
+                // the same parameter, which it does: validated() and safe() are Laravel's, and the trait has one helper.
+                // Two helpers with different parameter names, aliased to one name in two classes, could differ for a
+                // named argument; the record would then need its keys per reader.
                 $keyArgs = $this->argument($args, $keyParameter);
             }
         }
