@@ -133,7 +133,20 @@ export const postRequest = <RequestData, ResponseData>(endpoint: string, data: R
 // resource that isn't versioned.
 const ifMatchHeaders = (version: number | undefined): Record<string, string> =>
 {
-    return version === undefined ? {} : { 'If-Match': `"${version}"` };
+    if (version === undefined)
+    {
+        return {};
+    }
+
+    // The same rule versionFrom() reads with. A version always came from an
+    // ETag, so anything else (NaN, -1, 1.5) is a bug in the caller: thrown
+    // here, before a request goes out with If-Match: "NaN".
+    if (!Number.isSafeInteger(version) || version < 0)
+    {
+        throw new RangeError(`Not a version: ${version}`);
+    }
+
+    return { 'If-Match': `"${version}"` };
 };
 
 export const putRequest = <RequestData, ResponseData>(endpoint: string, data: RequestData, version?: number) =>
