@@ -25,19 +25,30 @@ final class FormRequestScope
     }
 
     /**
-     * The keys a key argument names: one for `'email'`, several for a union like `'a'|'b'` or a list like
-     * `['a', 'b']`, none for `[]`. A null in the list means a key that isn't known before the code runs, which the rule
-     * reports rather than skips.
+     * The keys a key argument names: one for `'email'` or `0`, several for a union like `'a'|'b'` or a list like
+     * `['a', 'b']`, none for `[]` or `null`, which `validated(null)` takes as "the whole input". A null in the list
+     * means a key that isn't known before the code runs, which the rule reports rather than skips.
      *
      * @return list<string|null>
      */
     public static function keysNamedBy(Type $type): array
     {
+        if ($type->isNull()->yes())
+        {
+            return [];
+        }
+
         $strings = $type->getConstantStrings();
 
         if ($strings !== [])
         {
             return array_map(static fn ($string): string => $string->getValue(), $strings);
+        }
+
+        if ($type->isInteger()->yes() && $type->getConstantScalarValues() !== [])
+        {
+            // (string), as rules() keys are: `$safe[0]` reads the key PHP stores as the int 0.
+            return array_map(static fn ($int): string => (string) $int, $type->getConstantScalarValues());
         }
 
         if (! $type->isConstantArray()->yes())

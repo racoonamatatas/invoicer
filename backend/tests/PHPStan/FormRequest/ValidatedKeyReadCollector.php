@@ -13,12 +13,15 @@ use PhpParser\Node\Expr;
 use PhpParser\Node\Expr\ArrayDimFetch;
 use PhpParser\Node\Expr\MethodCall;
 use PhpParser\Node\Expr\PropertyFetch;
+use PhpParser\Node\Expr\StaticCall;
 use PhpParser\Node\Identifier;
+use PhpParser\Node\Name;
 use PHPStan\Analyser\Scope;
 use PHPStan\Collectors\Collector;
 use PHPStan\Reflection\ClassReflection;
 use PHPStan\Type\ObjectType;
 use PHPStan\Type\Type;
+use PHPStan\Type\TypeCombinator;
 
 /**
  * Records every key read from a FormRequest's validated input, and the request class whose rules the read runs with.
@@ -26,11 +29,15 @@ use PHPStan\Type\Type;
  * A read is one of:
  * - an accessor on a `ValidatedInput`, the type `safe()` returns: `$safe->string('email')`, `$safe->only(['a'])`;
  * - an array or property read on one: `$safe['email']`, `$safe->email`;
- * - `validated('email')` or `safe(['email'])` on a request;
- * - a `ReadsValidatedInput` helper on a request: `$this->validatedStringOrNull('email')`.
+ * - `validated('email')` or `safe(['email'])` on a request, or through `parent::`, `self::` or `static::`;
+ * - a `ReadsValidatedInput` helper on a request, under its own name or an alias: `$this->validatedStringOrNull('email')`.
+ *
+ * A nullsafe call or fetch, `$safe?->string('x')`, needs no case of its own: PHPStan analyses it as the plain one too.
+ * A write such as `$safe['x'] = 1` is not a read.
  *
  * A `ValidatedInput` doesn't say which request it came from, so its reads count only inside a request, for the class
- * the code is in. A call on a request counts anywhere, a controller included, for the receiver's class.
+ * the code is in. A call on a request counts anywhere, a controller included, for the receiver's class; a receiver
+ * typed as the base `FormRequest` names no class with a `rules()`, so its reads are skipped.
  *
  * Each record is [the request classes, the keys read, how they were read, line]. A null key is one that isn't known
  * before the code runs, such as `$safe->string($field)`.
@@ -93,7 +100,17 @@ final class ValidatedKeyReadCollector implements Collector
      */
     private function read(Expr $node, Scope $scope): ?array
     {
+        if ($scope->isInExpressionAssign($node))
+        {
+            return null;
+        }
+
         $inRequest = FormRequestScope::requestClass($scope);
+
+        if ($node instanceof StaticCall)
+        {
+            return $this->staticRead($node, $scope);
+        }
 
         if ($node instanceof ArrayDimFetch)
         {
@@ -127,7 +144,10 @@ final class ValidatedKeyReadCollector implements Collector
 
         if (! $this->isValidatedInput($node->var, $scope))
         {
-            return $this->readOnRequest($node, $name, $how, $args, $scope);
+            // Only the request classes in the type: `?OtherRequest` or `OtherRequest|Foo` still names OtherRequest.
+            $receiver = TypeCombinator::removeNull($scope->getType($node->var));
+
+            return $this->readOnRequest($receiver->getObjectClassReflections(), $name, $how, $args, $scope);
         }
 
         if ($inRequest === null)
@@ -147,25 +167,47 @@ final class ValidatedKeyReadCollector implements Collector
     }
 
     /**
-     * `validated()`, `safe()` or a `ReadsValidatedInput` helper, called on a request.
+     * `parent::validated('x')`, `self::…` or `static::…` inside a request: the instance that runs it is the class the
+     * code is in, whichever class declares the method.
      *
-     * @param  array<Arg>  $args
      * @return array{non-empty-list<string>, list<Type>, string}|null
      */
-    private function readOnRequest(MethodCall $node, string $name, string $how, array $args, Scope $scope): ?array
+    private function staticRead(StaticCall $node, Scope $scope): ?array
     {
-        $receiver = $scope->getType($node->var);
+        $class = $scope->getClassReflection();
 
-        if (! new ObjectType(FormRequest::class)->isSuperTypeOf($receiver)->yes())
+        if ($class === null
+            || ! $node->class instanceof Name
+            || ! in_array($node->class->toLowerString(), ['parent', 'self', 'static'], true)
+            || ! $node->name instanceof Identifier)
         {
             return null;
         }
 
+        $how = $node->class->toString().'::'.$node->name->name.'()';
+
+        return $this->readOnRequest([$class], strtolower($node->name->name), $how, $node->getArgs(), $scope);
+    }
+
+    /**
+     * `validated()`, `safe()` or a `ReadsValidatedInput` helper, called on a request.
+     *
+     * @param  list<ClassReflection>  $receivers
+     * @param  array<Arg>  $args
+     * @return array{non-empty-list<string>, list<Type>, string}|null
+     */
+    private function readOnRequest(array $receivers, string $name, string $how, array $args, Scope $scope): ?array
+    {
         $readers = [];
         $keyArgs = [];
 
-        foreach ($receiver->getObjectClassReflections() as $class)
+        foreach ($receivers as $class)
         {
+            if (! $class->isSubclassOf(FormRequest::class))
+            {
+                continue;
+            }
+
             $keyParameter = match ($name)
             {
                 'validated' => 'key',
@@ -185,7 +227,8 @@ final class ValidatedKeyReadCollector implements Collector
 
     /**
      * The name of the parameter a `ReadsValidatedInput` method takes its key in, its first, when the class has the
-     * trait, through a parent or another trait too; otherwise null.
+     * trait, through a parent or another trait too, and the method is one of the trait's or an alias of one; otherwise
+     * null.
      *
      * Found by reflection rather than listed, so a new helper in the trait is checked without changing this collector.
      */
@@ -194,6 +237,17 @@ final class ValidatedKeyReadCollector implements Collector
         foreach ([$class, ...$class->getParents()] as $classOrParent)
         {
             $trait = $classOrParent->getTraits(true)[ReadsValidatedInput::class] ?? null;
+
+            // `use ReadsValidatedInput { validatedStringOrNull as stringOrNull; }` maps the alias to "Trait::method".
+            foreach ($classOrParent->getNativeReflection()->getTraitAliases() as $alias => $original)
+            {
+                [$originalTrait, $originalMethod] = explode('::', $original, 2);
+
+                if (strtolower($alias) === $method && $originalTrait === ReadsValidatedInput::class)
+                {
+                    $method = $originalMethod;
+                }
+            }
 
             if ($trait !== null && $trait->hasNativeMethod($method))
             {
@@ -236,6 +290,6 @@ final class ValidatedKeyReadCollector implements Collector
 
     private function isValidatedInput(Expr $expr, Scope $scope): bool
     {
-        return new ObjectType(ValidatedInput::class)->isSuperTypeOf($scope->getType($expr))->yes();
+        return new ObjectType(ValidatedInput::class)->isSuperTypeOf(TypeCombinator::removeNull($scope->getType($expr)))->yes();
     }
 }
