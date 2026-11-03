@@ -361,7 +361,7 @@ describe('Updating an invoice', function (): void {
         'bank account' => ['bank_account_id', 'bank_accounts'],
     ]);
 
-    it('should leave the stored draft as it was, old lines and version included, when a new line fails to insert', function (): void {
+    it('should return 500 (internal server error) and leave the stored draft as it was, old lines and version included, when a new line fails to insert', function (): void {
         // Arrange
         // The second new line fails after the row is updated, the old lines are deleted and the first new line is in,
         // so only a rollback puts the draft back.
