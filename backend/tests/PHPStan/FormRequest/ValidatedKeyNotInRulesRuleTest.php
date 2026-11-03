@@ -254,6 +254,24 @@ final class ValidatedKeyNotInRulesRuleTest extends RuleTestCase
         $this->analyse([self::FIXTURES.'EdgeKeys.php'], $expectedErrors);
     }
 
+    #[Test]
+    public function should_narrow_a_parent_to_its_child_rules_only_when_its_rules_hold_a_bare_array_or_list(): void
+    {
+        // Arrange: each parent has a child rule for *.x, and each read below it is of foo.y, which has no rule.
+        // Guards third-party code: Laravel's Validator::validated() drops such a child only when the parent's rules
+        // hold the whole token array or list, so lines 38-40 keep it: no rule names array, array:a,b compares as a
+        // different token, and a list item isn't split on |. Line 41 reads the child with a rule. Lines 42-43 read
+        // under a bare array and a piped list, where validated() drops foo.y.
+        $class = 'Tests\PHPStan\FormRequest\Fixtures\NarrowingParents';
+        $expectedErrors = [
+            [sprintf(self::NOT_IN_RULES, 'narrowed.foo.y', 'string()', $class), 42],
+            [sprintf(self::NOT_IN_RULES, 'piped.foo.y', 'string()', $class), 43],
+        ];
+
+        // Act & Assert
+        $this->analyse([self::FIXTURES.'NarrowingParents.php'], $expectedErrors);
+    }
+
     /**
      * @return array<string, array{string, int}>
      */
