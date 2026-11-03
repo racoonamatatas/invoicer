@@ -359,6 +359,22 @@ final class ValidatedKeyNotInRulesRuleTest extends RuleTestCase
         $this->analyse([self::FIXTURES.'BuildsOwnValidator.php', self::FIXTURES.'AddsToValidator.php'], $expectedErrors);
     }
 
+    #[Test]
+    public function should_find_a_helper_the_trait_brings_in_through_a_parent_class_under_its_alias_or_its_own_name(): void
+    {
+        // Arrange: the abstract HelperParent uses the trait with an alias, and ReadsThroughParentHelper declares only
+        // name. Line 23 reads name. Line 24 reads missing through the alias, which only the parent's trait aliases
+        // name, so it's found by walking up to the parent. Line 25 reads other under the helper's own name.
+        $class = 'Tests\PHPStan\FormRequest\Fixtures\ReadsThroughParentHelper';
+        $expectedErrors = [
+            [sprintf(self::NOT_IN_RULES, 'missing', 'stringOrNull()', $class), 24],
+            [sprintf(self::NOT_IN_RULES, 'other', 'validatedStringOrNull()', $class), 25],
+        ];
+
+        // Act & Assert
+        $this->analyse([self::FIXTURES.'HelperParent.php', self::FIXTURES.'ReadsThroughParentHelper.php'], $expectedErrors);
+    }
+
     /**
      * @return array<string, array{string, int}>
      */
