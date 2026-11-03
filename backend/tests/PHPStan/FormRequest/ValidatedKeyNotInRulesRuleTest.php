@@ -8,6 +8,7 @@ use Illuminate\Foundation\Bootstrap\HandleExceptions;
 use Override;
 use PHPStan\Rules\Rule;
 use PHPStan\Testing\RuleTestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 
 /**
@@ -20,6 +21,9 @@ final class ValidatedKeyNotInRulesRuleTest extends RuleTestCase
     private const string NOT_IN_RULES = 'Reads "%s" with %s, but %s::rules() doesn\'t declare it: validation drops a key without a rule, so the read never sees what was sent.';
 
     private const string FIXTURES = __DIR__.'/Fixtures/';
+
+    // The line of the first read in AccessorMethods.php: one read per line from there.
+    private const int FIRST_ACCESSOR_LINE = 29;
 
     #[Override]
     public static function getAdditionalConfigFiles(): array
@@ -139,8 +143,8 @@ final class ValidatedKeyNotInRulesRuleTest extends RuleTestCase
     #[Test]
     public function should_report_a_parents_read_for_a_concrete_subclass_with_no_rules(): void
     {
-        // Arrange: the abstract parent has no rules() and reads x on line 13. DeclaresX declares it; DeclaresNothing
-        // runs the same read with nothing validated.
+        // Arrange: the abstract parent has no rules() and reads x on lines 13 and 18. DeclaresX declares it;
+        // DeclaresNothing runs both reads with nothing validated, and is reported once, at the first.
         $expectedErrors = [
             [
                 'Reads validated input with string(), but Tests\PHPStan\FormRequest\Fixtures\DeclaresNothing has no rules() to declare its keys.',
@@ -210,6 +214,108 @@ final class ValidatedKeyNotInRulesRuleTest extends RuleTestCase
 
         // Act & Assert
         $this->analyse([self::FIXTURES.'UnknownRulesWithoutReads.php', self::FIXTURES.'AddressShape.php'], $expectedErrors);
+    }
+
+    #[Test]
+    public function should_report_an_undeclared_key_read_with_each_accessor_the_collector_knows(): void
+    {
+        // Arrange: one read of the undeclared key k per line from FIRST_ACCESSOR_LINE, in this order. The list is
+        // written out rather than read from the collector, so that dropping a method there fails this test.
+        $methods = [
+            'input', 'file', 'exists', 'whenHas', 'whenFilled', 'whenEnum', 'whenMissing', 'str', 'string', 'boolean',
+            'integer', 'float', 'clamp', 'date', 'interval', 'enum', 'enums', 'array', 'collect',
+            'all', 'has', 'hasAny', 'filled', 'isNotFilled', 'anyFilled', 'missing', 'only',
+        ];
+        $class = 'Tests\PHPStan\FormRequest\Fixtures\AccessorMethods';
+        $expectedErrors = array_map(
+            static fn (string $method, int $index): array => [
+                sprintf(self::NOT_IN_RULES, 'k', $method.'()', $class),
+                self::FIRST_ACCESSOR_LINE + $index,
+            ],
+            $methods,
+            array_keys($methods),
+        );
+
+        // Act & Assert
+        $this->analyse([self::FIXTURES.'AccessorMethods.php'], $expectedErrors);
+    }
+
+    #[Test]
+    public function should_read_int_and_null_keys_and_let_an_array_rule_without_child_rules_cover_its_children(): void
+    {
+        // Arrange: rules() declares the int key 0, settings as an array with no rules below it, and meta.*.x. Line 27
+        // reads 0 and line 28 validated(null), the whole input. settings.theme on line 29 is kept with the whole of
+        // settings, and meta.foo on line 30 holds x. Only $safe[1] on line 31 names an undeclared key.
+        $expectedErrors = [
+            [sprintf(self::NOT_IN_RULES, '1', '[]', 'Tests\PHPStan\FormRequest\Fixtures\EdgeKeys'), 31],
+        ];
+
+        // Act & Assert
+        $this->analyse([self::FIXTURES.'EdgeKeys.php'], $expectedErrors);
+    }
+
+    /**
+     * @return array<string, array{string, int}>
+     */
+    public static function rulesWithAnUnknownReturn(): array
+    {
+        return [
+            'a bare return;, which returns null' => ['BareReturnInRules', 20],
+            'one return with known keys and one with a spread array<string, …>' => ['OneUnknownReturn', 18],
+        ];
+    }
+
+    #[Test]
+    #[DataProvider('rulesWithAnUnknownReturn')]
+    public function should_report_rules_as_unknown_when_one_of_its_returns_is_unknown(string $class, int $line): void
+    {
+        // Arrange: the request reads name, which the known return declares. One unknown return is enough to make the
+        // keys of rules() unknown, reported at its first return.
+        $expectedErrors = [
+            [
+                sprintf(
+                    'The keys Tests\PHPStan\FormRequest\Fixtures\%s::rules() returns can\'t be known before it runs, so the keys read from its validated input can\'t be checked: give what it spreads in an array-shape @return.',
+                    $class,
+                ),
+                $line,
+            ],
+        ];
+
+        // Act & Assert
+        $this->analyse([self::FIXTURES.$class.'.php', self::FIXTURES.'AddressShape.php'], $expectedErrors);
+    }
+
+    #[Test]
+    public function should_read_static_calls_aliased_helpers_union_receivers_and_nullsafe_calls_but_not_writes(): void
+    {
+        // Arrange: rules() declares only name. Line 31 writes a key, which reads nothing. Lines 34-38 read p through
+        // parent::, s through self::, alias through the trait helper under an alias, u on an OtherRequest|stdClass
+        // (checked against OtherRequest), and n through a nullsafe call.
+        $class = 'Tests\PHPStan\FormRequest\Fixtures\ReadShapes';
+        $expectedErrors = [
+            [sprintf(self::NOT_IN_RULES, 'p', 'parent::validated()', $class), 34],
+            [sprintf(self::NOT_IN_RULES, 's', 'self::validated()', $class), 35],
+            [sprintf(self::NOT_IN_RULES, 'alias', 'stringOrNull()', $class), 36],
+            [sprintf(self::NOT_IN_RULES, 'u', 'validated()', 'Tests\PHPStan\FormRequest\Fixtures\OtherRequest'), 37],
+            [sprintf(self::NOT_IN_RULES, 'n', 'string()', $class), 38],
+        ];
+
+        // Act & Assert
+        $this->analyse([self::FIXTURES.'ReadShapes.php', self::FIXTURES.'OtherRequest.php'], $expectedErrors);
+    }
+
+    #[Test]
+    public function should_skip_a_read_on_a_receiver_typed_as_the_base_form_request(): void
+    {
+        // Arrange: the base FormRequest names no rules(). Checked against every analysed request instead, the read of
+        // anything would be reported for DeclaresX, which doesn't declare it.
+        $expectedErrors = [];
+
+        // Act & Assert
+        $this->analyse(
+            [self::FIXTURES.'BaseTypedReceiver.php', self::FIXTURES.'DeclaresX.php', self::FIXTURES.'ReadsWithoutOwnRules.php'],
+            $expectedErrors,
+        );
     }
 
     #[Override]

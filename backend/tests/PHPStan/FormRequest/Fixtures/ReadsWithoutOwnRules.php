@@ -12,4 +12,9 @@ abstract class ReadsWithoutOwnRules extends FormRequest
     {
         return $this->safe()->string('x')->toString();
     }
+
+    public function again(): string
+    {
+        return $this->safe()->string('x')->toString();
+    }
 }
