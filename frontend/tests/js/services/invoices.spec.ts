@@ -183,6 +183,26 @@ describe('isInvoice', () =>
         expect(isInvoice(without(domesticInvoice, key))).toBe(false);
     });
 
+    // The same for the keys inside the totals and inside a VAT group, which
+    // the walk over the top-level keys never reaches.
+    it.each(Object.keys(domesticInvoice.totals))('should reject an invoice whose totals have no %s', (key) =>
+    {
+        // Act + Assert
+        expect(isInvoice({ ...domesticInvoice, totals: without(domesticInvoice.totals, key) })).toBe(false);
+    });
+
+    it.each(Object.keys(domesticInvoice.totals.vat_groups[0] ?? {}))('should reject an invoice with a VAT group without %s', (key) =>
+    {
+        // Act + Assert
+        expect(isInvoice(withTotals(domesticInvoice, { vat_groups: domesticInvoice.totals.vat_groups.map((group) => without(group, key)) }))).toBe(false);
+    });
+
+    it.each(Object.keys(domesticInvoice.lines[0] ?? {}))('should reject an invoice with a line without %s', (key) =>
+    {
+        // Act + Assert
+        expect(isInvoice({ ...domesticInvoice, lines: domesticInvoice.lines.map((line) => without(line, key)) })).toBe(false);
+    });
+
     it.each([
         ['a string id', { ...domesticInvoice, id: '7' }],
         ['a status it doesn\'t know', { ...domesticInvoice, status: 'sent' }],
@@ -190,8 +210,8 @@ describe('isInvoice', () =>
         ['a fractional payment term', { ...domesticInvoice, payment_term_days: 14.5 }],
         ['lines that are not an array', { ...domesticInvoice, lines: {} }],
         ['a fractional quantity', withLine(domesticInvoice, { quantity_hundredths: 7.5 })], // hundredths are already the fraction
-        ['a line without its total', { ...domesticInvoice, lines: domesticInvoice.lines.map((line) => without(line, 'total_cents')) }],
         ['a vat_option it doesn\'t know', withLine(domesticInvoice, { vat_option: 'standard' })],
+        ['fractional VAT on a domestic invoice', withTotals(domesticInvoice, { vat_cents: 2048.5 })],
         ['a VAT group with a string rate', withTotals(domesticInvoice, { vat_groups: [{ vat_option: 'high', rate_percent: '21', base_cents: 9750, vat_cents: 2048 }] })],
     ])('should reject an invoice with %s', (_case, invoice) =>
     {
@@ -208,6 +228,8 @@ describe('isInvoice', () =>
         ['no vat_option on a domestic line', withLine(domesticInvoice, { vat_option: null })],
         ['a VAT group on a reverse_charge invoice', withTotals(reverseChargeInvoice, { vat_groups: domesticInvoice.totals.vat_groups })],
         ['VAT charged on a reverse_charge invoice', withTotals(reverseChargeInvoice, { vat_cents: 21 })],
+        ['a VAT group on an outside_scope invoice', withTotals({ ...reverseChargeInvoice, vat_treatment: 'outside_scope' }, { vat_groups: domesticInvoice.totals.vat_groups })],
+        ['VAT charged on an outside_scope invoice', withTotals({ ...reverseChargeInvoice, vat_treatment: 'outside_scope' }, { vat_cents: 21 })],
     ])('should reject %s', (_case, invoice) =>
     {
         // Act + Assert
@@ -292,6 +314,33 @@ describe('invoices service', () =>
         });
     });
 
+    // Every function that returns a versioned invoice runs both checks: the
+    // body against isInvoice, and the ETag through versionFrom.
+    describe.each([
+        ['fetchInvoice', getRequest, () => fetchInvoice(1, 7)],
+        ['createInvoice', postRequest, () => createInvoice(1, domesticPayload)],
+        ['updateInvoice', putRequest, () => updateInvoice(1, 7, domesticPayload, 3)],
+    ] as const)('%s', (_name, request, call) =>
+    {
+        it('should throw an UnexpectedResponseError when the response has no ETag', async () =>
+        {
+            // Arrange: a valid body, so only the missing version can fail it
+            vi.mocked(request).mockResolvedValue({ data: domesticInvoice, headers: {} } as AxiosResponse);
+
+            // Act + Assert
+            await expect(call()).rejects.toThrow(UnexpectedResponseError);
+        });
+
+        it('should throw an UnexpectedResponseError when the body is malformed', async () =>
+        {
+            // Arrange: a valid ETag, so only the body can fail it
+            vi.mocked(request).mockResolvedValue(respondWith({ ...domesticInvoice, totals: undefined }, 3));
+
+            // Act + Assert
+            await expect(call()).rejects.toThrow(UnexpectedResponseError);
+        });
+    });
+
     describe('fetchInvoice', () =>
     {
         it('should get the invoice and return it with the version its ETag names', async () =>
@@ -305,15 +354,6 @@ describe('invoices service', () =>
             // Assert
             expect(getRequest).toHaveBeenCalledWith('/businesses/1/invoices/7');
             expect(result).toEqual({ invoice: domesticInvoice, version: 3 });
-        });
-
-        it('should throw an UnexpectedResponseError when the response has no ETag', async () =>
-        {
-            // Arrange: a valid body, so only the missing version can fail it
-            vi.mocked(getRequest).mockResolvedValue({ data: domesticInvoice, headers: {} } as AxiosResponse);
-
-            // Act + Assert
-            await expect(fetchInvoice(1, 7)).rejects.toThrow(UnexpectedResponseError);
         });
 
         it('should throw an InvoiceNotFoundError carrying the 404 (not found) when the invoice isn\'t the business\'s', async () =>
