@@ -338,6 +338,28 @@ final class ValidatedKeyNotInRulesRuleTest extends RuleTestCase
         $this->analyse([self::FIXTURES.'WritesAndCompoundAssigns.php'], $expectedErrors);
     }
 
+    #[Test]
+    public function should_report_a_request_with_validator_once_and_a_request_with_only_with_validator_as_without_rules(): void
+    {
+        // Arrange: Guards third-party code: Laravel's FormRequest::getValidatorInstance() builds the validator with
+        // validator() when there is one, and never calls rules(). So BuildsOwnValidator's reads on lines 36-37 can't be
+        // checked: one error, at the first. withValidator() only adds to the validator built from rules(), so
+        // AddsToValidator, which has no rules(), validates no key.
+        $expectedErrors = [
+            [
+                'Reads validated input with string(), but Tests\PHPStan\FormRequest\Fixtures\AddsToValidator has no rules() to declare its keys.',
+                19,
+            ],
+            [
+                'Reads validated input with string(), but Tests\PHPStan\FormRequest\Fixtures\BuildsOwnValidator builds its validator in validator(), which replaces rules(), so the keys it validates can\'t be known.',
+                36,
+            ],
+        ];
+
+        // Act & Assert
+        $this->analyse([self::FIXTURES.'BuildsOwnValidator.php', self::FIXTURES.'AddsToValidator.php'], $expectedErrors);
+    }
+
     /**
      * @return array<string, array{string, int}>
      */
