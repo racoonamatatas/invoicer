@@ -77,9 +77,12 @@ type LinePayloadUnder<Rules extends VatRules> = Rules extends unknown
     }
     : never;
 
-// The fields the form sends and the backend sends back alike. Written by
-// hand, apart from the response types below, and so able to drift from them:
-// known, and a decision still open.
+// The fields the form sends and the backend sends back alike. The response
+// types below are built up from these and LinePayloadUnder, adding only what
+// the backend computes, so a field the form sends can't be missing from what
+// comes back. Up from the payload, not down from the entity as New<T> does:
+// an invoice's response has more fields of its own (status, number, totals,
+// each line's total) than a stripped id.
 type InvoiceFieldsUnder<Rules extends VatRules> = Rules extends unknown
     ? {
         vat_treatment: Rules['vat_treatment'];
