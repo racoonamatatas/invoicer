@@ -1,5 +1,8 @@
+import { isAxiosError, type AxiosResponse } from 'axios';
+
 import { isNullableString } from '@/services/address';
 import type { Identified } from '@/services/entity';
+import { checkResponse, deleteRequest, getRequest, postRequest, putRequest, versionFrom } from '@/services/http';
 
 // How VAT applies to a whole invoice. The strings are the backend's
 // VatTreatment::apiName(), not its storage integers. A runtime array, not only
@@ -240,4 +243,140 @@ export const isInvoice = (value: unknown): value is Invoice =>
            && 'lines' in value && Array.isArray(value.lines)
            && value.lines.every((line: unknown) => isLineUnder(value.vat_treatment, line))
            && 'totals' in value && isTotalsUnder(value.vat_treatment, value.totals);
+};
+
+const isInvoiceSummaryList = (value: unknown): value is InvoiceSummary[] =>
+{
+    return Array.isArray(value) && value.every(isInvoiceSummary);
+};
+
+// An invoice with the version its ETag named. Beside the invoice, not inside
+// it: the backend sends the version as a header, so `Invoice` stays exactly
+// the body. A later update or delete hands the version back as If-Match.
+export interface VersionedInvoice
+{
+    invoice: Invoice;
+    version: number;
+}
+
+const endpointFor = (businessId: number): string => `/businesses/${businessId}/invoices`;
+
+// A business's invoices, as summaries: no lines, no totals, and no version,
+// because the list is only read. A 404 (not found) means the business isn't
+// the user's, or no longer exists.
+export const listInvoices = async (businessId: number): Promise<InvoiceSummary[]> =>
+{
+    const endpoint = endpointFor(businessId);
+    const response = await getRequest<unknown>(endpoint);
+
+    return checkResponse(endpoint, response.data, isInvoiceSummaryList);
+};
+
+// A fetch's 404: the invoice isn't one of the business's. Its own class, so
+// the page can tell it from other failures with instanceof and never reads a
+// status code itself. The original 404 is kept as `cause`.
+export class InvoiceNotFoundError extends Error
+{
+    constructor(cause: unknown)
+    {
+        super('The invoice does not exist', { cause });
+        this.name = 'InvoiceNotFoundError';
+    }
+}
+
+// An update's or delete's 412 (precondition failed): the draft was saved
+// elsewhere since this version was read, so nothing was stored. The editor
+// keeps its unsaved edits and offers to load the latest version. A 428
+// (precondition required) is not wrapped: it means this service sent no
+// If-Match, a bug, so it goes the unexpected-error path as it is.
+export class InvoiceVersionConflictError extends Error
+{
+    constructor(cause: unknown)
+    {
+        super('The invoice was changed elsewhere', { cause });
+        this.name = 'InvoiceVersionConflictError';
+    }
+}
+
+// Rethrows `error`, as `wrapped` when it is a failed request with `status`.
+// Returns never: every path throws, so a catch block that calls it ends there.
+const rethrow = (error: unknown, status: number, wrapped: (cause: unknown) => Error): never =>
+{
+    if (isAxiosError(error) && error.response?.status === status)
+    {
+        throw wrapped(error);
+    }
+
+    throw error;
+};
+
+// The body checked against isInvoice and the ETag read as its version.
+const versionedInvoiceFrom = (endpoint: string, response: AxiosResponse<unknown>): VersionedInvoice =>
+{
+    return {
+        invoice: checkResponse(endpoint, response.data, isInvoice),
+        version: versionFrom(endpoint, response),
+    };
+};
+
+// One invoice of the business, with its version. An unknown id and an invoice
+// of another business are both a 404 (not found), thrown as an
+// InvoiceNotFoundError. Anything else is thrown as it is.
+export const fetchInvoice = async (businessId: number, invoiceId: number): Promise<VersionedInvoice> =>
+{
+    const endpoint = `${endpointFor(businessId)}/${invoiceId}`;
+
+    try
+    {
+        return versionedInvoiceFrom(endpoint, await getRequest<unknown>(endpoint));
+    }
+    catch (error) // unknown: anything can be thrown
+    {
+        return rethrow(error, 404, (cause) => new InvoiceNotFoundError(cause));
+    }
+};
+
+// 201 (created) with the draft and its first version. A 422 is thrown, not
+// caught, so the form can show it next to the field.
+export const createInvoice = async (businessId: number, payload: InvoicePayload): Promise<VersionedInvoice> =>
+{
+    const endpoint = endpointFor(businessId);
+
+    return versionedInvoiceFrom(endpoint, await postRequest<InvoicePayload, unknown>(endpoint, payload));
+};
+
+// Replaces the draft, lines included, if `version` is still its current one:
+// 200 (ok) with the result and its next version. A 412 (precondition failed)
+// is thrown as an InvoiceVersionConflictError; a 422 for the form and a 404
+// (not found) for the page are thrown as they are. `version` is required here
+// although putRequest() makes it optional: an invoice is always versioned.
+export const updateInvoice = async (businessId: number, invoiceId: number, payload: InvoicePayload, version: number): Promise<VersionedInvoice> =>
+{
+    const endpoint = `${endpointFor(businessId)}/${invoiceId}`;
+
+    try
+    {
+        return versionedInvoiceFrom(endpoint, await putRequest<InvoicePayload, unknown>(endpoint, payload, version));
+    }
+    catch (error)
+    {
+        return rethrow(error, 412, (cause) => new InvoiceVersionConflictError(cause));
+    }
+};
+
+// Deletes the draft, lines included, if `version` is still its current one:
+// 204 (no content). A 412 (precondition failed) is thrown as an
+// InvoiceVersionConflictError, anything else as it is.
+export const deleteInvoice = async (businessId: number, invoiceId: number, version: number): Promise<void> =>
+{
+    const endpoint = `${endpointFor(businessId)}/${invoiceId}`;
+
+    try
+    {
+        await deleteRequest<unknown>(endpoint, version);
+    }
+    catch (error)
+    {
+        rethrow(error, 412, (cause) => new InvoiceVersionConflictError(cause));
+    }
 };
