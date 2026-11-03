@@ -386,6 +386,20 @@ describe('invoices service', () =>
             expect(thrown).toMatchObject({ cause: error });
         });
 
+        it('should throw an InvoiceNotFoundError carrying the 404 (not found) when the draft was deleted elsewhere', async () =>
+        {
+            // Arrange: another tab deleted it after this one loaded it
+            const error = axiosErrorWith(404, { message: 'Not Found' });
+            vi.mocked(putRequest).mockRejectedValue(error);
+
+            // Act
+            const thrown: unknown = await updateInvoice(1, 7, domesticPayload, 3).catch((rejection: unknown) => rejection);
+
+            // Assert
+            expect(thrown).toBeInstanceOf(InvoiceNotFoundError);
+            expect(thrown).toMatchObject({ cause: error });
+        });
+
         it('should rethrow a 428 (precondition required) unchanged, because a missing If-Match is a bug, not a conflict', async () =>
         {
             // Arrange
@@ -423,6 +437,20 @@ describe('invoices service', () =>
 
             // Assert
             expect(thrown).toBeInstanceOf(InvoiceVersionConflictError);
+            expect(thrown).toMatchObject({ cause: error });
+        });
+
+        it('should throw an InvoiceNotFoundError carrying the 404 (not found) when the draft was already deleted', async () =>
+        {
+            // Arrange: a second click on Delete, or another tab, got there first
+            const error = axiosErrorWith(404, { message: 'Not Found' });
+            vi.mocked(deleteRequest).mockRejectedValue(error);
+
+            // Act
+            const thrown: unknown = await deleteInvoice(1, 7, 3).catch((rejection: unknown) => rejection);
+
+            // Assert
+            expect(thrown).toBeInstanceOf(InvoiceNotFoundError);
             expect(thrown).toMatchObject({ cause: error });
         });
     });
