@@ -28,8 +28,9 @@ final class ValidatedKeyNotInRulesRuleTest extends RuleTestCase
     #[Override]
     public static function getAdditionalConfigFiles(): array
     {
-        // Larastan's extension, so the analysis knows what FormRequest::safe() and validated() return.
-        return [__DIR__.'/../../../vendor/larastan/larastan/extension.neon'];
+        // Larastan's extension, so the analysis knows what FormRequest::safe() and validated() return, and the visitor
+        // that marks unset() and ??= targets for the collector.
+        return [__DIR__.'/../../../vendor/larastan/larastan/extension.neon', __DIR__.'/visitors.neon'];
     }
 
     #[Test]
@@ -318,6 +319,23 @@ final class ValidatedKeyNotInRulesRuleTest extends RuleTestCase
 
         // Act & Assert
         $this->analyse([self::FIXTURES.'ArrayKeyArguments.php'], $expectedErrors);
+    }
+
+    #[Test]
+    public function should_skip_unset_and_plain_writes_and_report_compound_assignments_which_read_first(): void
+    {
+        // Arrange: rules() declares only a, and every key below is undeclared. unset() on lines 23-24 and the plain
+        // write on line 25 read nothing. ??= on lines 26 and 28 reads the key and writes only when it's missing, so
+        // an undeclared key always gets the default; .= on line 27 reads before it appends.
+        $class = 'Tests\PHPStan\FormRequest\Fixtures\WritesAndCompoundAssigns';
+        $expectedErrors = [
+            [sprintf(self::NOT_IN_RULES, 'x', '[]', $class), 26],
+            [sprintf(self::NOT_IN_RULES, 'y', '[]', $class), 27],
+            [sprintf(self::NOT_IN_RULES, 'z', '->property', $class), 28],
+        ];
+
+        // Act & Assert
+        $this->analyse([self::FIXTURES.'WritesAndCompoundAssigns.php'], $expectedErrors);
     }
 
     /**
