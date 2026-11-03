@@ -16,9 +16,9 @@ use PHPStan\Reflection\MethodReflection;
  * The keys come from the type PHPStan infers for the returned array, not from the source text. So a key spread in from
  * another method (`...AddressRules::forAddress()`) counts, as long as that method's `@return` is an array shape.
  *
- * Each record is [the class and its parents, the keys or null when they can't be known, line].
+ * Each record is [the class, the keys or null when they can't be known, line].
  *
- * @implements Collector<Return_, array{list<string>, list<string>|null, int}>
+ * @implements Collector<Return_, array{string, list<string>|null, int}>
  */
 final class RulesKeysCollector implements Collector
 {
@@ -29,11 +29,11 @@ final class RulesKeysCollector implements Collector
 
     public function processNode(Node $node, Scope $scope): ?array
     {
-        $lineage = FormRequestScope::lineage($scope);
+        $class = FormRequestScope::requestClass($scope);
         $method = $scope->getFunction();
 
         // A `return` in a closure inside rules() returns from the closure, such as a rule's own callback.
-        if ($lineage === null
+        if ($class === null
             || ! $method instanceof MethodReflection
             || strtolower($method->getName()) !== 'rules'
             || $scope->isInAnonymousFunction())
@@ -43,6 +43,6 @@ final class RulesKeysCollector implements Collector
 
         $keys = $node->expr === null ? null : FormRequestScope::arrayKeys($scope->getType($node->expr));
 
-        return [$lineage, $keys, $node->getStartLine()];
+        return [$class, $keys, $node->getStartLine()];
     }
 }

@@ -153,6 +153,6 @@ final class ValidatedKeyNotInRulesRuleTest extends RuleTestCase
     #[Override]
     protected function getCollectors(): array
     {
-        return [new RulesKeysCollector, new ValidatedKeyReadCollector];
+        return [new RulesKeysCollector, new ValidatedKeyReadCollector, new FormRequestClassCollector];
     }
 }

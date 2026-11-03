@@ -16,22 +16,26 @@ use PhpParser\Node\Expr\PropertyFetch;
 use PhpParser\Node\Identifier;
 use PHPStan\Analyser\Scope;
 use PHPStan\Collectors\Collector;
+use PHPStan\Reflection\ClassReflection;
 use PHPStan\Type\ObjectType;
 use PHPStan\Type\Type;
 
 /**
- * Records every key a FormRequest reads from its validated input, in any of its methods, not only `toDto()`.
+ * Records every key read from a FormRequest's validated input, and the request class whose rules the read runs with.
  *
  * A read is one of:
  * - an accessor on a `ValidatedInput`, the type `safe()` returns: `$safe->string('email')`, `$safe->only(['a'])`;
  * - an array or property read on one: `$safe['email']`, `$safe->email`;
- * - `$this->validated('email')`, `$this->safe(['email'])`;
- * - a `ReadsValidatedInput` helper: `$this->validatedStringOrNull('email')`.
+ * - `validated('email')` or `safe(['email'])` on a request;
+ * - a `ReadsValidatedInput` helper on a request: `$this->validatedStringOrNull('email')`.
  *
- * Each record is [the class and its parents, the keys read, how they were read, line]. A null key is one that isn't
- * known before the code runs, such as `$safe->string($field)`.
+ * A `ValidatedInput` doesn't say which request it came from, so its reads count only inside a request, for the class
+ * the code is in. A call on a request counts anywhere, a controller included, for the receiver's class.
  *
- * @implements Collector<Expr, array{list<string>, non-empty-list<string|null>, string, int}>
+ * Each record is [the request classes, the keys read, how they were read, line]. A null key is one that isn't known
+ * before the code runs, such as `$safe->string($field)`.
+ *
+ * @implements Collector<Expr, array{non-empty-list<string>, non-empty-list<string|null>, string, int}>
  */
 final class ValidatedKeyReadCollector implements Collector
 {
@@ -56,38 +60,60 @@ final class ValidatedKeyReadCollector implements Collector
 
     public function processNode(Node $node, Scope $scope): ?array
     {
-        $lineage = FormRequestScope::lineage($scope);
-
-        // The helper's own body reads the key its caller passed in: the call site is the read that gets checked.
-        if ($lineage === null || $scope->getTraitReflection()?->getName() === ReadsValidatedInput::class)
+        // The helpers' own bodies read the key their caller passed in: the call site is the read that gets checked.
+        if ($scope->getTraitReflection()?->getName() === ReadsValidatedInput::class)
         {
             return null;
         }
 
         $read = $this->read($node, $scope);
 
-        return $read === null ? null : [$lineage, $read[0], $read[1], $node->getStartLine()];
+        if ($read === null)
+        {
+            return null;
+        }
+
+        [$readers, $keyTypes, $how] = $read;
+        $keys = [];
+
+        foreach ($keyTypes as $keyType)
+        {
+            array_push($keys, ...FormRequestScope::keysNamedBy($keyType));
+        }
+
+        // No keys is no read: `$safe->all()`, `$this->validated()` or `$safe->only([])` leave nothing to check.
+        return $keys === [] ? null : [$readers, $keys, $how, $node->getStartLine()];
     }
 
     /**
-     * The keys a node reads and a short description of how, or null when it reads no key.
+     * The request classes a node reads for, the types of what names its keys, and how it reads; null when it isn't a
+     * read.
      *
-     * @return array{non-empty-list<string|null>, string}|null
+     * @return array{non-empty-list<string>, list<Type>, string}|null
      */
     private function read(Expr $node, Scope $scope): ?array
     {
-        if ($node instanceof ArrayDimFetch && $node->dim !== null && $this->isValidatedInput($node->var, $scope))
+        $inRequest = FormRequestScope::requestClass($scope);
+
+        if ($node instanceof ArrayDimFetch)
         {
-            return self::readOf(FormRequestScope::keysNamedBy($scope->getType($node->dim)), '[]');
+            return $inRequest !== null && $node->dim !== null && $this->isValidatedInput($node->var, $scope)
+                ? [[$inRequest], [$scope->getType($node->dim)], '[]']
+                : null;
         }
 
-        if ($node instanceof PropertyFetch && $this->isValidatedInput($node->var, $scope))
+        if ($node instanceof PropertyFetch)
         {
-            $keys = $node->name instanceof Identifier
-                ? [$node->name->name]
-                : FormRequestScope::keysNamedBy($scope->getType($node->name));
+            if ($inRequest === null || ! $this->isValidatedInput($node->var, $scope))
+            {
+                return null;
+            }
 
-            return self::readOf($keys, '->property');
+            $keyType = $node->name instanceof Identifier
+                ? $scope->getTypeFromValue($node->name->name)
+                : $scope->getType($node->name);
+
+            return [[$inRequest], [$keyType], '->property'];
         }
 
         if (! $node instanceof MethodCall || ! $node->name instanceof Identifier)
@@ -96,64 +122,88 @@ final class ValidatedKeyReadCollector implements Collector
         }
 
         $name = strtolower($node->name->name);
-        $keyArgs = $this->keyArguments($node, $name, $scope);
-
-        $keys = [];
-
-        foreach ($keyArgs as $arg)
-        {
-            array_push($keys, ...FormRequestScope::keysNamedBy($scope->getType($arg->value)));
-        }
-
-        return self::readOf($keys, $node->name->name.'()');
-    }
-
-    /**
-     * No keys is no read: `$safe->all()`, `$this->validated()` or `$safe->only([])` leave nothing to check.
-     *
-     * @param  list<string|null>  $keys
-     * @return array{non-empty-list<string|null>, string}|null
-     */
-    private static function readOf(array $keys, string $how): ?array
-    {
-        return $keys === [] ? null : [$keys, $how];
-    }
-
-    /**
-     * The arguments that name keys, or [] when the call is not a read.
-     *
-     * @return list<Arg>
-     */
-    private function keyArguments(MethodCall $node, string $name, Scope $scope): array
-    {
+        $how = $node->name->name.'()';
         $args = $node->getArgs();
 
-        if ($this->isValidatedInput($node->var, $scope))
+        if (! $this->isValidatedInput($node->var, $scope))
         {
-            if (in_array($name, self::ONE_KEY_METHODS, true))
-            {
-                return $this->argument($args, 'key');
-            }
-
-            // Several positional arguments are several keys: `only('a', 'b')` is `only(['a', 'b'])`.
-            return in_array($name, self::KEY_LIST_METHODS, true) ? array_values($args) : [];
+            return $this->readOnRequest($node, $name, $how, $args, $scope);
         }
 
+        if ($inRequest === null)
+        {
+            return null;
+        }
+
+        $keyArgs = match (true)
+        {
+            in_array($name, self::ONE_KEY_METHODS, true) => $this->argument($args, 'key'),
+            // Several positional arguments are several keys: `only('a', 'b')` is `only(['a', 'b'])`.
+            in_array($name, self::KEY_LIST_METHODS, true) => array_values($args),
+            default => [],
+        };
+
+        return [[$inRequest], $this->types($keyArgs, $scope), $how];
+    }
+
+    /**
+     * `validated()`, `safe()` or a `ReadsValidatedInput` helper, called on a request.
+     *
+     * @param  array<Arg>  $args
+     * @return array{non-empty-list<string>, list<Type>, string}|null
+     */
+    private function readOnRequest(MethodCall $node, string $name, string $how, array $args, Scope $scope): ?array
+    {
         $receiver = $scope->getType($node->var);
 
-        if (new ObjectType(FormRequest::class)->isSuperTypeOf($receiver)->yes())
+        if (! new ObjectType(FormRequest::class)->isSuperTypeOf($receiver)->yes())
         {
-            return match ($name)
-            {
-                'validated' => $this->argument($args, 'key'),
-                'safe' => $this->argument($args, 'keys'),
-                default => $this->usesReadsValidatedInput($receiver) && $name === 'validatedstringornull'
-                    ? $this->argument($args, 'key')
-                    : [],
-            };
+            return null;
         }
 
-        return [];
+        $readers = [];
+        $keyArgs = [];
+
+        foreach ($receiver->getObjectClassReflections() as $class)
+        {
+            $keyParameter = match ($name)
+            {
+                'validated' => 'key',
+                'safe' => 'keys',
+                default => self::helperKeyParameter($class, $name),
+            };
+
+            if ($keyParameter !== null)
+            {
+                $readers[] = $class->getName();
+                $keyArgs = $this->argument($args, $keyParameter);
+            }
+        }
+
+        return $readers === [] ? null : [$readers, $this->types($keyArgs, $scope), $how];
+    }
+
+    /**
+     * The name of the parameter a `ReadsValidatedInput` method takes its key in, its first, when the class has the
+     * trait, through a parent or another trait too; otherwise null.
+     *
+     * Found by reflection rather than listed, so a new helper in the trait is checked without changing this collector.
+     */
+    private static function helperKeyParameter(ClassReflection $class, string $method): ?string
+    {
+        foreach ([$class, ...$class->getParents()] as $classOrParent)
+        {
+            $trait = $classOrParent->getTraits(true)[ReadsValidatedInput::class] ?? null;
+
+            if ($trait !== null && $trait->hasNativeMethod($method))
+            {
+                $parameters = $trait->getNativeMethod($method)->getOnlyVariant()->getParameters();
+
+                return ($parameters[0] ?? null)?->getName();
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -175,21 +225,17 @@ final class ValidatedKeyReadCollector implements Collector
         return [];
     }
 
+    /**
+     * @param  list<Arg>  $args
+     * @return list<Type>
+     */
+    private function types(array $args, Scope $scope): array
+    {
+        return array_map(static fn (Arg $arg): Type => $scope->getType($arg->value), $args);
+    }
+
     private function isValidatedInput(Expr $expr, Scope $scope): bool
     {
         return new ObjectType(ValidatedInput::class)->isSuperTypeOf($scope->getType($expr))->yes();
-    }
-
-    private function usesReadsValidatedInput(Type $receiver): bool
-    {
-        foreach ($receiver->getObjectClassReflections() as $class)
-        {
-            if ($class->hasTraitUse(ReadsValidatedInput::class))
-            {
-                return true;
-            }
-        }
-
-        return false;
     }
 }

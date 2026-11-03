@@ -41,6 +41,10 @@ services:
         class: Tests\PHPStan\FormRequest\ValidatedKeyReadCollector
         tags:
             - phpstan.collector
+    -
+        class: Tests\PHPStan\FormRequest\FormRequestClassCollector
+        tags:
+            - phpstan.collector
 
 rules:
     - Tests\PHPStan\RateLimiter\RequestCastInRateLimiterRule

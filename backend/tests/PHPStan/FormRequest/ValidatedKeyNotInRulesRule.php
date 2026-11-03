@@ -17,16 +17,26 @@ use PHPStan\Rules\RuleErrorBuilder;
  * Validation drops every key that has no rule, so such a read never sees what the client sent: `$safe->string('x')`
  * quietly returns "", `integer()` 0. A feature test catches that only if it happens to check that field.
  *
- * Which `rules()` a read is checked against: the one its class declares or inherits, and the one of every subclass that
- * overrides it, because a parent's `toDto()` runs with the subclass's rules.
+ * A read runs in every concrete class that has its code: the reading class itself and each subclass. Each of those is
+ * checked against the `rules()` it runs with, its own or an inherited one, so a subclass that overrides `rules()` is
+ * checked against its own.
  *
  * Strict where it can't tell: a key that isn't known before the code runs, a `rules()` whose keys PHPStan can't see
- * (an `array<string, …>` spread in, say), and a read in a request with no `rules()` at all are each reported.
+ * (an `array<string, …>` spread in, say) that a read is checked against, and a concrete request with no `rules()` at
+ * all are each reported.
+ *
+ * Needs a full run to be complete. A run of a few files, such as an editor's, skips a read whose `rules()` is in a file
+ * outside the run, and doesn't see the subclasses outside it.
  *
  * Known limits, where a missing key goes unreported:
- * - a read from a plain array that came out of the validated input, such as a line from `$safe->array('lines')`;
- * - a read of the raw input, such as `$this->integer('x')` in `after()`: that isn't validated input;
- * - a `rules()` in a file PHPStan doesn't analyse, such as a vendor package's request.
+ * - a read from a plain array that came out of the validated input: a line from `$safe->array('lines')`,
+ *   `$this->validated()['x']` or `$safe->all()['x']`;
+ * - a nullsafe property read, `$safe?->x`;
+ * - a read on a `ValidatedInput` outside a request, which doesn't say which request it came from;
+ * - a read of the raw input, such as `$this->integer('x')` in `after()`: that isn't validated input.
+ *
+ * And one where a key is reported that doesn't need to be: a subclass that overrides both `rules()` and the method that
+ * reads is still checked against the parent method's reads.
  *
  * @implements Rule<CollectedDataNode>
  */
@@ -42,46 +52,119 @@ final class ValidatedKeyNotInRulesRule implements Rule
      */
     public function processNode(Node $node, Scope $scope): array
     {
+        $classes = $this->classes($node);
         $rulesByClass = $this->rulesByClass($node);
         $errors = [];
 
-        foreach ($rulesByClass as $class => $rules)
-        {
-            if ($rules['keys'] === null)
-            {
-                $errors[] = RuleErrorBuilder::message(sprintf(
-                    'The keys %s::rules() returns can\'t be known before it runs, so the keys read from its validated input can\'t be checked: give what it spreads in an array-shape @return.',
-                    $class,
-                ))
-                    ->identifier('invoicer.rulesKeysUnknown')
-                    ->file($rules['file'])
-                    ->line($rules['line'])
-                    ->build();
-            }
-        }
+        // A `rules()` with unknown keys is reported once, and only when a read is checked against it.
+        $unknownRules = [];
 
         foreach ($node->get(ValidatedKeyReadCollector::class) as $file => $readsInFile)
         {
-            foreach ($readsInFile as [$lineage, $keys, $how, $line])
+            foreach ($readsInFile as [$readers, $keys, $how, $line])
             {
-                foreach ($this->errorsForRead($lineage, $keys, $how, $rulesByClass) as [$message, $identifier])
+                $checkAgainst = [];
+
+                foreach ($this->runners($readers, $classes) as $runner)
                 {
-                    $errors[] = RuleErrorBuilder::message($message)
-                        ->identifier($identifier)
-                        ->file($file)
-                        ->line($line)
-                        ->build();
+                    $rulesIn = $classes[$runner]['rulesIn'];
+
+                    if ($rulesIn === null)
+                    {
+                        $errors[] = $this->error(
+                            sprintf('Reads validated input with %s, but %s has no rules() to declare its keys.', $how, $runner),
+                            'invoicer.validatedReadWithoutRules',
+                            $file,
+                            $line,
+                        );
+                    }
+                    elseif (isset($rulesByClass[$rulesIn]))
+                    {
+                        // Not set: the `rules()` is in a file outside this run, so there is nothing to check against.
+                        $checkAgainst[$rulesIn] = $rulesByClass[$rulesIn]['keys'];
+                    }
+                }
+
+                foreach ($checkAgainst as $rulesIn => $declared)
+                {
+                    if ($declared === null)
+                    {
+                        $unknownRules[$rulesIn] = true;
+
+                        continue;
+                    }
+
+                    foreach ($keys as $key)
+                    {
+                        if ($key !== null && ! self::isDeclared($key, $declared))
+                        {
+                            $errors[] = $this->error(
+                                sprintf(
+                                    'Reads "%s" with %s, but %s::rules() doesn\'t declare it: validation drops a key without a rule, so the read never sees what was sent.',
+                                    $key,
+                                    $how,
+                                    $rulesIn,
+                                ),
+                                'invoicer.validatedKeyNotInRules',
+                                $file,
+                                $line,
+                            );
+                        }
+                    }
+                }
+
+                if (in_array(null, $keys, true) && $this->anyAnalysed($readers, $classes))
+                {
+                    $errors[] = $this->error(
+                        sprintf('The key read with %s can\'t be known before it runs, so it can\'t be checked against rules(): pass it as a literal.', $how),
+                        'invoicer.validatedKeyUnknown',
+                        $file,
+                        $line,
+                    );
                 }
             }
+        }
+
+        foreach (array_keys($unknownRules) as $class)
+        {
+            $errors[] = $this->error(
+                sprintf(
+                    'The keys %s::rules() returns can\'t be known before it runs, so the keys read from its validated input can\'t be checked: give what it spreads in an array-shape @return.',
+                    $class,
+                ),
+                'invoicer.rulesKeysUnknown',
+                $rulesByClass[$class]['file'],
+                $rulesByClass[$class]['line'],
+            );
         }
 
         return $errors;
     }
 
     /**
-     * Each request's `rules()`: its class and parents, the keys every `return` in it declares, and where it is.
+     * Each analysed request class: its parents, the class whose `rules()` it runs, and whether it is abstract.
      *
-     * @return array<string, array{lineage: list<string>, keys: list<string>|null, file: string, line: int}>
+     * @return array<string, array{parents: list<string>, rulesIn: string|null, abstract: bool}>
+     */
+    private function classes(CollectedDataNode $node): array
+    {
+        $classes = [];
+
+        foreach ($node->get(FormRequestClassCollector::class) as $recordsInFile)
+        {
+            foreach ($recordsInFile as [$lineage, $rulesIn, $abstract])
+            {
+                $classes[$lineage[0]] = ['parents' => array_slice($lineage, 1), 'rulesIn' => $rulesIn, 'abstract' => $abstract];
+            }
+        }
+
+        return $classes;
+    }
+
+    /**
+     * Each request's `rules()`: the keys every `return` in it declares, and where it is.
+     *
+     * @return array<string, array{keys: list<string>|null, file: string, line: int}>
      */
     private function rulesByClass(CollectedDataNode $node): array
     {
@@ -89,14 +172,13 @@ final class ValidatedKeyNotInRulesRule implements Rule
 
         foreach ($node->get(RulesKeysCollector::class) as $file => $returnsInFile)
         {
-            foreach ($returnsInFile as [$lineage, $keys, $line])
+            foreach ($returnsInFile as [$class, $keys, $line])
             {
-                $class = $lineage[0];
                 $known = $rulesByClass[$class] ?? null;
 
                 if ($known === null)
                 {
-                    $rulesByClass[$class] = ['lineage' => $lineage, 'keys' => $keys, 'file' => $file, 'line' => $line];
+                    $rulesByClass[$class] = ['keys' => $keys, 'file' => $file, 'line' => $line];
 
                     continue;
                 }
@@ -114,56 +196,52 @@ final class ValidatedKeyNotInRulesRule implements Rule
     }
 
     /**
-     * @param  list<string>  $lineage
-     * @param  non-empty-list<string|null>  $keys
-     * @param  array<string, array{lineage: list<string>, keys: list<string>|null, file: string, line: int}>  $rulesByClass
-     * @return list<array{string, string}>
+     * The concrete classes a read runs in: each reading class unless it is abstract, and each concrete subclass.
+     *
+     * @param  list<string>  $readers
+     * @param  array<string, array{parents: list<string>, rulesIn: string|null, abstract: bool}>  $classes
+     * @return list<string>
      */
-    private function errorsForRead(array $lineage, array $keys, string $how, array $rulesByClass): array
+    private function runners(array $readers, array $classes): array
     {
-        $applicable = $this->applicableRules($lineage, $rulesByClass);
+        $runners = [];
 
-        if ($applicable === [])
+        foreach ($classes as $class => $info)
         {
-            return [[
-                sprintf('%s reads validated input with %s, but no rules() declares its keys.', $lineage[0], $how),
-                'invoicer.validatedReadWithoutRules',
-            ]];
-        }
-
-        $errors = [];
-
-        foreach ($keys as $key)
-        {
-            if ($key === null)
+            if ($info['abstract'])
             {
-                $errors[] = [
-                    sprintf('The key read with %s can\'t be known before it runs, so it can\'t be checked against rules(): pass it as a literal.', $how),
-                    'invoicer.validatedKeyUnknown',
-                ];
-
                 continue;
             }
 
-            foreach ($applicable as $class => $declared)
+            foreach ($readers as $reader)
             {
-                // null: rules() with unknown keys, which is reported once at rules() itself rather than at every read.
-                if ($declared !== null && ! self::isDeclared($key, $declared))
+                if ($class === $reader || in_array($reader, $info['parents'], true))
                 {
-                    $errors[] = [
-                        sprintf(
-                            'Reads "%s" with %s, but %s::rules() doesn\'t declare it: validation drops a key without a rule, so the read never sees what was sent.',
-                            $key,
-                            $how,
-                            $class,
-                        ),
-                        'invoicer.validatedKeyNotInRules',
-                    ];
+                    $runners[] = $class;
+
+                    break;
                 }
             }
         }
 
-        return $errors;
+        return $runners;
+    }
+
+    /**
+     * @param  list<string>  $readers
+     * @param  array<string, array{parents: list<string>, rulesIn: string|null, abstract: bool}>  $classes
+     */
+    private function anyAnalysed(array $readers, array $classes): bool
+    {
+        foreach ($readers as $reader)
+        {
+            if (isset($classes[$reader]))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -203,38 +281,8 @@ final class ValidatedKeyNotInRulesRule implements Rule
         return false;
     }
 
-    /**
-     * The `rules()` a read can run with, as class => declared keys: the nearest one up the class's own line, plus that
-     * of every subclass that overrides it.
-     *
-     * @param  list<string>  $lineage
-     * @param  array<string, array{lineage: list<string>, keys: list<string>|null, file: string, line: int}>  $rulesByClass
-     * @return array<string, list<string>|null>
-     */
-    private function applicableRules(array $lineage, array $rulesByClass): array
+    private function error(string $message, string $identifier, string $file, int $line): IdentifierRuleError
     {
-        $applicable = [];
-
-        foreach ($lineage as $class)
-        {
-            if (isset($rulesByClass[$class]))
-            {
-                $applicable[$class] = $rulesByClass[$class]['keys'];
-
-                break;
-            }
-        }
-
-        $readingClass = $lineage[0];
-
-        foreach ($rulesByClass as $class => $rules)
-        {
-            if ($class !== $readingClass && in_array($readingClass, $rules['lineage'], true))
-            {
-                $applicable[$class] = $rules['keys'];
-            }
-        }
-
-        return $applicable;
+        return RuleErrorBuilder::message($message)->identifier($identifier)->file($file)->line($line)->build();
     }
 }

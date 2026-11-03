@@ -10,28 +10,18 @@ use PHPStan\Type\Constant\ConstantArrayType;
 use PHPStan\Type\Type;
 
 /**
- * What the two collectors share: which class a node belongs to, and which keys a type spells out.
+ * What the collectors share: which request a node belongs to, and which keys a type spells out.
  */
 final class FormRequestScope
 {
     /**
-     * The class the node is in and its parents, nearest first, when that class is a FormRequest; otherwise null.
-     *
-     * The parents travel with every record because the rule sees only the collected data, not the reflection: it
-     * needs them to find the `rules()` a class inherits, and the subclasses that override it.
-     *
-     * @return list<string>|null
+     * The name of the class the node is in, when that class is a FormRequest; otherwise null.
      */
-    public static function lineage(Scope $scope): ?array
+    public static function requestClass(Scope $scope): ?string
     {
         $class = $scope->getClassReflection();
 
-        if ($class === null || ! $class->isSubclassOf(FormRequest::class))
-        {
-            return null;
-        }
-
-        return [$class->getName(), ...$class->getParentClassesNames()];
+        return $class !== null && $class->isSubclassOf(FormRequest::class) ? $class->getName() : null;
     }
 
     /**
