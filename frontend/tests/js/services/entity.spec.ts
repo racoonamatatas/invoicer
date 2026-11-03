@@ -11,8 +11,10 @@ describe('New<T>', () =>
     it('should reject a Dutch client payload that has a region, keeping the halves of the Address union apart', () =>
     {
         // Arrange
-        // Not annotated, so the spread below keeps `country_code: 'NL'`
-        // instead of widening to either half of the union.
+        // `as const` keeps `country_code` the literal `'NL'` instead of
+        // `string`, and leaving the object unannotated lets that literal
+        // reach the spread below instead of widening to either half of the
+        // union.
         const dutchFields = {
             name: 'Bakkerij Groen',
             email: 'info@bakkerijgroen.nl',
