@@ -11,8 +11,9 @@ describe('New<T>', () =>
     it('should reject a Dutch client payload that has a region, keeping the halves of the Address union apart', () =>
     {
         // Arrange
-        // @ts-expect-error a Dutch address has no region: a plain Omit merges the halves and lets this through
-        const payload: ClientPayload = {
+        // Not annotated, so the spread below keeps `country_code: 'NL'`
+        // instead of widening to either half of the union.
+        const dutchFields = {
             name: 'Bakkerij Groen',
             email: 'info@bakkerijgroen.nl',
             vat_number: null,
@@ -21,12 +22,21 @@ describe('New<T>', () =>
             house_number_addition: null,
             postal_code: '9711 KT',
             city: 'Groningen',
-            region: 'Groningen',
-            country_code: 'NL',
+            region: null,
+            country_code: 'NL' as const,
         };
 
+        // Act
+        // The two differ only in `region`, so the directive can't be
+        // satisfied by some other error: a renamed or new field fails the
+        // first line too.
+        const payload: ClientPayload = dutchFields;
+        // @ts-expect-error a Dutch address has no region: a plain Omit merges the halves and lets this through
+        const withRegion: ClientPayload = { ...dutchFields, region: 'Groningen' };
+
         // Assert
-        expect(payload.country_code).toBe('NL');
+        expect(payload.region).toBeNull();
+        expect(withRegion.region).toBe('Groningen');
     });
 
     it('should keep a key that only one member of the union has', () =>
