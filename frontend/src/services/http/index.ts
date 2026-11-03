@@ -1,4 +1,4 @@
-import axios, { isAxiosError, type AxiosError } from 'axios';
+import axios, { isAxiosError, type AxiosError, type AxiosResponse } from 'axios';
 
 const http = axios.create({
     baseURL: '/api',
@@ -61,6 +61,39 @@ export const checkResponse = <Body>(endpoint: string, body: unknown, isExpected:
     }
 
     return body;
+};
+
+// Exactly what the backend sends as a version's ETag: a strong ETag, the
+// digits in quotes, without a leading zero. Anchored at both ends, so a weak
+// W/"3" or a "*" doesn't match, and neither does "03": an ETag is compared
+// byte for byte, so that would be a different version from the "3" that was
+// sent.
+const VERSION_ETAG = /^"(0|[1-9][0-9]*)"$/;
+
+// The version a response's ETag names, for a later PUT or DELETE to send back
+// as If-Match. Throws an UnexpectedResponseError when the header is missing or
+// isn't exactly one version, like checkResponse() does for a body.
+export const versionFrom = (endpoint: string, response: AxiosResponse): number =>
+{
+    // unknown: it came over the network. axios lowercases header names.
+    const etag: unknown = response.headers['etag'];
+    const match = typeof etag === 'string' ? VERSION_ETAG.exec(etag) : null;
+    const digits = match?.[1];
+
+    if (digits === undefined)
+    {
+        throw new UnexpectedResponseError(endpoint);
+    }
+
+    // The regex allows any number of digits. Past 2^53 a number can't hold
+    // every integer, so the version sent back would not be the one we got.
+    const version = Number(digits);
+    if (!Number.isSafeInteger(version))
+    {
+        throw new UnexpectedResponseError(endpoint);
+    }
+
+    return version;
 };
 
 // True when a request failed with a 401 (unauthenticated): there is no
