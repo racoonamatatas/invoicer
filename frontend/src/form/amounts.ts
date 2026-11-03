@@ -75,6 +75,15 @@ export const parseHundredths = (input: string): ParseResult<Hundredths> =>
 // so `Intl` gets the exact value instead of the float `1001 / 100`.
 const toDecimalString = (timesHundred: number): `${number}` =>
 {
+    // The brands exist only at compile time, so an amount cast from API data
+    // can be anything. A negative or fractional value would be sliced into
+    // `0.-5` or `1..5`, which `Intl` formats as `NaN`. Amounts are never
+    // negative (credit notes would be their own feature), so it's a bug.
+    if (!Number.isSafeInteger(timesHundred) || timesHundred < 0)
+    {
+        throw new RangeError(`An amount must be a non-negative safe integer, got ${timesHundred}.`);
+    }
+
     const digits = String(timesHundred).padStart(3, '0');
 
     return `${digits.slice(0, -2)}.${digits.slice(-2)}` as `${number}`;
