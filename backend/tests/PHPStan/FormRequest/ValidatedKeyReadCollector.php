@@ -33,7 +33,8 @@ use PHPStan\Type\TypeCombinator;
  * - a `ReadsValidatedInput` helper on a request, under its own name or an alias: `$this->validatedStringOrNull('email')`.
  *
  * A nullsafe call or fetch, `$safe?->string('x')`, needs no case of its own: PHPStan analyses it as the plain one too.
- * A write such as `$safe['x'] = 1` is not a read.
+ * A write such as `$safe['x'] = 1` or `unset($safe['x'])` is not a read. A compound assignment, `??=` and `.=` alike,
+ * reads the key before it writes, so it is.
  *
  * A `ValidatedInput` doesn't say which request it came from, so its reads count only inside a request, for the class
  * the code is in. A call on a request counts anywhere, a controller included, for the receiver's class; a receiver
@@ -113,7 +114,10 @@ final class ValidatedKeyReadCollector implements Collector
      */
     private function read(Expr $node, Scope $scope): ?array
     {
-        if ($scope->isInExpressionAssign($node))
+        // A `??=` target reads before it writes, so it stays a read. WriteTargetVisitor marks both cases.
+        $isWritten = $scope->isInExpressionAssign($node) && $node->getAttribute(WriteTargetVisitor::READ_FIRST_TARGET) !== true;
+
+        if ($isWritten || $node->getAttribute(WriteTargetVisitor::UNSET_TARGET) === true)
         {
             return null;
         }

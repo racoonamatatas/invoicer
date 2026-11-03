@@ -1,0 +1,7 @@
+# Its own file, so the rule's RuleTestCase can load it too: a test builds its container from config files, not from
+# phpstan.neon.
+services:
+    -
+        class: Tests\PHPStan\FormRequest\WriteTargetVisitor
+        tags:
+            - phpstan.parser.richParserNodeVisitor

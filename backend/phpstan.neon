@@ -1,5 +1,6 @@
 includes:
     - vendor/larastan/larastan/extension.neon
+    - tests/PHPStan/FormRequest/visitors.neon
 
 parameters:
     level: max
