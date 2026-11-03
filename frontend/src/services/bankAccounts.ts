@@ -1,11 +1,11 @@
 import { isAxiosError } from 'axios';
 
+import type { Identified, New } from '@/services/entity';
 import { checkResponse, deleteRequest, getRequest, postRequest, putRequest } from '@/services/http';
 
 // A bank account as the backend sends it (BankAccountResourceData).
-export interface BankAccount
+export interface BankAccount extends Identified
 {
-    id: number;
     iban: string;
     label: string;
 }
@@ -13,11 +13,7 @@ export interface BankAccount
 // What the add form sends. Keys match StoreBankAccountRequest's rules, so
 // they are also the keys of a 422's errors. The IBAN goes as typed: the
 // backend strips spaces and uppercases it, so the frontend has no IBAN rules.
-export interface BankAccountPayload
-{
-    iban: string;
-    label: string;
-}
+export type BankAccountPayload = New<BankAccount>;
 
 // An update may only rename: the backend prohibits `iban`. Pick, not Omit:
 // a field added to the create payload stays out of here until added on
