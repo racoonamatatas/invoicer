@@ -1,0 +1,89 @@
+<?php
+
+declare(strict_types = 1);
+
+namespace App\Actions\Invoice;
+
+use App\DataTransferObjects\Input\Invoice\InvoiceData;
+use App\Enums\InvoiceStatus;
+use App\Exceptions\Http\StaleVersionException;
+use App\Exceptions\Invoice\InvoiceReferenceGoneException;
+use App\Http\IfMatch;
+use App\Models\Business;
+use App\Models\Invoice;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\DB;
+use LogicException;
+
+/**
+ * Replaces a draft's fields and its whole list of lines. The request carries no line ids, so the old lines are deleted
+ * and the new ones inserted: there is no "does this line belong to this invoice" check to get wrong.
+ */
+final readonly class UpdateInvoiceAction
+{
+    /**
+     * One transaction for the invoice row and its lines. The treatment and the lines' VAT options must change
+     * together: a half-done save could store a treatment its lines don't fit, and every later read of that draft
+     * would be a 500, because its totals can't be computed.
+     *
+     * The version check is part of the UPDATE itself, not a read before it: between a read and a write another save
+     * could land, and this one would overwrite it unseen. The row is written first, so a stale save stops before it
+     * touches a line.
+     *
+     * @param  Business  $business  the business that owns $invoice
+     *
+     * @throws StaleVersionException when the invoice's version is no longer the one the client saw, or, once a second
+     *                               status exists, when it is no longer a draft (see InvoiceStatusTest)
+     * @throws ModelNotFoundException when the invoice was deleted after the route found it
+     * @throws InvoiceReferenceGoneException when the client or bank account was deleted after the request checked it
+     * @throws LogicException when $invoice belongs to another business
+     */
+    public function execute(Business $business, Invoice $invoice, InvoiceData $data, IfMatch $ifMatch): Invoice
+    {
+        // Over HTTP the scoped binding found $invoice through $business, so they always match. A direct caller could
+        // pass any pair, and a failed write would then be checked against the wrong business's clients and accounts.
+        if ($invoice->business_id !== $business->id)
+        {
+            throw new LogicException("Invoice {$invoice->id} does not belong to business {$business->id}.");
+        }
+
+        try
+        {
+            return DB::transaction(static function () use ($invoice, $data, $ifMatch): Invoice {
+                // increment() with extra columns is one UPDATE ... SET version = version + 1, ... WHERE version = ?.
+                // It bumps the version on every save, a lines-only one too, whose invoice columns don't change.
+                // It is a query, not a model save, so the extra columns skip the model's casts, its fillable list and
+                // its events: they reach the database as given. toAttributes() must keep handing it plain scalars and
+                // backed enums, which the query builder writes as their values.
+                // The status is checked in the same statement, so no save can slip in between a draft check and the
+                // write. Only Draft exists today; a second status needs its own refusal for a non-draft, since
+                // throwForMissedWrite() would call it "changed elsewhere". InvoiceStatusTest fails until it has one.
+                $updated = Invoice::query()
+                    ->whereKey($invoice->getKey())
+                    ->where('status', InvoiceStatus::Draft)
+                    ->where('version', $ifMatch->version)
+                    ->increment('version', 1, $data->toAttributes());
+
+                if ($updated === 0)
+                {
+                    StaleVersionException::throwForMissedWrite($invoice);
+                }
+
+                // Deleted before the insert: positions are unique per invoice, and the new lines start again at 1.
+                $invoice->lines()->delete();
+                $invoice->lines()->createMany($data->lineAttributes());
+
+                // The UPDATE went past the model, so its attributes are stale. Reread with the lines, so the response's
+                // totals cost no extra query.
+                return $invoice->refresh()->load('lines');
+            });
+        }
+        catch (QueryException $exception)
+        {
+            // Outside the transaction, so it has rolled back before the check asks what is still there. The bound
+            // business, not $invoice->business, which would be one more query to load what the route already has.
+            InvoiceReferenceGoneException::throwForFailedWrite($exception, $business, $data);
+        }
+    }
+}

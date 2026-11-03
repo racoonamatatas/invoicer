@@ -4,6 +4,7 @@ declare(strict_types = 1);
 
 namespace App\Actions\Invoice;
 
+use App\Enums\InvoiceStatus;
 use App\Exceptions\Http\StaleVersionException;
 use App\Http\IfMatch;
 use App\Models\Invoice;
@@ -21,29 +22,24 @@ final readonly class DeleteInvoiceAction
      *
      * A query, not $invoice->delete(): the model's delete() matches on the id alone, so it can't carry the version.
      *
-     * @throws StaleVersionException when the invoice's version is no longer the one the client saw
+     * @throws StaleVersionException when the invoice's version is no longer the one the client saw, or, once a second
+     *                               status exists, when it is no longer a draft (see InvoiceStatusTest)
      * @throws ModelNotFoundException when the invoice was deleted after the route found it
      */
     public function execute(Invoice $invoice, IfMatch $ifMatch): void
     {
+        // The status is checked in the same statement, so no send can slip in between a draft check and the delete.
+        // Only Draft exists today; a second status needs its own refusal for a non-draft, since throwForMissedWrite()
+        // would call it "changed elsewhere". InvoiceStatusTest fails until it has one.
         $deleted = Invoice::query()
             ->whereKey($invoice->getKey())
+            ->where('status', InvoiceStatus::Draft)
             ->where('version', $ifMatch->version)
             ->delete();
 
-        if ($deleted !== 0)
+        if ($deleted === 0)
         {
-            return;
+            StaleVersionException::throwForMissedWrite($invoice);
         }
-
-        // 0 rows has two causes, told apart only now that the delete has failed, so the check and the delete stay one
-        // statement. Gone: a double-click or a second tab deleted it first, and "changed elsewhere" would be untrue.
-        // The same 404 as an unknown id in the URL.
-        if (! Invoice::query()->whereKey($invoice->getKey())->exists())
-        {
-            throw (new ModelNotFoundException)->setModel(Invoice::class, [$invoice->id]);
-        }
-
-        throw new StaleVersionException;
     }
 }

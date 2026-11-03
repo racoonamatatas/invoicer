@@ -15,6 +15,17 @@ describe('InvoiceStatus', function (): void {
         expect($value)->toBe(1);
     });
 
+    it('should have Draft as its only case', function (): void {
+        // Act
+        $cases = InvoiceStatus::cases();
+
+        // Assert
+        // A tripwire. The invoice update and delete write only a row whose status is Draft, and a 0-row write is
+        // answered as "gone" or "changed elsewhere". With a second status, a PUT or DELETE of a sent invoice would get
+        // that untrue 412. Give a non-draft its own refusal, with its tests, before extending this list.
+        expect($cases)->toBe([InvoiceStatus::Draft]);
+    });
+
     it('should name Draft "draft" in the API', function (): void {
         // Act
         $name = InvoiceStatus::Draft->apiName();

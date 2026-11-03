@@ -7,6 +7,7 @@ namespace App\Http\Controllers;
 use App\Actions\Invoice\CreateInvoiceAction;
 use App\Actions\Invoice\DeleteInvoiceAction;
 use App\Actions\Invoice\ListInvoicesAction;
+use App\Actions\Invoice\UpdateInvoiceAction;
 use App\Http\IfMatch;
 use App\Http\Requests\InvoiceRequest;
 use App\Http\Resources\InvoiceResourceData;
@@ -54,6 +55,20 @@ final class InvoiceController extends Controller
     {
         // Loaded here rather than on first read inside the resource: the same one query, but in sight.
         return self::withVersion(new JsonResponse(InvoiceResourceData::from($invoice->load('lines'))), $invoice);
+    }
+
+    /**
+     * Replaces the draft, lines included, if the client's If-Match still names its current version, and returns it as
+     * show does, with its new version as the ETag.
+     *
+     * The FormRequest validates before this method runs, so an invalid body is a 422 whatever the header says. The
+     * header is read before the action runs, so a missing or malformed one is refused before anything is written.
+     */
+    public function update(InvoiceRequest $request, UpdateInvoiceAction $action, Business $business, Invoice $invoice): JsonResponse
+    {
+        $invoice = $action->execute($business, $invoice, $request->toDto(), IfMatch::fromRequest($request));
+
+        return self::withVersion(new JsonResponse(InvoiceResourceData::from($invoice)), $invoice);
     }
 
     /**
