@@ -211,4 +211,22 @@ describe('If-Match', () =>
         // Assert: null, not undefined, so the request did arrive; the header is simply absent, as for clients and bank accounts
         expect(record.received).toBeNull();
     });
+
+    it.each([
+        ['NaN from putRequest', () => putRequest('/probe', {}, Number.NaN)],
+        ['-1 from putRequest', () => putRequest('/probe', {}, -1)],
+        ['1.5 from putRequest', () => putRequest('/probe', {}, 1.5)],
+        ['2^53 from putRequest', () => putRequest('/probe', {}, 2 ** 53)], // past the integers a number holds exactly
+        ['NaN from deleteRequest', () => deleteRequest('/probe', Number.NaN)],
+    ])('should throw a RangeError and send nothing for version %s', (_case, send) =>
+    {
+        // Arrange
+        const record = recordIfMatch();
+
+        // Act + Assert: thrown before the request, so it's synchronous
+        expect(send).toThrow(RangeError);
+
+        // Assert: undefined, not null: no request reached the server at all
+        expect(record.received).toBeUndefined();
+    });
 });
