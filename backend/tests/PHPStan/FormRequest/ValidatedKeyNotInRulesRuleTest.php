@@ -285,6 +285,20 @@ final class ValidatedKeyNotInRulesRuleTest extends RuleTestCase
         $this->analyse([self::FIXTURES.'NullableKeys.php'], $expectedErrors);
     }
 
+    #[Test]
+    public function should_skip_a_helper_call_when_the_class_declares_the_method_itself_instead_of_the_trait(): void
+    {
+        // Arrange: the class declares its own validatedStringOrNull(int $index, string $key), which PHP runs instead
+        // of the trait's. Taken as the trait's, line 28 would read the key 1 from its first argument. Line 29 reads an
+        // undeclared key, to show the class is analysed.
+        $expectedErrors = [
+            [sprintf(self::NOT_IN_RULES, 'missing', 'string()', 'Tests\PHPStan\FormRequest\Fixtures\DeclaresOwnHelper'), 29],
+        ];
+
+        // Act & Assert
+        $this->analyse([self::FIXTURES.'DeclaresOwnHelper.php'], $expectedErrors);
+    }
+
     /**
      * @return array<string, array{string, int}>
      */
