@@ -272,6 +272,19 @@ final class ValidatedKeyNotInRulesRuleTest extends RuleTestCase
         $this->analyse([self::FIXTURES.'NarrowingParents.php'], $expectedErrors);
     }
 
+    #[Test]
+    public function should_check_the_key_a_nullable_key_argument_names_instead_of_reporting_it_as_unknown(): void
+    {
+        // Arrange: rules() declares only a. Lines 27-28 pass `'a'|null` and `'b'|null`. A null key names no key, as in
+        // validated(null), so only the undeclared b is reported, and neither read counts as unknown.
+        $expectedErrors = [
+            [sprintf(self::NOT_IN_RULES, 'b', 'string()', 'Tests\PHPStan\FormRequest\Fixtures\NullableKeys'), 28],
+        ];
+
+        // Act & Assert
+        $this->analyse([self::FIXTURES.'NullableKeys.php'], $expectedErrors);
+    }
+
     /**
      * @return array<string, array{string, int}>
      */
