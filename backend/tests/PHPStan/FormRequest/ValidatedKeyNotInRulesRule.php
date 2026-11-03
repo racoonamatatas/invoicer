@@ -39,6 +39,8 @@ use PHPStan\Rules\RuleErrorBuilder;
  * - a read below a key with a bare `array` rule whose only child rules are added under an `if`: those optional children
  *   don't count, so the whole value counts as kept, although `validated()` keeps only the children on the requests
  *   that add them.
+ * - a key list with a dotted segment, such as `validated(['a.b', 'c'])`: `data_get()` takes `a.b` as one literal key,
+ *   which validated input never holds, but the rule joins the list into `a.b.c` and checks that.
  *
  * And where a key is reported that doesn't need to be:
  * - a subclass that overrides both `rules()` and the method that reads is still checked against the parent method's
