@@ -70,3 +70,23 @@ export const parseHundredths = (input: string): ParseResult<Hundredths> =>
     // The one place a number becomes `Hundredths`.
     return result.ok ? { ok: true, value: result.value as Hundredths } : result;
 };
+
+// 1001 becomes the decimal string `10.01` by moving the point two digits in,
+// so `Intl` gets the exact value instead of the float `1001 / 100`.
+const toDecimalString = (timesHundred: number): `${number}` =>
+{
+    const digits = String(timesHundred).padStart(3, '0');
+
+    return `${digits.slice(0, -2)}.${digits.slice(-2)}` as `${number}`;
+};
+
+// Dutch style: `€ 1.234,56`, the space after the sign a no-break space (U+00A0).
+const EUROS = new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' });
+
+// Trailing zeros dropped (`7,5`, `7`), and no grouping, so a formatted
+// quantity can be typed back as it is: the parser refuses `1.000`.
+const QUANTITY = new Intl.NumberFormat('nl-NL', { maximumFractionDigits: 2, useGrouping: false });
+
+export const formatCents = (cents: Cents): string => EUROS.format(toDecimalString(cents));
+
+export const formatHundredths = (hundredths: Hundredths): string => QUANTITY.format(toDecimalString(hundredths));
