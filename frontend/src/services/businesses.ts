@@ -1,4 +1,5 @@
 import { isNullableString, type DutchAddress } from '@/services/address';
+import type { Identified } from '@/services/entity';
 import { checkResponse, getRequest, postRequest, putRequest } from '@/services/http';
 
 // The countries a business can be registered in. A business is a KvK
@@ -10,9 +11,8 @@ export const BUSINESS_COUNTRY_CODES = ['NL'] as const;
 export type BusinessCountryCode = (typeof BUSINESS_COUNTRY_CODES)[number];
 
 // A business as the backend sends it (BusinessResourceData).
-export interface Business
+export interface Business extends Identified
 {
-    id: number;
     registered_name: string;
     kvk_number: string;
     vat_number: string;
@@ -31,6 +31,9 @@ export interface Business
 // one on a Dutch address, and a business is always Dutch, so a form has
 // nothing to show or send for it. Omit, not Pick: a field added to the
 // address belongs in this payload too, so it should arrive here by itself.
+// Not `New<Business>`: it differs in two fields (no `region`, a nullable
+// `payment_term_days`), and stripping and re-adding them reads worse than
+// this interface.
 export interface BusinessPayload extends Omit<DutchAddress, 'region'>
 {
     registered_name: string;
