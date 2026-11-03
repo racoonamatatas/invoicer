@@ -11,7 +11,7 @@
     // Adjust lib and types accordingly.
     // ES2022, the same as the app: app code compiled under this project (e.g.
     // `new Error(message, { cause })`) must type-check the same way here.
-    "lib": ["ES2022"],
+    "lib": ["ES2022", "ES2023.Intl"],
     "types": ["node", "jsdom", "vite/client"],
 
     // `vue-tsc --build` produces a .tsbuildinfo file for incremental type-checking.

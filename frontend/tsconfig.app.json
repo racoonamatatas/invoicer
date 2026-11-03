@@ -5,6 +5,11 @@
     // Extra safety for array and object lookups, but may have false positives.
     "noUncheckedIndexedAccess": true,
 
+    // The preset's list plus ES2023.Intl, which types `Intl.NumberFormat.format()`
+    // taking a decimal string, so an amount is formatted without becoming a float.
+    // Browsers have it since Chrome 106, Firefox 116 and Safari 15.4.
+    "lib": ["ES2022", "ES2023.Intl", "DOM", "DOM.Iterable"],
+
     // Path mapping for cleaner imports.
     "paths": {
       "@/*": ["./src/*"]
