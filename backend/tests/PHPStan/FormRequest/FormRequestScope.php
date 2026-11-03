@@ -7,7 +7,11 @@ namespace Tests\PHPStan\FormRequest;
 use Illuminate\Foundation\Http\FormRequest;
 use PHPStan\Analyser\Scope;
 use PHPStan\Type\Constant\ConstantArrayType;
+use PHPStan\Type\Constant\ConstantStringType;
+use PHPStan\Type\MixedType;
+use PHPStan\Type\NullType;
 use PHPStan\Type\Type;
+use PHPStan\Type\TypeCombinator;
 
 /**
  * What the collectors share: which request a node belongs to, and which keys a type spells out.
@@ -25,6 +29,44 @@ final class FormRequestScope
     }
 
     /**
+     * A key argument as a method that reads one key sees it. Laravel's `data_get()` takes a list as the segments of
+     * one dotted path, so `['a', 'b']` names `a.b`, and `[]` names no key at all, like null. Any other type is
+     * returned as it is.
+     *
+     * A list with a segment that isn't one known string or int can't be joined: it becomes `mixed`, an unknown key.
+     */
+    public static function asOnePath(Type $type): Type
+    {
+        if (! $type->isConstantArray()->yes())
+        {
+            return $type;
+        }
+
+        $paths = [];
+
+        foreach ($type->getConstantArrays() as $array)
+        {
+            $segments = [];
+
+            foreach ($array->getValueTypes() as $valueType)
+            {
+                $values = $valueType->getConstantScalarValues();
+
+                if (count($values) !== 1 || ! (is_string($values[0]) || is_int($values[0])))
+                {
+                    return new MixedType;
+                }
+
+                $segments[] = (string) $values[0];
+            }
+
+            $paths[] = $segments === [] ? new NullType : new ConstantStringType(implode('.', $segments));
+        }
+
+        return TypeCombinator::union(...$paths);
+    }
+
+    /**
      * The keys a key argument names: one for `'email'` or `0`, several for a union like `'a'|'b'` or a list like
      * `['a', 'b']`, none for `[]` or `null`, which `validated(null)` takes as "the whole input". A null in the list
      * means a key that isn't known before the code runs, which the rule reports rather than skips.
@@ -37,6 +79,10 @@ final class FormRequestScope
         {
             return [];
         }
+
+        // A null that may be passed names no key, as above, so `'a'|null` names just `a`. Left in, it would hide the
+        // constant strings from getConstantStrings() and the key would count as unknown.
+        $type = TypeCombinator::removeNull($type);
 
         $strings = $type->getConstantStrings();
 

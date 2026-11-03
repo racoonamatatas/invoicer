@@ -23,7 +23,8 @@ use PHPStan\Rules\RuleErrorBuilder;
  *
  * Strict where it can't tell: a key that isn't known before the code runs, a `rules()` whose keys PHPStan can't see
  * (an `array<string, …>` spread in, say) that a read is checked against, and a concrete request with no `rules()` at
- * all are each reported.
+ * all are each reported. So is a request with a `validator()`, which Laravel builds the validator with instead of
+ * `rules()`. A `withValidator()` changes nothing here: it adds to the validator built from `rules()`.
  *
  * Needs a full run to be complete. A run of a few files, such as an editor's, skips a read whose `rules()` is in a file
  * outside the run, and doesn't see the subclasses outside it.
@@ -34,7 +35,12 @@ use PHPStan\Rules\RuleErrorBuilder;
  * - a read on a `ValidatedInput` outside a request, which doesn't say which request it came from; inside one, it is
  *   checked against the request the code is in, even for `$other->safe()->string('x')`;
  * - a read on a receiver typed as the base `FormRequest`, which names no `rules()`;
- * - a read of the raw input, such as `$this->integer('x')` in `after()`: that isn't validated input.
+ * - a read of the raw input, such as `$this->integer('x')` in `after()`: that isn't validated input;
+ * - a read below a key with a bare `array` rule whose only child rules are added under an `if`: those optional children
+ *   don't count, so the whole value counts as kept, although `validated()` keeps only the children on the requests
+ *   that add them.
+ * - a key list with a dotted segment, such as `validated(['a.b', 'c'])`: `data_get()` takes `a.b` as one literal key,
+ *   which validated input never holds, but the rule joins the list into `a.b.c` and checks that.
  *
  * And where a key is reported that doesn't need to be:
  * - a subclass that overrides both `rules()` and the method that reads is still checked against the parent method's
@@ -60,9 +66,10 @@ final class ValidatedKeyNotInRulesRule implements Rule
         $errors = [];
 
         // A `rules()` with unknown keys is reported once, and only when a read is checked against it. A class with no
-        // `rules()` is reported once too, at its first read.
+        // `rules()`, or with a `validator()`, is reported once too, at its first read.
         $unknownRules = [];
         $withoutRules = [];
+        $withValidator = [];
 
         foreach ($node->get(ValidatedKeyReadCollector::class) as $file => $readsInFile)
         {
@@ -74,7 +81,20 @@ final class ValidatedKeyNotInRulesRule implements Rule
                 {
                     $rulesIn = $classes[$runner]['rulesIn'];
 
-                    if ($rulesIn === null)
+                    if ($classes[$runner]['hasValidator'])
+                    {
+                        $withValidator[$runner] ??= $this->error(
+                            sprintf(
+                                'Reads validated input with %s, but %s builds its validator in validator(), which replaces rules(), so the keys it validates can\'t be known.',
+                                $how,
+                                $runner,
+                            ),
+                            'invoicer.validatedReadWithValidator',
+                            $file,
+                            $line,
+                        );
+                    }
+                    elseif ($rulesIn === null)
                     {
                         $withoutRules[$runner] ??= $this->error(
                             sprintf('Reads validated input with %s, but %s has no rules() to declare its keys.', $how, $runner),
@@ -86,11 +106,11 @@ final class ValidatedKeyNotInRulesRule implements Rule
                     elseif (isset($rulesByClass[$rulesIn]))
                     {
                         // Not set: the `rules()` is in a file outside this run, so there is nothing to check against.
-                        $checkAgainst[$rulesIn] = $rulesByClass[$rulesIn]['keys'];
+                        $checkAgainst[$rulesIn] = $rulesByClass[$rulesIn];
                     }
                 }
 
-                foreach ($checkAgainst as $rulesIn => $declared)
+                foreach ($checkAgainst as $rulesIn => ['keys' => $declared, 'narrowing' => $narrowing])
                 {
                     if ($declared === null)
                     {
@@ -101,7 +121,7 @@ final class ValidatedKeyNotInRulesRule implements Rule
 
                     foreach ($keys as $key)
                     {
-                        if ($key !== null && ! self::isDeclared($key, $declared))
+                        if ($key !== null && ! self::isDeclared($key, $declared, $narrowing))
                         {
                             $errors[] = $this->error(
                                 sprintf(
@@ -130,7 +150,7 @@ final class ValidatedKeyNotInRulesRule implements Rule
             }
         }
 
-        array_push($errors, ...array_values($withoutRules));
+        array_push($errors, ...array_values($withoutRules), ...array_values($withValidator));
 
         foreach (array_keys($unknownRules) as $class)
         {
@@ -149,9 +169,10 @@ final class ValidatedKeyNotInRulesRule implements Rule
     }
 
     /**
-     * Each analysed request class: its parents, the class whose `rules()` it runs, and whether it is abstract.
+     * Each analysed request class: its parents, the class whose `rules()` it runs, whether it is abstract, and whether
+     * it builds its validator in `validator()`.
      *
-     * @return array<string, array{parents: list<string>, rulesIn: string|null, abstract: bool}>
+     * @return array<string, array{parents: list<string>, rulesIn: string|null, abstract: bool, hasValidator: bool}>
      */
     private function classes(CollectedDataNode $node): array
     {
@@ -159,9 +180,14 @@ final class ValidatedKeyNotInRulesRule implements Rule
 
         foreach ($node->get(FormRequestClassCollector::class) as $recordsInFile)
         {
-            foreach ($recordsInFile as [$lineage, $rulesIn, $abstract])
+            foreach ($recordsInFile as [$lineage, $rulesIn, $abstract, $hasValidator])
             {
-                $classes[$lineage[0]] = ['parents' => array_slice($lineage, 1), 'rulesIn' => $rulesIn, 'abstract' => $abstract];
+                $classes[$lineage[0]] = [
+                    'parents' => array_slice($lineage, 1),
+                    'rulesIn' => $rulesIn,
+                    'abstract' => $abstract,
+                    'hasValidator' => $hasValidator,
+                ];
             }
         }
 
@@ -169,9 +195,9 @@ final class ValidatedKeyNotInRulesRule implements Rule
     }
 
     /**
-     * Each request's `rules()`: the keys every `return` in it declares, and where it is.
+     * Each request's `rules()`: the keys every `return` in it declares, the keys any `return` narrows, and where it is.
      *
-     * @return array<string, array{keys: list<string>|null, file: string, line: int}>
+     * @return array<string, array{keys: list<string>|null, narrowing: list<string>, file: string, line: int}>
      */
     private function rulesByClass(CollectedDataNode $node): array
     {
@@ -179,13 +205,13 @@ final class ValidatedKeyNotInRulesRule implements Rule
 
         foreach ($node->get(RulesKeysCollector::class) as $file => $returnsInFile)
         {
-            foreach ($returnsInFile as [$class, $keys, $line])
+            foreach ($returnsInFile as [$class, $keys, $narrowing, $line])
             {
                 $known = $rulesByClass[$class] ?? null;
 
                 if ($known === null)
                 {
-                    $rulesByClass[$class] = ['keys' => $keys, 'file' => $file, 'line' => $line];
+                    $rulesByClass[$class] = ['keys' => $keys, 'narrowing' => $narrowing, 'file' => $file, 'line' => $line];
 
                     continue;
                 }
@@ -195,6 +221,8 @@ final class ValidatedKeyNotInRulesRule implements Rule
                 $known['keys'] = $known['keys'] === null || $keys === null
                     ? null
                     : array_values(array_intersect($known['keys'], $keys));
+                // A key narrows when any `return` narrows it: that reports more reads, not fewer.
+                $known['narrowing'] = array_values(array_unique([...$known['narrowing'], ...$narrowing]));
                 $rulesByClass[$class] = $known;
             }
         }
@@ -206,7 +234,7 @@ final class ValidatedKeyNotInRulesRule implements Rule
      * The concrete classes a read runs in: each reading class unless it is abstract, and each concrete subclass.
      *
      * @param  list<string>  $readers
-     * @param  array<string, array{parents: list<string>, rulesIn: string|null, abstract: bool}>  $classes
+     * @param  array<string, array{parents: list<string>, rulesIn: string|null, abstract: bool, hasValidator: bool}>  $classes
      * @return list<string>
      */
     private function runners(array $readers, array $classes): array
@@ -236,7 +264,7 @@ final class ValidatedKeyNotInRulesRule implements Rule
 
     /**
      * @param  list<string>  $readers
-     * @param  array<string, array{parents: list<string>, rulesIn: string|null, abstract: bool}>  $classes
+     * @param  array<string, array{parents: list<string>, rulesIn: string|null, abstract: bool, hasValidator: bool}>  $classes
      */
     private function anyAnalysed(array $readers, array $classes): bool
     {
@@ -257,12 +285,13 @@ final class ValidatedKeyNotInRulesRule implements Rule
      * - `lines.0.description` is kept by a rule for `lines.*.description`: `*` stands for any one segment.
      * - `meta` is kept by a rule for `meta.*.x` alone: validated input holds every parent of a key with a rule, so the
      *   read sees the array of what passed.
-     * - `meta.foo` is kept by a rule for `meta` that has no rules below it: validated() keeps that whole value. With a
-     *   rule below it, such as `meta.*.x`, only the children with rules are kept.
+     * - `meta.foo` is kept by a rule for `meta`: validated() keeps that whole value. Only when `meta`'s rules hold a bare
+     *   `array` or `list` and a rule sits below it, such as `meta.*.x`, are just the children with rules kept.
      *
      * @param  list<string>  $declared
+     * @param  list<string>  $narrowing
      */
-    private static function isDeclared(string $key, array $declared): bool
+    private static function isDeclared(string $key, array $declared, array $narrowing): bool
     {
         $readSegments = explode('.', $key);
 
@@ -271,7 +300,7 @@ final class ValidatedKeyNotInRulesRule implements Rule
             $declaredSegments = explode('.', $declaredKey);
             $isShorter = count($declaredSegments) < count($readSegments);
 
-            if ($isShorter && self::hasChildRules($declaredKey, $declared))
+            if ($isShorter && in_array($declaredKey, $narrowing, true) && self::hasChildRules($declaredKey, $declared))
             {
                 continue;
             }

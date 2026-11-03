@@ -17,7 +17,8 @@ trait ReadsValidatedInput
     /**
      * Not `$safe->string()`: that turns null into "", and "?: null" afterwards would also turn "0" into null.
      *
-     * Final, so a class can't override it with a different first parameter than the one the rule reads its key from.
+     * Final, so a subclass can't override it with a different first parameter than the one the rule reads its key from.
+     * The class that uses the trait still can, by declaring the method itself: the rule then skips the trait's.
      */
     final protected function validatedStringOrNull(string $key): ?string
     {

@@ -11,6 +11,6 @@ final class SomeController
      */
     public function store(OtherRequest $request): array
     {
-        return [$request->validated('y'), $request->validated('z'), $request->ValidatedStringOrNull('w')];
+        return [$request->validated('y'), $request->validated('z')];
     }
 }

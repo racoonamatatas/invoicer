@@ -28,8 +28,9 @@ final class ValidatedKeyNotInRulesRuleTest extends RuleTestCase
     #[Override]
     public static function getAdditionalConfigFiles(): array
     {
-        // Larastan's extension, so the analysis knows what FormRequest::safe() and validated() return.
-        return [__DIR__.'/../../../vendor/larastan/larastan/extension.neon'];
+        // Larastan's extension, so the analysis knows what FormRequest::safe() and validated() return, and the visitor
+        // that marks unset() and ??= targets for the collector.
+        return [__DIR__.'/../../../vendor/larastan/larastan/extension.neon', __DIR__.'/visitors.neon'];
     }
 
     #[Test]
@@ -180,12 +181,11 @@ final class ValidatedKeyNotInRulesRuleTest extends RuleTestCase
     public function should_check_a_read_on_another_request_against_that_requests_rules_also_outside_a_request(): void
     {
         // Arrange: OtherRequest declares only y. ReadsAnotherRequest declares own but reads it from an OtherRequest on
-        // line 21. SomeController reads z and, through the trait helper written with capitals, w on its line 14.
+        // line 21. SomeController reads z on its line 14.
         $other = 'Tests\PHPStan\FormRequest\Fixtures\OtherRequest';
         $expectedErrors = [
             [sprintf(self::NOT_IN_RULES, 'own', 'validated()', $other), 21],
             [sprintf(self::NOT_IN_RULES, 'z', 'validated()', $other), 14],
-            [sprintf(self::NOT_IN_RULES, 'w', 'ValidatedStringOrNull()', $other), 14],
         ];
 
         // Act & Assert
@@ -254,6 +254,127 @@ final class ValidatedKeyNotInRulesRuleTest extends RuleTestCase
         $this->analyse([self::FIXTURES.'EdgeKeys.php'], $expectedErrors);
     }
 
+    #[Test]
+    public function should_narrow_a_parent_to_its_child_rules_only_when_its_rules_hold_a_bare_array_or_list(): void
+    {
+        // Arrange: each parent has a child rule for *.x, and each read below it is of foo.y, which has no rule.
+        // Guards third-party code: Laravel's Validator::validated() drops such a child only when the parent's rules
+        // hold the whole token array or list, so lines 38-40 keep it: no rule names array, array:a,b compares as a
+        // different token, and a list item isn't split on |. Line 41 reads the child with a rule. Lines 42-43 read
+        // under a bare array and a piped list, where validated() drops foo.y.
+        $class = 'Tests\PHPStan\FormRequest\Fixtures\NarrowingParents';
+        $expectedErrors = [
+            [sprintf(self::NOT_IN_RULES, 'narrowed.foo.y', 'string()', $class), 42],
+            [sprintf(self::NOT_IN_RULES, 'piped.foo.y', 'string()', $class), 43],
+        ];
+
+        // Act & Assert
+        $this->analyse([self::FIXTURES.'NarrowingParents.php'], $expectedErrors);
+    }
+
+    #[Test]
+    public function should_check_the_key_a_nullable_key_argument_names_instead_of_reporting_it_as_unknown(): void
+    {
+        // Arrange: rules() declares only a. Lines 27-28 pass `'a'|null` and `'b'|null`. A null key names no key, as in
+        // validated(null), so only the undeclared b is reported, and neither read counts as unknown.
+        $expectedErrors = [
+            [sprintf(self::NOT_IN_RULES, 'b', 'string()', 'Tests\PHPStan\FormRequest\Fixtures\NullableKeys'), 28],
+        ];
+
+        // Act & Assert
+        $this->analyse([self::FIXTURES.'NullableKeys.php'], $expectedErrors);
+    }
+
+    #[Test]
+    public function should_skip_a_helper_call_when_the_class_declares_the_method_itself_instead_of_the_trait(): void
+    {
+        // Arrange: the class declares its own validatedStringOrNull(int $index, string $key), which PHP runs instead
+        // of the trait's. Taken as the trait's, line 28 would read the key 1 from its first argument. Line 29 reads an
+        // undeclared key, to show the class is analysed.
+        $expectedErrors = [
+            [sprintf(self::NOT_IN_RULES, 'missing', 'string()', 'Tests\PHPStan\FormRequest\Fixtures\DeclaresOwnHelper'), 29],
+        ];
+
+        // Act & Assert
+        $this->analyse([self::FIXTURES.'DeclaresOwnHelper.php'], $expectedErrors);
+    }
+
+    #[Test]
+    public function should_read_a_key_list_as_one_path_or_as_several_keys_the_way_each_method_does(): void
+    {
+        // Arrange: rules() declares a.b and c. Guards third-party code: Laravel's data_get() takes a list as one
+        // dotted path, so lines 27-29 read a.b, and line 30's empty list reads the whole input. safe() passes its list
+        // to only(), so line 31 reads a and c, a being a.b's parent. Line 32 reads the path a.x, and lines 33-34 the
+        // keys x and y. whenHas() on line 35 checks a and b as keys, then reads a.b: only b is missing. Line 36's
+        // second segment isn't known, so neither is the path.
+        $class = 'Tests\PHPStan\FormRequest\Fixtures\ArrayKeyArguments';
+        $expectedErrors = [
+            [sprintf(self::NOT_IN_RULES, 'a.x', 'string()', $class), 32],
+            [sprintf(self::NOT_IN_RULES, 'x', 'only()', $class), 33],
+            [sprintf(self::NOT_IN_RULES, 'y', 'collect()', $class), 34],
+            [sprintf(self::NOT_IN_RULES, 'b', 'whenHas()', $class), 35],
+            ['The key read with string() can\'t be known before it runs, so it can\'t be checked against rules(): pass it as a literal.', 36],
+        ];
+
+        // Act & Assert
+        $this->analyse([self::FIXTURES.'ArrayKeyArguments.php'], $expectedErrors);
+    }
+
+    #[Test]
+    public function should_skip_unset_and_plain_writes_and_report_compound_assignments_which_read_first(): void
+    {
+        // Arrange: rules() declares only a, and every key below is undeclared. unset() on lines 23-24 and the plain
+        // write on line 25 read nothing. ??= on lines 26 and 28 reads the key and writes only when it's missing, so
+        // an undeclared key always gets the default; .= on line 27 reads before it appends.
+        $class = 'Tests\PHPStan\FormRequest\Fixtures\WritesAndCompoundAssigns';
+        $expectedErrors = [
+            [sprintf(self::NOT_IN_RULES, 'x', '[]', $class), 26],
+            [sprintf(self::NOT_IN_RULES, 'y', '[]', $class), 27],
+            [sprintf(self::NOT_IN_RULES, 'z', '->property', $class), 28],
+        ];
+
+        // Act & Assert
+        $this->analyse([self::FIXTURES.'WritesAndCompoundAssigns.php'], $expectedErrors);
+    }
+
+    #[Test]
+    public function should_report_a_request_with_validator_once_and_a_request_with_only_with_validator_as_without_rules(): void
+    {
+        // Arrange: Guards third-party code: Laravel's FormRequest::getValidatorInstance() builds the validator with
+        // validator() when there is one, and never calls rules(). So BuildsOwnValidator's reads on lines 36-37 can't be
+        // checked: one error, at the first. withValidator() only adds to the validator built from rules(), so
+        // AddsToValidator, which has no rules(), validates no key.
+        $expectedErrors = [
+            [
+                'Reads validated input with string(), but Tests\PHPStan\FormRequest\Fixtures\AddsToValidator has no rules() to declare its keys.',
+                19,
+            ],
+            [
+                'Reads validated input with string(), but Tests\PHPStan\FormRequest\Fixtures\BuildsOwnValidator builds its validator in validator(), which replaces rules(), so the keys it validates can\'t be known.',
+                36,
+            ],
+        ];
+
+        // Act & Assert
+        $this->analyse([self::FIXTURES.'BuildsOwnValidator.php', self::FIXTURES.'AddsToValidator.php'], $expectedErrors);
+    }
+
+    #[Test]
+    public function should_find_a_helper_the_trait_brings_in_through_a_parent_class_under_its_alias_or_its_own_name(): void
+    {
+        // Arrange: the abstract HelperParent uses the trait with an alias, and ReadsThroughParentHelper declares only
+        // name. Line 23 reads name. Line 24 reads missing through the alias, which only the parent's trait aliases
+        // name, so it's found by walking up to the parent. Line 25 reads other under the helper's own name.
+        $class = 'Tests\PHPStan\FormRequest\Fixtures\ReadsThroughParentHelper';
+        $expectedErrors = [
+            [sprintf(self::NOT_IN_RULES, 'missing', 'stringOrNull()', $class), 24],
+            [sprintf(self::NOT_IN_RULES, 'other', 'validatedStringOrNull()', $class), 25],
+        ];
+
+        // Act & Assert
+        $this->analyse([self::FIXTURES.'HelperParent.php', self::FIXTURES.'ReadsThroughParentHelper.php'], $expectedErrors);
+    }
+
     /**
      * @return array<string, array{string, int}>
      */
@@ -288,16 +409,18 @@ final class ValidatedKeyNotInRulesRuleTest extends RuleTestCase
     #[Test]
     public function should_read_static_calls_aliased_helpers_union_receivers_and_nullsafe_calls_but_not_writes(): void
     {
-        // Arrange: rules() declares only name. Line 31 writes a key, which reads nothing. Lines 34-38 read p through
-        // parent::, s through self::, alias through the trait helper under an alias, u on an OtherRequest|stdClass
-        // (checked against OtherRequest), and n through a nullsafe call.
+        // Arrange: rules() declares only name. Line 31 writes a key, which reads nothing. Lines 34-39 read p through
+        // parent::, s through self::, alias through the trait helper under an alias, capitals through its own name in
+        // other capitals (PHP method names are case-insensitive), u on an OtherRequest|stdClass (checked against
+        // OtherRequest), and n through a nullsafe call.
         $class = 'Tests\PHPStan\FormRequest\Fixtures\ReadShapes';
         $expectedErrors = [
             [sprintf(self::NOT_IN_RULES, 'p', 'parent::validated()', $class), 34],
             [sprintf(self::NOT_IN_RULES, 's', 'self::validated()', $class), 35],
             [sprintf(self::NOT_IN_RULES, 'alias', 'stringOrNull()', $class), 36],
-            [sprintf(self::NOT_IN_RULES, 'u', 'validated()', 'Tests\PHPStan\FormRequest\Fixtures\OtherRequest'), 37],
-            [sprintf(self::NOT_IN_RULES, 'n', 'string()', $class), 38],
+            [sprintf(self::NOT_IN_RULES, 'capitals', 'ValidatedStringOrNull()', $class), 37],
+            [sprintf(self::NOT_IN_RULES, 'u', 'validated()', 'Tests\PHPStan\FormRequest\Fixtures\OtherRequest'), 38],
+            [sprintf(self::NOT_IN_RULES, 'n', 'string()', $class), 39],
         ];
 
         // Act & Assert

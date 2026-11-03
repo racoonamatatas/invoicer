@@ -34,6 +34,7 @@ final class ReadShapes extends FormRequest
             parent::validated('p'),
             self::validated('s'),
             $this->stringOrNull('alias'),
+            $this->ValidatedStringOrNull('capitals'),
             $union->validated('u'),
             $safe?->string('n'),
         ];
