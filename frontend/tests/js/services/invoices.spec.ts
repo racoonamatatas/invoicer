@@ -1,6 +1,34 @@
-import { describe, it, expect, expectTypeOf } from 'vitest';
+import type { AxiosResponse } from 'axios';
+import { beforeEach, describe, it, expect, expectTypeOf, vi } from 'vitest';
 
-import { isInvoice, isInvoiceSummary, type Invoice, type InvoicePayload, type VatTreatment } from '@/services/invoices';
+import { deleteRequest, getRequest, postRequest, putRequest, UnexpectedResponseError } from '@/services/http';
+import {
+    createInvoice,
+    deleteInvoice,
+    fetchInvoice,
+    InvoiceNotFoundError,
+    InvoiceVersionConflictError,
+    isInvoice,
+    isInvoiceSummary,
+    listInvoices,
+    updateInvoice,
+    type Invoice,
+    type InvoicePayload,
+    type VatTreatment,
+} from '@/services/invoices';
+
+import { axiosErrorWith } from '../utility/axiosErrorWith';
+
+// Only the request functions become vi.fn()s, so no request leaves the test.
+// checkResponse, versionFrom and UnexpectedResponseError stay real: they are
+// what the service tests are about.
+vi.mock('@/services/http', async (importOriginal) => ({
+    ...await importOriginal<typeof import('@/services/http')>(),
+    getRequest: vi.fn<typeof getRequest>(),
+    postRequest: vi.fn<typeof postRequest>(),
+    putRequest: vi.fn<typeof putRequest>(),
+    deleteRequest: vi.fn<typeof deleteRequest>(),
+}));
 
 // Type-level tests: vue-tsc checks this file, an `@ts-expect-error` with no
 // error under it fails the build, and so does a failed expectTypeOf. The
@@ -198,5 +226,194 @@ describe('isInvoiceSummary', () =>
     {
         // Act + Assert
         expect(isInvoiceSummary(without(summary, key))).toBe(false);
+    });
+});
+
+// A successful response as axios hands it over: the body, and the version as
+// a quoted ETag under its lowercased name. Through `unknown`: with only the
+// two fields the service reads, TypeScript calls the cast a likely mistake.
+const respondWith = (data: unknown, version: number) =>
+    ({ data, headers: { etag: `"${version}"` } }) as unknown as AxiosResponse;
+
+// What the form sends for the domestic fixture: its fields without the ones
+// the backend adds (id, status, number, line totals, totals).
+const domesticPayload: InvoicePayload = {
+    vat_treatment: 'domestic',
+    client_id: 3,
+    bank_account_id: 5,
+    payment_term_days: 14,
+    lines: [
+        { description: 'Fietsreparatie', quantity_hundredths: 150, unit_price_cents: 6500, vat_option: 'high' },
+        { description: 'Fietsles', quantity_hundredths: 100, unit_price_cents: 4000, vat_option: 'exempt' },
+    ],
+};
+
+describe('invoices service', () =>
+{
+    beforeEach(() =>
+    {
+        vi.resetAllMocks();
+    });
+
+    describe('listInvoices', () =>
+    {
+        const { lines: _lines, totals: _totals, ...summary } = domesticInvoice;
+
+        it('should get the business\'s invoices and return their summaries', async () =>
+        {
+            // Arrange
+            vi.mocked(getRequest).mockResolvedValue({ data: [summary] } as AxiosResponse);
+
+            // Act
+            const invoices = await listInvoices(1);
+
+            // Assert
+            expect(getRequest).toHaveBeenCalledWith('/businesses/1/invoices');
+            expect(invoices).toEqual([summary]);
+        });
+
+        it('should throw an UnexpectedResponseError when one summary is malformed', async () =>
+        {
+            // Arrange: one good summary next to one without its treatment
+            vi.mocked(getRequest).mockResolvedValue({ data: [summary, { ...summary, vat_treatment: undefined }] } as AxiosResponse);
+
+            // Act + Assert
+            await expect(listInvoices(1)).rejects.toThrow(UnexpectedResponseError);
+        });
+    });
+
+    describe('fetchInvoice', () =>
+    {
+        it('should get the invoice and return it with the version its ETag names', async () =>
+        {
+            // Arrange
+            vi.mocked(getRequest).mockResolvedValue(respondWith(domesticInvoice, 3));
+
+            // Act
+            const result = await fetchInvoice(1, 7);
+
+            // Assert
+            expect(getRequest).toHaveBeenCalledWith('/businesses/1/invoices/7');
+            expect(result).toEqual({ invoice: domesticInvoice, version: 3 });
+        });
+
+        it('should throw an UnexpectedResponseError when the response has no ETag', async () =>
+        {
+            // Arrange: a valid body, so only the missing version can fail it
+            vi.mocked(getRequest).mockResolvedValue({ data: domesticInvoice, headers: {} } as AxiosResponse);
+
+            // Act + Assert
+            await expect(fetchInvoice(1, 7)).rejects.toThrow(UnexpectedResponseError);
+        });
+
+        it('should throw an InvoiceNotFoundError carrying the 404 (not found) when the invoice isn\'t the business\'s', async () =>
+        {
+            // Arrange
+            const error = axiosErrorWith(404, { message: 'Not Found' });
+            vi.mocked(getRequest).mockRejectedValue(error);
+
+            // Act
+            const thrown: unknown = await fetchInvoice(1, 7).catch((rejection: unknown) => rejection);
+
+            // Assert
+            expect(thrown).toBeInstanceOf(InvoiceNotFoundError);
+            expect(thrown).toMatchObject({ cause: error });
+        });
+
+        it('should rethrow a 500 (server error) unchanged', async () =>
+        {
+            // Arrange
+            const error = axiosErrorWith(500, { message: 'Server Error' });
+            vi.mocked(getRequest).mockRejectedValue(error);
+
+            // Act + Assert
+            await expect(fetchInvoice(1, 7)).rejects.toBe(error);
+        });
+    });
+
+    describe('createInvoice', () =>
+    {
+        it('should post the payload and return the draft with its first version', async () =>
+        {
+            // Arrange
+            vi.mocked(postRequest).mockResolvedValue(respondWith(domesticInvoice, 1));
+
+            // Act
+            const result = await createInvoice(1, domesticPayload);
+
+            // Assert
+            expect(postRequest).toHaveBeenCalledWith('/businesses/1/invoices', domesticPayload);
+            expect(result).toEqual({ invoice: domesticInvoice, version: 1 });
+        });
+    });
+
+    describe('updateInvoice', () =>
+    {
+        it('should put the payload with the version it last saw and return the next version', async () =>
+        {
+            // Arrange
+            vi.mocked(putRequest).mockResolvedValue(respondWith(domesticInvoice, 4));
+
+            // Act
+            const result = await updateInvoice(1, 7, domesticPayload, 3);
+
+            // Assert: version 3 goes out as If-Match, version 4 comes back
+            expect(putRequest).toHaveBeenCalledWith('/businesses/1/invoices/7', domesticPayload, 3);
+            expect(result).toEqual({ invoice: domesticInvoice, version: 4 });
+        });
+
+        it('should throw an InvoiceVersionConflictError carrying the 412 (precondition failed) when the draft was saved elsewhere', async () =>
+        {
+            // Arrange
+            const error = axiosErrorWith(412, { message: 'Precondition Failed' });
+            vi.mocked(putRequest).mockRejectedValue(error);
+
+            // Act
+            const thrown: unknown = await updateInvoice(1, 7, domesticPayload, 3).catch((rejection: unknown) => rejection);
+
+            // Assert
+            expect(thrown).toBeInstanceOf(InvoiceVersionConflictError);
+            expect(thrown).toMatchObject({ cause: error });
+        });
+
+        it('should rethrow a 428 (precondition required) unchanged, because a missing If-Match is a bug, not a conflict', async () =>
+        {
+            // Arrange
+            const error = axiosErrorWith(428, { message: 'Precondition Required' });
+            vi.mocked(putRequest).mockRejectedValue(error);
+
+            // Act + Assert
+            await expect(updateInvoice(1, 7, domesticPayload, 3)).rejects.toBe(error);
+        });
+    });
+
+    describe('deleteInvoice', () =>
+    {
+        it('should delete the invoice with the version it last saw', async () =>
+        {
+            // Arrange: a 204 (no content) has no body
+            vi.mocked(deleteRequest).mockResolvedValue({ data: '' } as AxiosResponse);
+
+            // Act
+            const result = await deleteInvoice(1, 7, 3);
+
+            // Assert
+            expect(deleteRequest).toHaveBeenCalledWith('/businesses/1/invoices/7', 3);
+            expect(result).toBeUndefined();
+        });
+
+        it('should throw an InvoiceVersionConflictError carrying the 412 (precondition failed) when the draft was saved elsewhere', async () =>
+        {
+            // Arrange
+            const error = axiosErrorWith(412, { message: 'Precondition Failed' });
+            vi.mocked(deleteRequest).mockRejectedValue(error);
+
+            // Act
+            const thrown: unknown = await deleteInvoice(1, 7, 3).catch((rejection: unknown) => rejection);
+
+            // Assert
+            expect(thrown).toBeInstanceOf(InvoiceVersionConflictError);
+            expect(thrown).toMatchObject({ cause: error });
+        });
     });
 });
