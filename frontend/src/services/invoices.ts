@@ -302,6 +302,11 @@ export class InvoiceVersionConflictError extends Error
     }
 }
 
+// The wrapped errors keep the whole axios error as `cause`, so the page can
+// still reach the response. Unlike UnexpectedResponseError, that means they
+// carry the request too: on an update, `cause.config.data` is the invoice
+// payload. An error reporter wired up later must scrub it.
+
 // Which failed statuses a function turns into its own error class. A status
 // not listed is thrown as it is.
 type ErrorFor = Partial<Record<number, (cause: unknown) => Error>>;
@@ -319,7 +324,11 @@ const rethrow = (error: unknown, wrappers: ErrorFor): never =>
 const notFound = (cause: unknown): Error => new InvoiceNotFoundError(cause);
 const versionConflict = (cause: unknown): Error => new InvoiceVersionConflictError(cause);
 
-// The body checked against isInvoice and the ETag read as its version.
+// The body checked against isInvoice and the ETag read as its version. On a
+// create or an update this runs after the write was stored, so an
+// UnexpectedResponseError from here does not mean nothing changed: retrying
+// a create would make a second draft, and an update's new version is lost.
+// The page should reload the list or the invoice, not retry.
 const versionedInvoiceFrom = (endpoint: string, response: AxiosResponse<unknown>): VersionedInvoice =>
 {
     return {
@@ -346,7 +355,9 @@ export const fetchInvoice = async (businessId: number, invoiceId: number): Promi
 };
 
 // 201 (created) with the draft and its first version. A 422 is thrown, not
-// caught, so the form can show it next to the field.
+// caught, so the form can show it next to the field. An
+// UnexpectedResponseError means the draft may exist: see
+// versionedInvoiceFrom().
 export const createInvoice = async (businessId: number, payload: InvoicePayload): Promise<VersionedInvoice> =>
 {
     const endpoint = endpointFor(businessId);
@@ -357,7 +368,9 @@ export const createInvoice = async (businessId: number, payload: InvoicePayload)
 // Replaces the draft, lines included, if `version` is still its current one:
 // 200 (ok) with the result and its next version. A 412 (precondition failed)
 // is thrown as an InvoiceVersionConflictError and a 404 (not found) as an
-// InvoiceNotFoundError; a 422 is thrown as it is, for the form. `version` is required here
+// InvoiceNotFoundError; a 422 is thrown as it is, for the form. An
+// UnexpectedResponseError means the save may have been stored: see
+// versionedInvoiceFrom(). `version` is required here
 // although putRequest() makes it optional: an invoice is always versioned.
 export const updateInvoice = async (businessId: number, invoiceId: number, payload: InvoicePayload, version: number): Promise<VersionedInvoice> =>
 {
