@@ -164,3 +164,23 @@ describe('AddressRules for any address', function (): void {
         expect($validator->errors()->first('country_code'))->toBe('The country code field must be a country code, like NL.');
     });
 });
+
+describe('AddressRules::forAddress() and its @return shape', function (): void {
+
+    it('should return exactly the keys its @return array shape names', function (): void {
+        // Arrange: the shape is what tells PHPStan which keys a request spreads in. PHPStan flags a key the shape names
+        // but the array lacks, not one the array has but the shape lacks, so that direction is checked here.
+        $docComment = new ReflectionMethod(AddressRules::class, 'forAddress')->getDocComment();
+        if ($docComment === false || preg_match('/@return array\{(.*?)\}\s*\*\//s', $docComment, $shape) !== 1)
+        {
+            throw new LogicException('forAddress() has no @return array shape to compare with.');
+        }
+        preg_match_all('/^\s*\*?\s*(\w+):/m', $shape[1], $shapeKeys);
+
+        // Act
+        $keys = array_keys(AddressRules::forAddress());
+
+        // Assert
+        expect($keys)->toBe($shapeKeys[1]);
+    });
+});
