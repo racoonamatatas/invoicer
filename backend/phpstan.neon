@@ -14,6 +14,7 @@ parameters:
         - tests/Arch/
         # Code that breaks the custom rules on purpose, for their RuleTestCase tests.
         - tests/PHPStan/RateLimiter/Fixtures/
+        - tests/PHPStan/FormRequest/Fixtures/
 
 services:
     -
