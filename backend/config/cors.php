@@ -31,7 +31,11 @@ return [
 
     'allowed_headers' => ['*'],
 
-    'exposed_headers' => [],
+    // A cross-origin response shows JavaScript only a few safe headers unless
+    // they're listed here. The SPA reads a versioned resource's ETag and sends
+    // it back as If-Match, so on a separate frontend origin it would see no
+    // version at all without this.
+    'exposed_headers' => ['ETag'],
 
     'max_age' => (int) env('CORS_MAX_AGE', 86_400),
 
