@@ -130,7 +130,86 @@ final class ValidatedKeyNotInRulesRuleTest extends RuleTestCase
         ];
 
         // Act & Assert
-        $this->analyse([self::FIXTURES.'ParentRequest.php', self::FIXTURES.'ChildRequests.php'], $expectedErrors);
+        $this->analyse(
+            [self::FIXTURES.'ParentRequest.php', self::FIXTURES.'InheritsRules.php', self::FIXTURES.'OverridesRulesWithoutIban.php'],
+            $expectedErrors,
+        );
+    }
+
+    #[Test]
+    public function should_report_a_parents_read_for_a_concrete_subclass_with_no_rules(): void
+    {
+        // Arrange: the abstract parent has no rules() and reads x on line 13. DeclaresX declares it; DeclaresNothing
+        // runs the same read with nothing validated.
+        $expectedErrors = [
+            [
+                'Reads validated input with string(), but Tests\PHPStan\FormRequest\Fixtures\DeclaresNothing has no rules() to declare its keys.',
+                13,
+            ],
+        ];
+
+        // Act & Assert
+        $this->analyse(
+            [self::FIXTURES.'ReadsWithoutOwnRules.php', self::FIXTURES.'DeclaresX.php', self::FIXTURES.'DeclaresNothing.php'],
+            $expectedErrors,
+        );
+    }
+
+    #[Test]
+    public function should_count_a_key_as_declared_only_when_every_return_of_rules_declares_it(): void
+    {
+        // Arrange: one `return` declares a, b and d, the other a ternary of two arrays with a and c, and a, c and d.
+        // Only a is in all three, so b, c and d, all read on line 40, are reported. The `return` in the closure inside
+        // rules() returns from the closure: counted as a `return` of rules(), it would make every key unknown.
+        $class = 'Tests\PHPStan\FormRequest\Fixtures\SeveralReturns';
+        $expectedErrors = [
+            [sprintf(self::NOT_IN_RULES, 'b', 'string()', $class), 40],
+            [sprintf(self::NOT_IN_RULES, 'c', 'string()', $class), 40],
+            [sprintf(self::NOT_IN_RULES, 'd', 'string()', $class), 40],
+        ];
+
+        // Act & Assert
+        $this->analyse([self::FIXTURES.'SeveralReturns.php'], $expectedErrors);
+    }
+
+    #[Test]
+    public function should_check_a_read_on_another_request_against_that_requests_rules_also_outside_a_request(): void
+    {
+        // Arrange: OtherRequest declares only y. ReadsAnotherRequest declares own but reads it from an OtherRequest on
+        // line 21. SomeController reads z and, through the trait helper written with capitals, w on its line 14.
+        $other = 'Tests\PHPStan\FormRequest\Fixtures\OtherRequest';
+        $expectedErrors = [
+            [sprintf(self::NOT_IN_RULES, 'own', 'validated()', $other), 21],
+            [sprintf(self::NOT_IN_RULES, 'z', 'validated()', $other), 14],
+            [sprintf(self::NOT_IN_RULES, 'w', 'ValidatedStringOrNull()', $other), 14],
+        ];
+
+        // Act & Assert
+        $this->analyse(
+            [self::FIXTURES.'OtherRequest.php', self::FIXTURES.'ReadsAnotherRequest.php', self::FIXTURES.'SomeController.php'],
+            $expectedErrors,
+        );
+    }
+
+    #[Test]
+    public function should_report_nothing_for_reads_whose_rules_is_in_a_file_outside_the_run(): void
+    {
+        // Arrange: only the subclasses are analysed, as an editor run would. InheritsRules reads label with
+        // ParentRequest's rules(), which this run doesn't see, so there is nothing to check it against.
+        $expectedErrors = [];
+
+        // Act & Assert
+        $this->analyse([self::FIXTURES.'InheritsRules.php', self::FIXTURES.'OverridesRulesWithoutIban.php'], $expectedErrors);
+    }
+
+    #[Test]
+    public function should_report_nothing_for_rules_with_unknown_keys_that_no_read_is_checked_against(): void
+    {
+        // Arrange: rules() spreads in an array<string, …>, but the request reads no key, so nothing goes unchecked.
+        $expectedErrors = [];
+
+        // Act & Assert
+        $this->analyse([self::FIXTURES.'UnknownRulesWithoutReads.php', self::FIXTURES.'AddressShape.php'], $expectedErrors);
     }
 
     #[Override]
