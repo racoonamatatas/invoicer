@@ -61,6 +61,23 @@ final class ValidatedKeyNotInRulesRuleTest extends RuleTestCase
     }
 
     #[Test]
+    public function should_match_dotted_reads_against_wildcard_and_child_rules_and_ignore_a_key_added_under_an_if(): void
+    {
+        // Arrange: lines 39-42 read address.street (declared), lines.0.description (lines.*.description), lines and
+        // meta (parents of declared keys): no errors. Lines 43-44 read dotted keys no rule matches. extra is declared
+        // only on a POST, so on other requests its read gets the default: line 45 is reported too.
+        $class = 'Tests\PHPStan\FormRequest\Fixtures\DottedAndOptionalKeys';
+        $expectedErrors = [
+            [sprintf(self::NOT_IN_RULES, 'address.city', 'string()', $class), 43],
+            [sprintf(self::NOT_IN_RULES, 'lines.0.price', 'string()', $class), 44],
+            [sprintf(self::NOT_IN_RULES, 'extra', 'string()', $class), 45],
+        ];
+
+        // Act & Assert
+        $this->analyse([self::FIXTURES.'DottedAndOptionalKeys.php'], $expectedErrors);
+    }
+
+    #[Test]
     public function should_report_rules_whose_keys_cannot_be_known_and_a_key_that_is_not_a_literal(): void
     {
         // Arrange: rules() spreads in an array<string, …>, which hides its keys, and read() passes the key in a
