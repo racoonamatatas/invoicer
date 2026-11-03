@@ -114,6 +114,16 @@ final class ValidatedKeyReadCollector implements Collector
      */
     private function read(Expr $node, Scope $scope): ?array
     {
+        // The collector sees every expression in the run: return before the scope lookups for the kinds that can't
+        // be a read.
+        if (! $node instanceof MethodCall
+            && ! $node instanceof StaticCall
+            && ! $node instanceof ArrayDimFetch
+            && ! $node instanceof PropertyFetch)
+        {
+            return null;
+        }
+
         // A `??=` target reads before it writes, so it stays a read. WriteTargetVisitor marks both cases.
         $isWritten = $scope->isInExpressionAssign($node) && $node->getAttribute(WriteTargetVisitor::READ_FIRST_TARGET) !== true;
 
@@ -150,7 +160,8 @@ final class ValidatedKeyReadCollector implements Collector
             return [[$inRequest], [$keyType], '->property'];
         }
 
-        if (! $node instanceof MethodCall || ! $node->name instanceof Identifier)
+        // Only a MethodCall is left: the guard at the top let through four kinds, and three have returned.
+        if (! $node->name instanceof Identifier)
         {
             return null;
         }
