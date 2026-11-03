@@ -78,6 +78,26 @@ final class ValidatedKeyNotInRulesRuleTest extends RuleTestCase
     }
 
     #[Test]
+    public function should_check_every_key_an_argument_names_and_skip_except_and_empty_key_lists(): void
+    {
+        // Arrange: rules() declares only name. Lines 27-29 read no key: except() leaves one out, and only([]) and
+        // safe([]) name none. Lines 30-33 pass two keys to methods that check all their arguments, line 34 names its
+        // key by parameter name, and line 35 reads one of two literals: the undeclared one is reported each time.
+        $class = 'Tests\PHPStan\FormRequest\Fixtures\ArgumentShapes';
+        $expectedErrors = [
+            [sprintf(self::NOT_IN_RULES, 'b', 'has()', $class), 30],
+            [sprintf(self::NOT_IN_RULES, 'c', 'filled()', $class), 31],
+            [sprintf(self::NOT_IN_RULES, 'd', 'missing()', $class), 32],
+            [sprintf(self::NOT_IN_RULES, 'e', 'isNotFilled()', $class), 33],
+            [sprintf(self::NOT_IN_RULES, 'f', 'string()', $class), 34],
+            [sprintf(self::NOT_IN_RULES, 'g', 'string()', $class), 35],
+        ];
+
+        // Act & Assert
+        $this->analyse([self::FIXTURES.'ArgumentShapes.php'], $expectedErrors);
+    }
+
+    #[Test]
     public function should_report_rules_whose_keys_cannot_be_known_and_a_key_that_is_not_a_literal(): void
     {
         // Arrange: rules() spreads in an array<string, …>, which hides its keys, and read() passes the key in a
