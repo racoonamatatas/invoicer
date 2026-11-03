@@ -8,6 +8,7 @@ use Illuminate\Foundation\Http\FormRequest;
 use PHPStan\Analyser\Scope;
 use PHPStan\Type\Constant\ConstantArrayType;
 use PHPStan\Type\Type;
+use PHPStan\Type\TypeCombinator;
 
 /**
  * What the collectors share: which request a node belongs to, and which keys a type spells out.
@@ -37,6 +38,10 @@ final class FormRequestScope
         {
             return [];
         }
+
+        // A null that may be passed names no key, as above, so `'a'|null` names just `a`. Left in, it would hide the
+        // constant strings from getConstantStrings() and the key would count as unknown.
+        $type = TypeCombinator::removeNull($type);
 
         $strings = $type->getConstantStrings();
 
