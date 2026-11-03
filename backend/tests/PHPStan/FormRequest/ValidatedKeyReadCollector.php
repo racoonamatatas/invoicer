@@ -234,6 +234,16 @@ final class ValidatedKeyReadCollector implements Collector
      */
     private static function helperKeyParameter(ClassReflection $class, string $method): ?string
     {
+        $native = $class->getNativeReflection();
+
+        if (! $native->hasMethod($method))
+        {
+            return null;
+        }
+
+        // The file of the method the call runs: compared with the trait's below.
+        $calledFile = $native->getMethod($method)->getFileName();
+
         foreach ([$class, ...$class->getParents()] as $classOrParent)
         {
             $trait = $classOrParent->getTraits(true)[ReadsValidatedInput::class] ?? null;
@@ -249,12 +259,21 @@ final class ValidatedKeyReadCollector implements Collector
                 }
             }
 
-            if ($trait !== null && $trait->hasNativeMethod($method))
+            if ($trait === null || ! $trait->hasNativeMethod($method))
             {
-                $parameters = $trait->getNativeMethod($method)->getOnlyVariant()->getParameters();
-
-                return ($parameters[0] ?? null)?->getName();
+                continue;
             }
+
+            // A method the class declares itself wins over the trait's in PHP, even over a `final` one, and its first
+            // parameter can be anything: its own reads are collected in its body instead.
+            if ($calledFile !== $trait->getFileName())
+            {
+                return null;
+            }
+
+            $parameters = $trait->getNativeMethod($method)->getOnlyVariant()->getParameters();
+
+            return ($parameters[0] ?? null)?->getName();
         }
 
         return null;
