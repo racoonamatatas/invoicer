@@ -94,6 +94,17 @@ export const getRequest = <ResponseData>(endpoint: string) => http.get<ResponseD
 
 export const postRequest = <RequestData, ResponseData>(endpoint: string, data: RequestData) => http.post<ResponseData>(endpoint, data);
 
-export const putRequest = <RequestData, ResponseData>(endpoint: string, data: RequestData) => http.put<ResponseData>(endpoint, data);
+// The headers that send `version` as If-Match, or none without one. A strong
+// ETag, quoted: the same format versionFrom() reads, written in this one file
+// so no service has to know it. Undefined leaves If-Match out entirely, for a
+// resource that isn't versioned.
+const ifMatchHeaders = (version: number | undefined): Record<string, string> =>
+{
+    return version === undefined ? {} : { 'If-Match': `"${version}"` };
+};
 
-export const deleteRequest = <ResponseData>(endpoint: string) => http.delete<ResponseData>(endpoint);
+export const putRequest = <RequestData, ResponseData>(endpoint: string, data: RequestData, version?: number) =>
+    http.put<ResponseData>(endpoint, data, { headers: ifMatchHeaders(version) });
+
+export const deleteRequest = <ResponseData>(endpoint: string, version?: number) =>
+    http.delete<ResponseData>(endpoint, { headers: ifMatchHeaders(version) });
