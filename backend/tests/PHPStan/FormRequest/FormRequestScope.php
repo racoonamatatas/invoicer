@@ -7,6 +7,9 @@ namespace Tests\PHPStan\FormRequest;
 use Illuminate\Foundation\Http\FormRequest;
 use PHPStan\Analyser\Scope;
 use PHPStan\Type\Constant\ConstantArrayType;
+use PHPStan\Type\Constant\ConstantStringType;
+use PHPStan\Type\MixedType;
+use PHPStan\Type\NullType;
 use PHPStan\Type\Type;
 use PHPStan\Type\TypeCombinator;
 
@@ -23,6 +26,44 @@ final class FormRequestScope
         $class = $scope->getClassReflection();
 
         return $class !== null && $class->isSubclassOf(FormRequest::class) ? $class->getName() : null;
+    }
+
+    /**
+     * A key argument as a method that reads one key sees it. Laravel's `data_get()` takes a list as the segments of
+     * one dotted path, so `['a', 'b']` names `a.b`, and `[]` names no key at all, like null. Any other type is
+     * returned as it is.
+     *
+     * A list with a segment that isn't one known string or int can't be joined: it becomes `mixed`, an unknown key.
+     */
+    public static function asOnePath(Type $type): Type
+    {
+        if (! $type->isConstantArray()->yes())
+        {
+            return $type;
+        }
+
+        $paths = [];
+
+        foreach ($type->getConstantArrays() as $array)
+        {
+            $segments = [];
+
+            foreach ($array->getValueTypes() as $valueType)
+            {
+                $values = $valueType->getConstantScalarValues();
+
+                if (count($values) !== 1 || ! (is_string($values[0]) || is_int($values[0])))
+                {
+                    return new MixedType;
+                }
+
+                $segments[] = (string) $values[0];
+            }
+
+            $paths[] = $segments === [] ? new NullType : new ConstantStringType(implode('.', $segments));
+        }
+
+        return TypeCombinator::union(...$paths);
     }
 
     /**

@@ -47,18 +47,31 @@ use PHPStan\Type\TypeCombinator;
 final class ValidatedKeyReadCollector implements Collector
 {
     /**
-     * `ValidatedInput` methods whose first argument is one key. Lower-cased, as PHP method names are case-insensitive.
+     * `ValidatedInput` methods whose first argument is one key, read with `data_get()`: a list is the segments of one
+     * dotted path, so `string(['a', 'b'])` reads `a.b`. Lower-cased, as PHP method names are case-insensitive.
      */
-    private const array ONE_KEY_METHODS = [
-        'input', 'file', 'exists', 'whenhas', 'whenfilled', 'whenenum', 'whenmissing', 'str', 'string', 'boolean',
-        'integer', 'float', 'clamp', 'date', 'interval', 'enum', 'enums', 'array', 'collect',
-    ];
+    private const array ONE_KEY_METHODS = ['input', 'file', 'str', 'string', 'boolean', 'integer', 'float', 'clamp'];
 
     /**
      * `ValidatedInput` methods that take a list of keys, as one array or as several arguments: has() and its kin read
      * `func_get_args()`, so `has('a', 'b')` checks both. Not except(): leaving a key out reads nothing.
      */
     private const array KEY_LIST_METHODS = ['all', 'has', 'hasany', 'filled', 'isnotfilled', 'anyfilled', 'missing', 'only'];
+
+    /**
+     * `ValidatedInput` methods whose first argument alone names the keys, a list being several: exists() calls has()
+     * with it, and array(), collect() and enums() pass a list to only().
+     */
+    private const array FIRST_ARGUMENT_KEY_LIST_METHODS = ['exists', 'array', 'collect', 'enums'];
+
+    /**
+     * `ValidatedInput` methods that check their key argument as a list of keys, then read it as one path:
+     * `whenHas(['a', 'b'], …)` runs only when both `a` and `b` are there, and then hands over `a.b`. Both readings
+     * are checked.
+     */
+    private const array CHECKS_KEYS_READS_PATH_METHODS = [
+        'whenhas', 'whenfilled', 'whenenum', 'whenmissing', 'date', 'interval', 'enum',
+    ];
 
     public function getNodeType(): string
     {
@@ -115,7 +128,7 @@ final class ValidatedKeyReadCollector implements Collector
         if ($node instanceof ArrayDimFetch)
         {
             return $inRequest !== null && $node->dim !== null && $this->isValidatedInput($node->var, $scope)
-                ? [[$inRequest], [$scope->getType($node->dim)], '[]']
+                ? [[$inRequest], [FormRequestScope::asOnePath($scope->getType($node->dim))], '[]']
                 : null;
         }
 
@@ -155,15 +168,17 @@ final class ValidatedKeyReadCollector implements Collector
             return null;
         }
 
-        $keyArgs = match (true)
+        $keyTypes = match (true)
         {
-            in_array($name, self::ONE_KEY_METHODS, true) => $this->argument($args, 'key'),
+            in_array($name, self::ONE_KEY_METHODS, true) => self::asOnePath($this->types($this->argument($args, 'key'), $scope)),
             // Several positional arguments are several keys: `only('a', 'b')` is `only(['a', 'b'])`.
-            in_array($name, self::KEY_LIST_METHODS, true) => array_values($args),
+            in_array($name, self::KEY_LIST_METHODS, true) => $this->types(array_values($args), $scope),
+            in_array($name, self::FIRST_ARGUMENT_KEY_LIST_METHODS, true) => $this->types($this->argument($args, 'key'), $scope),
+            in_array($name, self::CHECKS_KEYS_READS_PATH_METHODS, true) => self::asKeysAndPath($this->types($this->argument($args, 'key'), $scope)),
             default => [],
         };
 
-        return [[$inRequest], $this->types($keyArgs, $scope), $how];
+        return [[$inRequest], $keyTypes, $how];
     }
 
     /**
@@ -222,7 +237,48 @@ final class ValidatedKeyReadCollector implements Collector
             }
         }
 
-        return $readers === [] ? null : [$readers, $this->types($keyArgs, $scope), $how];
+        if ($readers === [])
+        {
+            return null;
+        }
+
+        // safe() takes a list of keys, like only(). validated() and the helpers read one key with data_get().
+        $keyTypes = $this->types($keyArgs, $scope);
+
+        return [$readers, $name === 'safe' ? $keyTypes : self::asOnePath($keyTypes), $how];
+    }
+
+    /**
+     * @param  list<Type>  $keyTypes
+     * @return list<Type>
+     */
+    private static function asOnePath(array $keyTypes): array
+    {
+        return array_map(FormRequestScope::asOnePath(...), $keyTypes);
+    }
+
+    /**
+     * Each key argument as a list of keys, and, when it is a list, as one path too.
+     *
+     * @param  list<Type>  $keyTypes
+     * @return list<Type>
+     */
+    private static function asKeysAndPath(array $keyTypes): array
+    {
+        $both = [];
+
+        foreach ($keyTypes as $keyType)
+        {
+            $both[] = $keyType;
+
+            // A plain string is one key either way: adding it twice would report it twice.
+            if ($keyType->isConstantArray()->yes())
+            {
+                $both[] = FormRequestScope::asOnePath($keyType);
+            }
+        }
+
+        return $both;
     }
 
     /**
