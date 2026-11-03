@@ -23,7 +23,8 @@ use PHPStan\Rules\RuleErrorBuilder;
  *
  * Strict where it can't tell: a key that isn't known before the code runs, a `rules()` whose keys PHPStan can't see
  * (an `array<string, …>` spread in, say) that a read is checked against, and a concrete request with no `rules()` at
- * all are each reported.
+ * all are each reported. So is a request with a `validator()`, which Laravel builds the validator with instead of
+ * `rules()`. A `withValidator()` changes nothing here: it adds to the validator built from `rules()`.
  *
  * Needs a full run to be complete. A run of a few files, such as an editor's, skips a read whose `rules()` is in a file
  * outside the run, and doesn't see the subclasses outside it.
@@ -60,9 +61,10 @@ final class ValidatedKeyNotInRulesRule implements Rule
         $errors = [];
 
         // A `rules()` with unknown keys is reported once, and only when a read is checked against it. A class with no
-        // `rules()` is reported once too, at its first read.
+        // `rules()`, or with a `validator()`, is reported once too, at its first read.
         $unknownRules = [];
         $withoutRules = [];
+        $withValidator = [];
 
         foreach ($node->get(ValidatedKeyReadCollector::class) as $file => $readsInFile)
         {
@@ -74,7 +76,20 @@ final class ValidatedKeyNotInRulesRule implements Rule
                 {
                     $rulesIn = $classes[$runner]['rulesIn'];
 
-                    if ($rulesIn === null)
+                    if ($classes[$runner]['hasValidator'])
+                    {
+                        $withValidator[$runner] ??= $this->error(
+                            sprintf(
+                                'Reads validated input with %s, but %s builds its validator in validator(), which replaces rules(), so the keys it validates can\'t be known.',
+                                $how,
+                                $runner,
+                            ),
+                            'invoicer.validatedReadWithValidator',
+                            $file,
+                            $line,
+                        );
+                    }
+                    elseif ($rulesIn === null)
                     {
                         $withoutRules[$runner] ??= $this->error(
                             sprintf('Reads validated input with %s, but %s has no rules() to declare its keys.', $how, $runner),
@@ -130,7 +145,7 @@ final class ValidatedKeyNotInRulesRule implements Rule
             }
         }
 
-        array_push($errors, ...array_values($withoutRules));
+        array_push($errors, ...array_values($withoutRules), ...array_values($withValidator));
 
         foreach (array_keys($unknownRules) as $class)
         {
@@ -149,9 +164,10 @@ final class ValidatedKeyNotInRulesRule implements Rule
     }
 
     /**
-     * Each analysed request class: its parents, the class whose `rules()` it runs, and whether it is abstract.
+     * Each analysed request class: its parents, the class whose `rules()` it runs, whether it is abstract, and whether
+     * it builds its validator in `validator()`.
      *
-     * @return array<string, array{parents: list<string>, rulesIn: string|null, abstract: bool}>
+     * @return array<string, array{parents: list<string>, rulesIn: string|null, abstract: bool, hasValidator: bool}>
      */
     private function classes(CollectedDataNode $node): array
     {
@@ -159,9 +175,14 @@ final class ValidatedKeyNotInRulesRule implements Rule
 
         foreach ($node->get(FormRequestClassCollector::class) as $recordsInFile)
         {
-            foreach ($recordsInFile as [$lineage, $rulesIn, $abstract])
+            foreach ($recordsInFile as [$lineage, $rulesIn, $abstract, $hasValidator])
             {
-                $classes[$lineage[0]] = ['parents' => array_slice($lineage, 1), 'rulesIn' => $rulesIn, 'abstract' => $abstract];
+                $classes[$lineage[0]] = [
+                    'parents' => array_slice($lineage, 1),
+                    'rulesIn' => $rulesIn,
+                    'abstract' => $abstract,
+                    'hasValidator' => $hasValidator,
+                ];
             }
         }
 
@@ -208,7 +229,7 @@ final class ValidatedKeyNotInRulesRule implements Rule
      * The concrete classes a read runs in: each reading class unless it is abstract, and each concrete subclass.
      *
      * @param  list<string>  $readers
-     * @param  array<string, array{parents: list<string>, rulesIn: string|null, abstract: bool}>  $classes
+     * @param  array<string, array{parents: list<string>, rulesIn: string|null, abstract: bool, hasValidator: bool}>  $classes
      * @return list<string>
      */
     private function runners(array $readers, array $classes): array
@@ -238,7 +259,7 @@ final class ValidatedKeyNotInRulesRule implements Rule
 
     /**
      * @param  list<string>  $readers
-     * @param  array<string, array{parents: list<string>, rulesIn: string|null, abstract: bool}>  $classes
+     * @param  array<string, array{parents: list<string>, rulesIn: string|null, abstract: bool, hasValidator: bool}>  $classes
      */
     private function anyAnalysed(array $readers, array $classes): bool
     {

@@ -17,9 +17,13 @@ use PHPStan\Node\InClassNode;
  * a subclass with no `rules()` at all validates no key. Which class declares `rules()` comes from reflection, so it is
  * known even when that file is outside this run.
  *
- * Each record is [the class and its parents, the class that declares its `rules()` or null, abstract].
+ * It also records whether the class has a `validator()`: `FormRequest::getValidatorInstance()` then builds the validator
+ * with it instead of from `rules()`, so `rules()` doesn't say which keys are validated.
  *
- * @implements Collector<InClassNode, array{list<string>, string|null, bool}>
+ * Each record is [the class and its parents, the class that declares its `rules()` or null, abstract, has a
+ * `validator()`].
+ *
+ * @implements Collector<InClassNode, array{list<string>, string|null, bool, bool}>
  */
 final class FormRequestClassCollector implements Collector
 {
@@ -41,6 +45,11 @@ final class FormRequestClassCollector implements Collector
             ? $class->getNativeMethod('rules')->getDeclaringClass()->getName()
             : null;
 
-        return [[$class->getName(), ...$class->getParentClassesNames()], $rulesIn, $class->isAbstract()];
+        return [
+            [$class->getName(), ...$class->getParentClassesNames()],
+            $rulesIn,
+            $class->isAbstract(),
+            $class->hasNativeMethod('validator'),
+        ];
     }
 }
