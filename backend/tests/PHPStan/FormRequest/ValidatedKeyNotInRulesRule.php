@@ -86,11 +86,11 @@ final class ValidatedKeyNotInRulesRule implements Rule
                     elseif (isset($rulesByClass[$rulesIn]))
                     {
                         // Not set: the `rules()` is in a file outside this run, so there is nothing to check against.
-                        $checkAgainst[$rulesIn] = $rulesByClass[$rulesIn]['keys'];
+                        $checkAgainst[$rulesIn] = $rulesByClass[$rulesIn];
                     }
                 }
 
-                foreach ($checkAgainst as $rulesIn => $declared)
+                foreach ($checkAgainst as $rulesIn => ['keys' => $declared, 'narrowing' => $narrowing])
                 {
                     if ($declared === null)
                     {
@@ -101,7 +101,7 @@ final class ValidatedKeyNotInRulesRule implements Rule
 
                     foreach ($keys as $key)
                     {
-                        if ($key !== null && ! self::isDeclared($key, $declared))
+                        if ($key !== null && ! self::isDeclared($key, $declared, $narrowing))
                         {
                             $errors[] = $this->error(
                                 sprintf(
@@ -169,9 +169,9 @@ final class ValidatedKeyNotInRulesRule implements Rule
     }
 
     /**
-     * Each request's `rules()`: the keys every `return` in it declares, and where it is.
+     * Each request's `rules()`: the keys every `return` in it declares, the keys any `return` narrows, and where it is.
      *
-     * @return array<string, array{keys: list<string>|null, file: string, line: int}>
+     * @return array<string, array{keys: list<string>|null, narrowing: list<string>, file: string, line: int}>
      */
     private function rulesByClass(CollectedDataNode $node): array
     {
@@ -179,13 +179,13 @@ final class ValidatedKeyNotInRulesRule implements Rule
 
         foreach ($node->get(RulesKeysCollector::class) as $file => $returnsInFile)
         {
-            foreach ($returnsInFile as [$class, $keys, $line])
+            foreach ($returnsInFile as [$class, $keys, $narrowing, $line])
             {
                 $known = $rulesByClass[$class] ?? null;
 
                 if ($known === null)
                 {
-                    $rulesByClass[$class] = ['keys' => $keys, 'file' => $file, 'line' => $line];
+                    $rulesByClass[$class] = ['keys' => $keys, 'narrowing' => $narrowing, 'file' => $file, 'line' => $line];
 
                     continue;
                 }
@@ -195,6 +195,8 @@ final class ValidatedKeyNotInRulesRule implements Rule
                 $known['keys'] = $known['keys'] === null || $keys === null
                     ? null
                     : array_values(array_intersect($known['keys'], $keys));
+                // A key narrows when any `return` narrows it: that reports more reads, not fewer.
+                $known['narrowing'] = array_values(array_unique([...$known['narrowing'], ...$narrowing]));
                 $rulesByClass[$class] = $known;
             }
         }
@@ -257,12 +259,13 @@ final class ValidatedKeyNotInRulesRule implements Rule
      * - `lines.0.description` is kept by a rule for `lines.*.description`: `*` stands for any one segment.
      * - `meta` is kept by a rule for `meta.*.x` alone: validated input holds every parent of a key with a rule, so the
      *   read sees the array of what passed.
-     * - `meta.foo` is kept by a rule for `meta` that has no rules below it: validated() keeps that whole value. With a
-     *   rule below it, such as `meta.*.x`, only the children with rules are kept.
+     * - `meta.foo` is kept by a rule for `meta`: validated() keeps that whole value. Only when `meta`'s rules hold a bare
+     *   `array` or `list` and a rule sits below it, such as `meta.*.x`, are just the children with rules kept.
      *
      * @param  list<string>  $declared
+     * @param  list<string>  $narrowing
      */
-    private static function isDeclared(string $key, array $declared): bool
+    private static function isDeclared(string $key, array $declared, array $narrowing): bool
     {
         $readSegments = explode('.', $key);
 
@@ -271,7 +274,7 @@ final class ValidatedKeyNotInRulesRule implements Rule
             $declaredSegments = explode('.', $declaredKey);
             $isShorter = count($declaredSegments) < count($readSegments);
 
-            if ($isShorter && self::hasChildRules($declaredKey, $declared))
+            if ($isShorter && in_array($declaredKey, $narrowing, true) && self::hasChildRules($declaredKey, $declared))
             {
                 continue;
             }
