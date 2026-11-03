@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace App\Http\Requests;
 
 use App\DataTransferObjects\Input\Business\BusinessData;
+use App\Http\Requests\Concerns\ReadsValidatedInput;
 use App\Models\Business;
 use App\Models\User;
 use App\Validation\AddressRules;
@@ -22,6 +23,8 @@ use LogicException;
  */
 abstract class BusinessRequest extends FormRequest
 {
+    use ReadsValidatedInput;
+
     /**
      * The business being updated, or null when one is being created.
      */
@@ -118,15 +121,5 @@ abstract class BusinessRequest extends FormRequest
         }
 
         return $user;
-    }
-
-    /**
-     * Not $safe->string(): that turns null into "", and "?: null" afterwards would also turn "0" into null.
-     */
-    private function validatedStringOrNull(string $key): ?string
-    {
-        $value = $this->safe()->input($key);
-
-        return is_string($value) ? $value : null;
     }
 }

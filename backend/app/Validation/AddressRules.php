@@ -17,7 +17,17 @@ final class AddressRules
      * country; when country_code is NL the rules tighten to what a Dutch address is. Input reaches these rules in
      * canonical form (trimmed, postcode "1234 AB", country code uppercase): the request normalises it first.
      *
-     * @return array<string, list<ConditionalRules|CountryCode|string>>
+     * The keys are spelled out so static analysis can see which fields a request gets by spreading these rules in.
+     *
+     * @return array{
+     *     street: list<string>,
+     *     house_number: list<ConditionalRules|string>,
+     *     house_number_addition: list<string>,
+     *     postal_code: list<ConditionalRules>,
+     *     city: list<string>,
+     *     region: list<ConditionalRules>,
+     *     country_code: list<CountryCode|string>,
+     * }
      */
     public static function forAddress(): array
     {
