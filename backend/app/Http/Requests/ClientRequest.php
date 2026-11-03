@@ -5,6 +5,7 @@ declare(strict_types = 1);
 namespace App\Http\Requests;
 
 use App\DataTransferObjects\Input\Client\ClientData;
+use App\Http\Requests\Concerns\ReadsValidatedInput;
 use App\Validation\AddressRules;
 use App\Validation\EuMemberStates;
 use App\Validation\EuVatNumber;
@@ -21,6 +22,8 @@ use Illuminate\Validation\Rule;
  */
 final class ClientRequest extends FormRequest
 {
+    use ReadsValidatedInput;
+
     /**
      * Get the validation rules that apply to the request.
      *
@@ -105,15 +108,5 @@ final class ClientRequest extends FormRequest
         ];
 
         return ['nullable', 'string', Rule::when($isEu, $euRules, ['prohibited'])];
-    }
-
-    /**
-     * Not $safe->string(): that turns null into "", and "?: null" afterwards would also turn "0" into null.
-     */
-    private function validatedStringOrNull(string $key): ?string
-    {
-        $value = $this->safe()->input($key);
-
-        return is_string($value) ? $value : null;
     }
 }
