@@ -7,8 +7,8 @@ namespace App\Http\Requests\Concerns;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
- * Typed reads of validated input that `ValidatedInput` has no method for. The one shared place for them, so a rule
- * that checks which keys `toDto()` reads only has to know these by name.
+ * Typed reads of validated input that `ValidatedInput` has no method for. The one shared place for them, so the rule
+ * that checks which keys a request reads finds every helper here, and takes each one's key from its first parameter.
  *
  * @phpstan-require-extends FormRequest
  */
@@ -16,8 +16,10 @@ trait ReadsValidatedInput
 {
     /**
      * Not `$safe->string()`: that turns null into "", and "?: null" afterwards would also turn "0" into null.
+     *
+     * Final, so a class can't override it with a different first parameter than the one the rule reads its key from.
      */
-    protected function validatedStringOrNull(string $key): ?string
+    final protected function validatedStringOrNull(string $key): ?string
     {
         $value = $this->safe()->input($key);
 
