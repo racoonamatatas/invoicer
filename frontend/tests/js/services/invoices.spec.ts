@@ -73,6 +73,16 @@ describe('invoice types', () =>
         expectTypeOf<InvoicePayload['vat_treatment']>().toEqualTypeOf<VatTreatment>();
     });
 
+    it('should keep every field the form sends in the invoice the backend sends back', () =>
+    {
+        // Assert: an Invoice is assignable to an InvoicePayload only if it has
+        // every payload field, its lines included, with the same type. The
+        // two share their field lists today; this fails if someone gives the
+        // payload a field of its own. Each treatment matches its own member,
+        // because `vat_treatment` is a literal on both sides.
+        expectTypeOf<Invoice>().toExtend<InvoicePayload>();
+    });
+
     it('should narrow the totals to no VAT groups and zero VAT when an invoice is not domestic', () =>
     {
         // Arrange: only the type matters, so a function that is never called
