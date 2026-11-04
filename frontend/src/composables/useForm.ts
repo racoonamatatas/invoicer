@@ -140,10 +140,11 @@ export const useForm = <TField extends string = never>(formName: string, display
         return message === undefined ? null : { message, id: `${formName}-${field.replaceAll('.', '-')}-error` };
     };
 
-    // The 422's message when no field the form displays has an error, so a 422
-    // the form has nowhere to show (an empty `errors`, or a key it doesn't
-    // render) still tells the user something. '' otherwise, including when
-    // there was no 422, because `message` is '' then.
+    // The 422's message unless every error in it is shown next to its field,
+    // so an error the form has nowhere to show (an empty `errors`, a key it
+    // doesn't render, a line removed since) still tells the user something,
+    // even when another error is on screen. '' otherwise, including when there
+    // was no 422, because `message` is '' then.
     const generalMessage = computed(() =>
     {
         // Driven by the 422's keys, not the form's: a pattern stands for
@@ -153,10 +154,12 @@ export const useForm = <TField extends string = never>(formName: string, display
         // checked, not a cast: the argument must fit Record<string, FieldDisplay>.
         const isDisplayed = (key: string): boolean => Object.entries<FieldDisplay>(displaysFieldError)
             .some(([pattern, displayed]) => matchesField(pattern, key) && (typeof displayed === 'function' ? displayed(key) : displayed));
-        const hasDisplayedError = Object.keys(errors.value)
-            .some((key) => firstError(key) !== undefined && isDisplayed(key));
+        // An empty list (`{ email: [] }`) has nothing to show, so it isn't an
+        // error here; with no errors left, nothing is on screen either.
+        const keysWithErrors = Object.keys(errors.value).filter((key) => firstError(key) !== undefined);
+        const isEveryErrorShown = keysWithErrors.length > 0 && keysWithErrors.every(isDisplayed);
 
-        return hasDisplayedError ? '' : message.value;
+        return isEveryErrorShown ? '' : message.value;
     });
 
     // readonly: pages read the state; only submit() writes it. The raw
