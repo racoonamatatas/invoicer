@@ -6,7 +6,19 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, it, expect } from 'vitest';
 
-import { MAX_LINES, emptyRow, payloadWithRows, rowContent, rowsFrom, type LineRow } from '@/domains/invoices/lineRows';
+import {
+    MAX_DESCRIPTION_LENGTH,
+    MAX_LINES,
+    MAX_QUANTITY_HUNDREDTHS,
+    MAX_UNIT_PRICE_CENTS,
+    emptyRow,
+    parseLineQuantity,
+    parseLineUnitPrice,
+    payloadWithRows,
+    rowContent,
+    rowsFrom,
+    type LineRow,
+} from '@/domains/invoices/lineRows';
 
 import { domesticDraftWithLine } from '../../utility/invoices';
 
@@ -73,22 +85,66 @@ describe('rowsFrom', () =>
     });
 });
 
-describe('MAX_LINES', () =>
-{
-    it('should be the backend\'s InvoiceRequest::MAX_LINES', () =>
-    {
-        // Arrange: comments stripped, as in the country code drift tests, so
-        // a commented-out old value doesn't count
-        const source = readFileSync(INVOICE_REQUEST, 'utf8')
-            .replaceAll(/\/\*[\s\S]*?\*\//g, '')
-            .replaceAll(/\/\/.*$/gm, '');
+// InvoiceRequest.php without its comments, as in the country code drift
+// tests, so a commented-out old value doesn't count.
+const invoiceRequestSource = (): string => readFileSync(INVOICE_REQUEST, 'utf8')
+    .replaceAll(/\/\*[\s\S]*?\*\//g, '')
+    .replaceAll(/\/\/.*$/gm, '');
 
-        // Act
-        const backendMax = /\bMAX_LINES = (\d+);/.exec(source)?.[1];
+describe('the limits copied from InvoiceRequest', () =>
+{
+    it.for([
+        { constant: 'MAX_LINES', frontend: MAX_LINES },
+        { constant: 'MAX_QUANTITY_HUNDREDTHS', frontend: MAX_QUANTITY_HUNDREDTHS },
+        { constant: 'MAX_UNIT_PRICE_CENTS', frontend: MAX_UNIT_PRICE_CENTS },
+    ])('should hold the backend\'s $constant', ({ constant, frontend }) =>
+    {
+        // Act: PHP allows `_` between digits (10_000_000)
+        const backend = new RegExp(`\\b${constant} = ([\\d_]+);`).exec(invoiceRequestSource())?.[1]?.replaceAll('_', '');
 
         // Assert: undefined when the constant was renamed or reformatted,
         // which fails too, instead of passing by finding nothing
-        expect(backendMax).toBe(String(MAX_LINES));
+        expect(backend).toBe(String(frontend));
+    });
+
+    it('should hold the backend\'s max: on lines.*.description as MAX_DESCRIPTION_LENGTH', () =>
+    {
+        // Act
+        const backend = /'lines\.\*\.description' => \[[^\]]*'max:(\d+)'/.exec(invoiceRequestSource())?.[1];
+
+        // Assert
+        expect(backend).toBe(String(MAX_DESCRIPTION_LENGTH));
+    });
+});
+
+describe('parseLineQuantity and parseLineUnitPrice', () =>
+{
+    it.for([
+        { parse: parseLineQuantity, name: 'parseLineQuantity', atMax: '100000', overMax: '100000,01', max: 10_000_000 },
+        { parse: parseLineUnitPrice, name: 'parseLineUnitPrice', atMax: '1000000', overMax: '1000000,01', max: 100_000_000 },
+    ])('should accept $atMax and refuse $overMax as too_large in $name', ({ parse, atMax, overMax, max }) =>
+    {
+        // Act + Assert: the backend's limit is inclusive (between:0,max)
+        expect(parse(atMax)).toStrictEqual({ ok: true, value: max });
+        expect(parse(overMax)).toStrictEqual({ ok: false, reason: 'too_large' });
+    });
+
+    it('should keep the parser\'s own reason for input that isn\'t a number', () =>
+    {
+        // Act + Assert
+        expect(parseLineUnitPrice('eighty')).toStrictEqual({ ok: false, reason: 'not_a_number' });
+    });
+});
+
+describe('payloadWithRows at the limits', () =>
+{
+    it('should return null when a row\'s price is over MAX_UNIT_PRICE_CENTS', () =>
+    {
+        // Act
+        const payload = payloadWithRows({ ...fields, vat_treatment: 'domestic' }, [typedRow({ unit_price: '1000000,01' })]);
+
+        // Assert: the backend would refuse it with a 422
+        expect(payload).toBeNull();
     });
 });
 

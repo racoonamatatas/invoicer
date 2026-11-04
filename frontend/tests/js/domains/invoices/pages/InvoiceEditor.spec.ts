@@ -645,6 +645,22 @@ describe('InvoiceEditor page', () =>
                 expect(saveButton(wrapper).attributes('disabled')).toBeDefined();
             });
 
+            it('should refuse a price over the backend\'s maximum next to its input, and cap the description\'s length', async () =>
+            {
+                // Arrange
+                const { wrapper } = await mountInvoiceEditor('/businesses/7/invoices/11/edit');
+                await flushPromises();
+
+                // Act
+                await wrapper.find('#invoice-lines-0-unit_price').setValue('1000000,01');
+
+                // Assert: the editor's own words, not the backend's lines.0.unit_price_cents
+                const input = wrapper.find('#invoice-lines-0-unit_price');
+                expect(wrapper.find(`#${input.attributes('aria-describedby')}`).text()).toBe('Enter at most €\u00a01.000.000,00.');
+                expect(saveButton(wrapper).attributes('disabled')).toBeDefined();
+                expect(wrapper.find('#invoice-lines-0-description').attributes('maxlength')).toBe('255');
+            });
+
             it('should clear every line\'s VAT rate on a switch to reverse charge, so a switch back needs a new pick', async () =>
             {
                 // Arrange
