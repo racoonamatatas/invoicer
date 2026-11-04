@@ -96,14 +96,39 @@ watch(() => form.value.client_id, (clientId) =>
     }
 });
 
-// The fields as the backend takes them, or null while a pick is missing.
-// Number('1.5') is sent as it is: the backend's integer rule answers it next
-// to the field.
+// What the term field holds. Checked here, not left to the backend: Number()
+// turns 'abc' into NaN, which JSON sends as null, and null means the
+// business's default. So '30 days' would save as the default and say
+// "Saved.". Digits only, like parseRouteId: Number() also takes '1e1',
+// '0x1E' and '30.'. The range (1 to 365) stays the backend's to judge.
+type TermInput =
+    | { kind: 'default' }
+    | { kind: 'days'; days: number }
+    | { kind: 'invalid' };
+
+const termInput = computed((): TermInput =>
+{
+    const term = form.value.payment_term_days.trim();
+
+    if (term === '')
+    {
+        return { kind: 'default' };
+    }
+
+    // A long digit string would lose precision, so it is invalid too.
+    const days = Number(term);
+
+    return /^[1-9]\d*$/.test(term) && Number.isSafeInteger(days) ? { kind: 'days', days } : { kind: 'invalid' };
+});
+
+// The fields as the backend takes them, or null while a pick is missing or
+// the term isn't a whole number.
 const fieldsPayload = computed((): InvoiceFieldsPayload | null =>
 {
-    const { client_id: clientId, bank_account_id: bankAccountId, vat_treatment: treatment, payment_term_days: term } = form.value;
+    const { client_id: clientId, bank_account_id: bankAccountId, vat_treatment: treatment } = form.value;
+    const term = termInput.value;
 
-    if (clientId === null || bankAccountId === null || treatment === null)
+    if (clientId === null || bankAccountId === null || treatment === null || term.kind === 'invalid')
     {
         return null;
     }
@@ -112,7 +137,7 @@ const fieldsPayload = computed((): InvoiceFieldsPayload | null =>
         client_id: clientId,
         bank_account_id: bankAccountId,
         vat_treatment: treatment,
-        payment_term_days: term.trim() === '' ? null : Number(term),
+        payment_term_days: term.kind === 'default' ? null : term.days,
     };
 });
 
@@ -147,7 +172,11 @@ const { submit, isPending, fieldError, throttleMessage, generalMessage } = useFo
 const clientError = computed(() => fieldError('client_id'));
 const bankAccountError = computed(() => fieldError('bank_account_id'));
 const treatmentError = computed(() => fieldError('vat_treatment'));
-const termError = computed(() => fieldError('payment_term_days'));
+// The form's own check comes first: an invalid term is never sent, so a
+// backend error on it can only be about an earlier, valid one.
+const termError = computed(() => (termInput.value.kind === 'invalid'
+    ? { id: 'invoice-payment_term_days-format', message: 'Enter a whole number of days, like 30.' }
+    : fieldError('payment_term_days')));
 
 // The form's fields right after the last save, as JSON so a deep comparison
 // is one string compare. null until a save went through.
@@ -184,8 +213,8 @@ const onSubmit = async (): Promise<void> =>
         {
             const stored = await props.save(sent);
 
-            // An edit shows what the backend stored ('030' comes back as
-            // 30). A new draft's page moves to the edit route meanwhile.
+            // An edit shows what the backend stored. A new draft's page
+            // moves to the edit route meanwhile.
             if (props.initial.kind === 'existing')
             {
                 form.value = fieldsFrom({ kind: 'existing', invoice: stored.invoice });
