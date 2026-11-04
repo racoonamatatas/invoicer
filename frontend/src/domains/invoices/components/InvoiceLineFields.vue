@@ -16,9 +16,11 @@ export type LineField = 'description' | 'quantity_hundredths' | 'unit_price_cent
 // One line of InvoiceForm. The form owns the list, the save and its
 // useForm; this only renders a row and says when it should go.
 const props = defineProps<{
+    formName: string; // the parent form's, so the ids match the ones its useForm makes
     index: number; // the row's place in the list, for its label and its inputs' ids
+    sentIndex: number | null; // its place in the last save, which a 422 names; null if added since
     chargesVat: boolean; // a domestic invoice: only then does a line pick a VAT option
-    fieldError: (field: LineField) => FieldError | null; // the server's errors, already matched to this row
+    fieldError: (field: `lines.${number}.${LineField}`) => FieldError | null; // the parent's useForm's own
     // True while the form's save runs, so nothing typed then is wiped when
     // the save rebuilds the rows. Required: the parent has to decide.
     readonly: boolean;
@@ -85,26 +87,32 @@ const formatMessage = (reason: Exclude<ParseFailure, 'empty'>, example: string):
     }
 };
 
+// The ids carry the index, not the key: the key is for Vue alone, and the
+// index is what a person (and a test) reads as "line 3".
+const idFor = (name: string): string => `${props.formName}-lines-${props.index}-${name}`;
+
+// The server's error on one of this row's fields. Looked up by the index the
+// row was sent at, which may differ from where it is now.
+const serverError = (field: LineField): FieldError | null => (props.sentIndex === null
+    ? null
+    : props.fieldError(`lines.${props.sentIndex}.${field}`));
+
 // The row's own check comes first, as for the payment term: unreadable input
 // is never sent, so a server error on it can only be about an earlier value.
 const amountError = <T>(parsed: ParseResult<T>, name: string, example: string, field: LineField): FieldError | null =>
 {
     if (!parsed.ok && parsed.reason !== 'empty')
     {
-        return { id: `invoice-lines-${props.index}-${name}-format`, message: formatMessage(parsed.reason, example) };
+        return { id: `${idFor(name)}-format`, message: formatMessage(parsed.reason, example) };
     }
 
-    return props.fieldError(field);
+    return serverError(field);
 };
 
-const descriptionError = computed(() => props.fieldError('description'));
+const descriptionError = computed(() => serverError('description'));
 const quantityError = computed(() => amountError(parseHundredths(row.value.quantity), 'quantity', '7,5', 'quantity_hundredths'));
 const unitPriceError = computed(() => amountError(parseCents(row.value.unit_price), 'unit_price', '80,00', 'unit_price_cents'));
-const vatOptionError = computed(() => props.fieldError('vat_option'));
-
-// The ids carry the index, not the key: the key is for Vue alone, and the
-// index is what a person (and a test) reads as "line 3".
-const idFor = (name: string): string => `invoice-lines-${props.index}-${name}`;
+const vatOptionError = computed(() => serverError('vat_option'));
 </script>
 
 <template>

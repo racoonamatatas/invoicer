@@ -187,31 +187,40 @@ const payload = computed((): InvoicePayload | null =>
     return fields === null ? null : payloadWithRows(fields, rows.value);
 });
 
-// A line's fields as wildcards: a 422 names each line by its index.
-const { submit, isPending, fieldError, throttleMessage, generalMessage } = useForm<keyof InvoiceFormFields | 'lines' | `lines.*.${LineField}`>('invoice', {
-    client_id: true,
-    bank_account_id: true,
-    vat_treatment: true,
-    payment_term_days: true,
-    lines: false, // the list itself, like more than 100 lines: no input of its own
-    'lines.*.description': true,
-    'lines.*.quantity_hundredths': true,
-    'lines.*.unit_price_cents': true,
-    'lines.*.vat_option': true,
-});
-
 // Each row's key, in the order the last save sent them. A 422 names a line by
 // its index in that request; a row added or removed since would shift every
 // later index, so a row looks up its index here, not in the list it is in
 // now. A row added since has none, and so no server errors.
 const sentKeys = ref<readonly number[]>([]);
 
-const lineFieldError = (key: number) => (field: LineField) =>
-{
-    const index = sentKeys.value.indexOf(key);
+// Each sent row's index, by key: a number per row, so a row's props stay
+// equal between renders and a keystroke elsewhere doesn't re-render it.
+const sentIndexes = computed(() => new Map(sentKeys.value.map((key, index) => [key, index])));
 
-    return index === -1 ? null : fieldError(`lines.${index}.${field}`);
+// Whether the row a 422 key names (`lines.2.description`) is still in the
+// list. Removed since, it has nowhere to show its error.
+const isSentRowShown = (key: string): boolean =>
+{
+    const sentKey = sentKeys.value[Number(key.split('.')[1])]; // undefined for a key without an index
+
+    return sentKey !== undefined && rows.value.some((row) => row.key === sentKey);
 };
+
+// A line's fields as wildcards: a 422 names each line by its index. Each is
+// a check, not true: an error counts as shown only while its row is on the
+// page, and a VAT rate's only while the select is, so generalMessage takes
+// over when neither is.
+const { submit, isPending, fieldError, throttleMessage, generalMessage } = useForm<keyof InvoiceFormFields | 'lines' | `lines.*.${LineField}`>('invoice', {
+    client_id: true,
+    bank_account_id: true,
+    vat_treatment: true,
+    payment_term_days: true,
+    lines: false, // the list itself, like more than 100 lines: no input of its own
+    'lines.*.description': isSentRowShown,
+    'lines.*.quantity_hundredths': isSentRowShown,
+    'lines.*.unit_price_cents': isSentRowShown,
+    'lines.*.vat_option': (key) => form.value.vat_treatment === 'domestic' && isSentRowShown(key),
+});
 
 const clientError = computed(() => fieldError('client_id'));
 const bankAccountError = computed(() => fieldError('bank_account_id'));
@@ -403,8 +412,10 @@ const onSubmit = async (): Promise<void> =>
             :key="row.key"
             :model-value="row"
             :index="index"
+            form-name="invoice"
+            :sent-index="sentIndexes.get(row.key) ?? null"
             :charges-vat="form.vat_treatment === 'domestic'"
-            :field-error="lineFieldError(row.key)"
+            :field-error="fieldError"
             :readonly="isPending"
             :total-cents="lineTotalCents(index)"
             @update:model-value="replaceLine"
