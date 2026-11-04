@@ -910,6 +910,72 @@ describe('InvoiceEditor page', () =>
                 vi.mocked(invoicesService.updateInvoice).mockRejectedValue(axiosErrorWith(422, { message, errors: { [key]: [message] } }));
             };
 
+            it.for([
+                { field: 'description', input: 'description' },
+                { field: 'quantity_hundredths', input: 'quantity' },
+                { field: 'unit_price_cents', input: 'unit_price' },
+                { field: 'vat_option', input: 'vat_option' },
+            ])('should show a 422 (unprocessable content) on lines.0.$field next to its input', async ({ field, input }) =>
+            {
+                // Arrange
+                const message = `The lines.0.${field} field is invalid.`;
+                rejectWithLineError(`lines.0.${field}`, message);
+                const { wrapper } = await mountInvoiceEditor('/businesses/7/invoices/11/edit');
+                await flushPromises();
+
+                // Act
+                await editForm(wrapper).trigger('submit');
+                await flushPromises();
+
+                // Assert: a wrong field name in the component would leave it unlinked
+                const element = wrapper.find(`#invoice-lines-0-${input}`);
+                expect(element.attributes('aria-invalid')).toBe('true');
+                expect(wrapper.find(`#${element.attributes('aria-describedby')}`).text()).toBe(message);
+                expect(formStatus(wrapper)).toBe('');
+            });
+
+            it('should show no 422 (unprocessable content) on a line added after the save, even where an errored line used to be', async () =>
+            {
+                // Arrange: two lines sent, the second refused
+                const message = 'The lines.1.description field is required.';
+                rejectWithLineError('lines.1.description', message);
+                const { wrapper } = await mountInvoiceEditor('/businesses/7/invoices/11/edit');
+                await flushPromises();
+                await buttonNamed(wrapper, 'Add line').trigger('click');
+                await fillLine(wrapper, 1, hosting);
+                await editForm(wrapper).trigger('submit');
+                await flushPromises();
+
+                // Act: the refused line goes, and a new one takes its place on screen
+                await buttonNamed(wrapper, 'Remove line 2').trigger('click');
+                await buttonNamed(wrapper, 'Add line').trigger('click');
+
+                // Assert: the new line was never sent, so the server said nothing
+                // about it; the error has no line left, so the form shows it
+                expect(wrapper.find('#invoice-lines-1-description').attributes('aria-invalid')).toBe('false');
+                expect(wrapper.find('#invoice-lines-0-description').attributes('aria-invalid')).toBe('false');
+                expect(formStatus(wrapper)).toBe(message);
+            });
+
+            it.for([
+                { input: 'quantity', typed: 'seven', message: 'Enter a number, like 7,5.' },
+                { input: 'quantity', typed: '-1', message: 'Enter 0 or more.' },
+                { input: 'quantity', typed: '100000,01', message: 'Enter at most 100000.' },
+                { input: 'unit_price', typed: 'eighty', message: 'Enter a number, like 80,00.' },
+            ])('should say "$message" next to a $input typed as $typed', async ({ input, typed, message }) =>
+            {
+                // Arrange
+                const { wrapper } = await mountInvoiceEditor('/businesses/7/invoices/11/edit');
+                await flushPromises();
+
+                // Act
+                await wrapper.find(`#invoice-lines-0-${input}`).setValue(typed);
+
+                // Assert
+                const element = wrapper.find(`#invoice-lines-0-${input}`);
+                expect(wrapper.find(`#${element.attributes('aria-describedby')}`).text()).toBe(message);
+            });
+
             it('should show a 422 (unprocessable content) in the form\'s status once the line it names is removed', async () =>
             {
                 // Arrange
