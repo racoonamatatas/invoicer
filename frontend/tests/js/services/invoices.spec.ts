@@ -220,6 +220,24 @@ describe('isInvoice', () =>
         expect(isInvoice(invoice)).toBe(false);
     });
 
+    // Every amount the editor formats. formatCents and formatHundredths throw
+    // on a negative or unsafe value, so the guard refuses those before they
+    // reach the page.
+    it.for([
+        { place: 'a line\'s quantity_hundredths', invoice: withLine(domesticInvoice, { quantity_hundredths: -1 }) },
+        { place: 'a line\'s unit_price_cents', invoice: withLine(domesticInvoice, { unit_price_cents: Number.MAX_SAFE_INTEGER + 1 }) },
+        { place: 'a line\'s total_cents', invoice: withLine(domesticInvoice, { total_cents: -1 }) },
+        { place: 'subtotal_cents', invoice: withTotals(domesticInvoice, { subtotal_cents: -1 }) },
+        { place: 'vat_cents', invoice: withTotals(domesticInvoice, { vat_cents: -1 }) },
+        { place: 'total_cents', invoice: withTotals(domesticInvoice, { total_cents: Number.MAX_SAFE_INTEGER + 1 }) },
+        { place: 'a VAT group\'s base_cents', invoice: withTotals(domesticInvoice, { vat_groups: [{ vat_option: 'high', rate_percent: 21, base_cents: -1, vat_cents: 0 }] }) },
+        { place: 'a VAT group\'s vat_cents', invoice: withTotals(domesticInvoice, { vat_groups: [{ vat_option: 'high', rate_percent: 21, base_cents: 0, vat_cents: -1 }] }) },
+    ])('should reject an invoice with a negative or unsafe amount in $place', ({ invoice }) =>
+    {
+        // Act + Assert
+        expect(isInvoice(invoice)).toBe(false);
+    });
+
     // The guard holds the type's promise: each row breaks exactly one
     // treatment rule, and only checking against the invoice's treatment
     // catches it, because each value is valid under the other treatment.
