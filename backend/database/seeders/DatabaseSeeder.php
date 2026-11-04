@@ -44,19 +44,30 @@ class DatabaseSeeder extends Seeder
 
         $client = Client::factory()->for($business)->create([
             'name' => 'Femke Wiersma',
+            'email' => 'femke.wiersma@example.com',
+            'street' => 'Herestraat',
+            'house_number' => '88',
+            'postal_code' => '9711 LM',
             'city' => 'Groningen',
         ]);
 
         Client::factory()->for($business)->create([
             'name' => 'Hoekstra Fietsen',
+            'email' => 'administratie@hoekstra-fietsen.example',
             'vat_number' => 'NL123456789B01',
+            'street' => 'Rijksstraatweg',
+            'house_number' => '210',
+            'postal_code' => '9752 BK',
             'city' => 'Haren',
         ]);
 
         // The client abroad, inside the EU, so it may have a VAT number.
         Client::factory()->for($business)->create([
             'name' => 'Peeters Drukwerk',
+            'email' => 'boekhouding@peeters-drukwerk.example',
             'vat_number' => 'BE0123456789',
+            'street' => 'Veldstraat',
+            'house_number' => '31',
             'postal_code' => '9000',
             'city' => 'Gent',
             'country_code' => 'BE',
@@ -67,11 +78,12 @@ class DatabaseSeeder extends Seeder
             ->has(
                 InvoiceLine::factory()
                     ->count(3)
-                    // Positions are unique per invoice, and the factory always gives 1.
+                    // Positions are unique per invoice, and the factory always gives 1. Amounts are fixed too, so the
+                    // demo invoice has the same total after every reseed.
                     ->sequence(
-                        ['position' => 1, 'description' => 'Ontwerp website'],
-                        ['position' => 2, 'description' => 'Bouw en oplevering'],
-                        ['position' => 3, 'description' => 'Hosting, eerste jaar'],
+                        ['position' => 1, 'description' => 'Ontwerp website', 'quantity_hundredths' => 1200, 'unit_price_cents' => 7500],
+                        ['position' => 2, 'description' => 'Bouw en oplevering', 'quantity_hundredths' => 2400, 'unit_price_cents' => 7500],
+                        ['position' => 3, 'description' => 'Hosting, eerste jaar', 'quantity_hundredths' => 100, 'unit_price_cents' => 12000],
                     ),
                 'lines',
             )
