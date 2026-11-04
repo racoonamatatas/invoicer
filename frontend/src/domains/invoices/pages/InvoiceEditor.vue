@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Package imports
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { RouterLink, useRoute, useRouter } from 'vue-router';
 
 // Project imports
@@ -70,6 +70,16 @@ type CreateOutcome =
     | { kind: 'notMoved'; invoiceId: number };
 
 const createOutcome = ref<CreateOutcome>({ kind: 'none' });
+
+// The page is reused between the new and edit routes, so an outcome would
+// otherwise survive Back to a fresh "new" page.
+watch(isNew, (nowNew) =>
+{
+    if (nowNew)
+    {
+        createOutcome.value = { kind: 'none' };
+    }
+});
 
 // Only the POST can fail the save. Anything after it is reported by the page,
 // never by the form, whose "Couldn't save." keeps the button enabled.
