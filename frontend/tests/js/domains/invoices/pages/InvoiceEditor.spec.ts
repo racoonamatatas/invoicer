@@ -7,6 +7,8 @@ import type { BankAccount } from '@/services/bankAccounts';
 import * as bankAccountsService from '@/services/bankAccounts';
 import * as businessesService from '@/services/businesses';
 import * as clientsService from '@/services/clients';
+import { AxiosError } from 'axios';
+
 import { UnexpectedResponseError } from '@/services/http';
 import * as invoicesService from '@/services/invoices';
 import { axiosErrorWith } from '../../../utility/axiosErrorWith';
@@ -114,11 +116,15 @@ describe('InvoiceEditor page', () =>
             expect(invoicesService.fetchInvoice).not.toHaveBeenCalled();
         });
 
-        it('should send the user to the invoices, not offer the form again, when a 201 (created) can\'t be read', async () =>
+        it.for<[failure: string, error: unknown]>([
+            ['a 201 (created) that can\'t be read', new UnexpectedResponseError('/businesses/7/invoices')],
+            ['no answer at all', new AxiosError('Network Error', AxiosError.ERR_NETWORK)],
+            ['a 504 (gateway timeout)', axiosErrorWith(504, {})],
+        ])('should send the user to the invoices, not offer the form again, after %s', async ([_failure, error]) =>
         {
             // Arrange: the draft may be stored, so a second press could make
             // a second one
-            vi.mocked(invoicesService.createInvoice).mockRejectedValue(new UnexpectedResponseError('/businesses/7/invoices'));
+            vi.mocked(invoicesService.createInvoice).mockRejectedValue(error);
             const errorHandler = vi.fn<(error: unknown) => void>();
             const { wrapper } = await mountInvoiceEditor('/businesses/7/invoices/new', errorHandler);
             await flushPromises();
@@ -129,7 +135,7 @@ describe('InvoiceEditor page', () =>
             await flushPromises();
 
             // Assert: still reported as a fault, but with no form to retry
-            expect(wrapper.text()).toContain('The draft may have been created, but its answer couldn\'t be read.');
+            expect(wrapper.text()).toContain('The draft may have been created, but no answer came back that says so.');
             const link = wrapper.findAll('a').find((candidate) => candidate.text() === 'Check the invoices');
             expect(link?.attributes('href')).toBe('/businesses/7/invoices');
             expect(form(wrapper).exists()).toBe(false);
@@ -261,6 +267,41 @@ describe('InvoiceEditor page', () =>
             expect(button().attributes('disabled')).toBeDefined();
             await wrapper.find('#invoice-bank_account_id').setValue(String(main.id));
             expect(button().attributes('disabled')).toBeUndefined();
+        });
+
+        it('should show a fresh form, not the last create\'s outcome, on a later visit to the new page', async () =>
+        {
+            // Arrange: the first move to the draft's page is cancelled, so
+            // the page shows "Draft created."
+            const { wrapper, router } = await mountInvoiceEditor('/businesses/7/invoices/new');
+            await flushPromises();
+            let isFirstMove = true;
+            router.beforeEach((to) =>
+            {
+                if (to.name === 'editInvoice' && isFirstMove)
+                {
+                    isFirstMove = false;
+
+                    return false;
+                }
+
+                return true;
+            });
+            await fillIn(wrapper, bakker.id, '');
+            await form(wrapper).trigger('submit');
+            await flushPromises();
+            expect(wrapper.text()).toContain('Draft created.');
+
+            // Act: to the draft, then back to the new page; the same page
+            // instance serves both routes
+            await router.push('/businesses/7/invoices/11/edit');
+            await flushPromises();
+            await router.push('/businesses/7/invoices/new');
+            await flushPromises();
+
+            // Assert
+            expect(form(wrapper).exists()).toBe(true);
+            expect(wrapper.text()).not.toContain('Draft created.');
         });
 
         it('should link to the bank accounts instead of showing the form when the business has none', async () =>

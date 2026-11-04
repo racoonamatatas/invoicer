@@ -277,4 +277,22 @@ describe('useRouteInvoice', () =>
         expect(fetchInvoice).not.toHaveBeenCalled();
         expect(state.value).toStrictEqual({ kind: 'found', ...other });
     });
+    it('should drop an adopted draft once the URL names another, so a later visit fetches it', async () =>
+    {
+        // Arrange
+        vi.mocked(fetchInvoice).mockResolvedValue(loaded);
+        const { router, adopt } = await mountRouteInvoice('/businesses/7/invoices/11/edit');
+        await flushPromises();
+        adopt(other);
+
+        // Act: the URL moves to draft 12 only after naming draft 10
+        await router.push('/businesses/7/invoices/10/edit');
+        await flushPromises();
+        vi.mocked(fetchInvoice).mockClear();
+        await router.push('/businesses/7/invoices/12/edit');
+        await flushPromises();
+
+        // Assert: draft 12 is fetched, not shown with its creation-time version
+        expect(fetchInvoice).toHaveBeenCalledExactlyOnceWith(7, 12);
+    });
 });
