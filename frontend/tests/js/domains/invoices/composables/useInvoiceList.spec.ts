@@ -181,6 +181,37 @@ describe('useInvoiceList', () =>
         });
     });
 
+    it('should keep the new business\'s invoices, and not hand the error to Vue, when the old business\'s request fails after them', async () =>
+    {
+        // Arrange: business 7's invoices are held in flight, then fail
+        const held = createDeferred();
+        vi.mocked(listInvoices).mockImplementation(async (id) =>
+        {
+            if (id === 7)
+            {
+                await held.promise;
+                throw axiosErrorWith(500, {});
+            }
+
+            return [draftListItem(20, 4, 3634)];
+        });
+        vi.mocked(listClients).mockResolvedValue([acme, bolt]);
+        const { state, businessId, errorHandler } = mountInvoiceList();
+
+        // Act: move to business 8, let it load, then let business 7 fail
+        businessId.value = 8;
+        await flushPromises();
+        held.resolve();
+        await flushPromises();
+
+        // Assert: the failure belongs to a business the page has left
+        expect(state.value).toEqual({
+            kind: 'loaded',
+            rows: [{ invoice: draftListItem(20, 4, 3634), clientName: 'Bolt', total: 3634 }],
+        });
+        expect(errorHandler).not.toHaveBeenCalled();
+    });
+
     it('should make no request while there is no business to load for', async () =>
     {
         // Act: null while the business itself is still loading
