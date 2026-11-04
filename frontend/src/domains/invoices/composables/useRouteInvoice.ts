@@ -87,6 +87,13 @@ export const useRouteInvoice = (businessId: () => number | null) =>
             return undefined;
         }
 
+        // A draft adopted for another id is dropped, so a later visit to it
+        // fetches its current version instead of the one from its creation.
+        if (adopted !== null && adopted.invoice.id !== invoice)
+        {
+            adopted = null;
+        }
+
         if (adopted?.invoice.id === invoice)
         {
             state.value = { kind: 'found', ...adopted };
