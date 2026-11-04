@@ -42,7 +42,25 @@ describe('The database seeder', function (): void {
 
         $invoice = $business->invoices()->sole();
 
+        // A domestic invoice must go to a Dutch client; the Belgian one would need reverse charge.
         expect($invoice->status)->toBe(InvoiceStatus::Draft)
+            ->and($invoice->client->country_code)->toBe('NL')
+            ->and($invoice->bank_account_id)->toBe($business->bankAccounts()->sole()->id)
             ->and($invoice->lines()->orderBy('position')->pluck('position')->all())->toBe([1, 2, 3]);
+    });
+
+    it('should throw and create no user when the app runs in production', function (): void {
+        // Arrange
+        // The demo password is public in the README, so a production database must never get this account.
+        app()->detectEnvironment(static fn (): string => 'production');
+
+        // Act
+        // run() directly, not $this->seed(): that goes through db:seed, which in production first asks "Are you sure?".
+        // The guard is for when that prompt is skipped with --force.
+        $seed = static fn () => (new DatabaseSeeder)->run();
+
+        // Assert
+        expect($seed)->toThrow(RuntimeException::class, 'The demo seeder creates a login whose password is public, so it does not run in production.')
+            ->and(User::query()->count())->toBe(0);
     });
 });
