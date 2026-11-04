@@ -465,8 +465,8 @@ const onSubmit = async (): Promise<void> =>
         <p v-else>The totals appear once the draft is created.</p>
 
         <p v-if="areLinesIncomplete" id="invoice-lines-incomplete">
-            <template v-if="form.vat_treatment === 'domestic'">Every line needs a quantity, a unit price and a VAT rate before you can save.</template>
-            <template v-else>Every line needs a quantity and a unit price before you can save.</template>
+            <template v-if="form.vat_treatment === 'domestic'">Every line needs a description, a quantity, a unit price and a VAT rate before you can save.</template>
+            <template v-else>Every line needs a description, a quantity and a unit price before you can save.</template>
         </p>
         <button type="submit" :disabled="isPending || payload === null" :aria-describedby="areLinesIncomplete ? 'invoice-lines-incomplete' : undefined">{{ submitLabel }}</button>
     </form>

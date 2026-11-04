@@ -84,14 +84,19 @@ export const rowContent = (row: LineRow): unknown[] =>
     ];
 };
 
-// A row's numbers, or null while either can't be read. The form shows why
-// next to the field; this only decides whether the row can be sent.
-const amountsOf = (row: LineRow): { quantity_hundredths: number; unit_price_cents: number } | null =>
+// A row's description and numbers, or null while it can't be sent: a number
+// that can't be read, or a description that is empty once trimmed. The
+// backend trims it too (TrimStrings), so blank would be its 422 in its own
+// words; the input's `required` doesn't catch spaces. The form shows why
+// next to Save; this only decides whether the row can be sent.
+const contentOf = (row: LineRow): { description: string; quantity_hundredths: number; unit_price_cents: number } | null =>
 {
     const quantity = parseLineQuantity(row.quantity);
     const unitPrice = parseLineUnitPrice(row.unit_price);
 
-    return quantity.ok && unitPrice.ok ? { quantity_hundredths: quantity.value, unit_price_cents: unitPrice.value } : null;
+    return row.description.trim() !== '' && quantity.ok && unitPrice.ok
+        ? { description: row.description, quantity_hundredths: quantity.value, unit_price_cents: unitPrice.value }
+        : null;
 };
 
 // Every item, or null if any is missing: one unreadable row blocks the whole
@@ -104,8 +109,8 @@ const allOrNone = <T>(items: readonly (T | null)[]): T[] | null =>
 };
 
 // The payload for a save: the invoice's own fields and every row as a line.
-// null while a row's quantity or price can't be read, or a domestic row has
-// no VAT option yet. Narrowed on the treatment, so each branch's lines are
+// null while a row can't be sent (see contentOf), or a domestic row has no
+// VAT option yet. Narrowed on the treatment, so each branch's lines are
 // typed for it and the result type-checks without a cast.
 export const payloadWithRows = (fields: InvoiceFieldsPayload, rows: readonly LineRow[]): InvoicePayload | null =>
 {
@@ -113,11 +118,9 @@ export const payloadWithRows = (fields: InvoiceFieldsPayload, rows: readonly Lin
     {
         const lines = allOrNone(rows.map((row) =>
         {
-            const amounts = amountsOf(row);
+            const content = contentOf(row);
 
-            return amounts === null || row.vat_option === null
-                ? null
-                : { description: row.description, ...amounts, vat_option: row.vat_option };
+            return content === null || row.vat_option === null ? null : { ...content, vat_option: row.vat_option };
         }));
 
         return lines === null ? null : { ...fields, lines };
@@ -127,9 +130,9 @@ export const payloadWithRows = (fields: InvoiceFieldsPayload, rows: readonly Lin
     // form clears them on a switch, so this is the second line of defence.
     const lines = allOrNone(rows.map((row) =>
     {
-        const amounts = amountsOf(row);
+        const content = contentOf(row);
 
-        return amounts === null ? null : { description: row.description, ...amounts, vat_option: null };
+        return content === null ? null : { ...content, vat_option: null };
     }));
 
     return lines === null ? null : { ...fields, lines };

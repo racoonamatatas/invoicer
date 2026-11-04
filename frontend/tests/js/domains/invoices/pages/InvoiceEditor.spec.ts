@@ -834,7 +834,7 @@ describe('InvoiceEditor page', () =>
                 // Assert: linked to the button, for a screen reader
                 expect(saveButton(wrapper).attributes('disabled')).toBeDefined();
                 expect(wrapper.find(`#${saveButton(wrapper).attributes('aria-describedby')}`).text())
-                    .toBe('Every line needs a quantity, a unit price and a VAT rate before you can save.');
+                    .toBe('Every line needs a description, a quantity, a unit price and a VAT rate before you can save.');
             });
 
             it('should drop the cleared-rates note once the invoice is back on Dutch VAT', async () =>
