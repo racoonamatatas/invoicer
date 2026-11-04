@@ -4,8 +4,9 @@ import { computed, ref, watch } from 'vue';
 
 // Project imports
 import { useForm } from '@/composables/useForm';
+import InvoiceLineFields, { type LineField } from '@/domains/invoices/components/InvoiceLineFields.vue';
+import { emptyRow, payloadWithRows, rowsFrom, type LineRow } from '@/domains/invoices/lineRows';
 import { suggestedVatTreatment } from '@/domains/invoices/suggestedVatTreatment';
-import { withStoredLines } from '@/domains/invoices/withStoredLines';
 import type { BankAccount } from '@/services/bankAccounts';
 import type { Client } from '@/services/clients';
 import {
@@ -18,14 +19,13 @@ import {
     type VersionedInvoice,
 } from '@/services/invoices';
 
-// What the form starts from: nothing, or a stored draft whose lines go back
-// unchanged on every save.
+// What the form starts from: nothing, or a stored draft.
 export type InvoiceFormInitial =
     | { kind: 'new' }
     | { kind: 'existing'; invoice: Invoice };
 
-// One form for creating and editing a draft's own fields (not its lines),
-// so the two can't drift apart. The page decides what saving means.
+// One form for creating and editing a draft, its fields and its lines, so
+// the two can't drift apart. The page decides what saving means.
 //
 // save is a prop, not an emit, for the same reason as in ClientForm: the
 // form awaits it, so a 422 lands in useForm's errors.
@@ -73,6 +73,31 @@ const fieldsFrom = (initial: InvoiceFormInitial): InvoiceFormFields =>
 
 const form = ref<InvoiceFormFields>(fieldsFrom(props.initial));
 
+// The lines, apart from the fields: each row is its own component, and the
+// list is replaced, never patched, so a row's v-model can't miss a change.
+const rows = ref<LineRow[]>(props.initial.kind === 'new' ? [] : rowsFrom(props.initial.invoice.lines));
+
+// InvoiceRequest::MAX_LINES. Add line stops there, so the backend's limit
+// is only reached by a bug, which then shows in generalMessage.
+const MAX_LINES = 100;
+
+const addLine = (): void =>
+{
+    rows.value = [...rows.value, emptyRow()];
+};
+
+// By key, not index: the index of a row can change while its button is
+// being pressed, its key can't.
+const removeLine = (key: number): void =>
+{
+    rows.value = rows.value.filter((row) => row.key !== key);
+};
+
+const replaceLine = (updated: LineRow): void =>
+{
+    rows.value = rows.value.map((row) => (row.key === updated.key ? updated : row));
+};
+
 // A Record over every treatment, so one added later fails to compile until
 // it has a label.
 const TREATMENT_LABELS: Record<VatTreatment, string> = {
@@ -92,6 +117,18 @@ watch(() => form.value.client_id, (clientId) =>
     if (client !== undefined)
     {
         form.value.vat_treatment = suggestedVatTreatment(client);
+    }
+});
+
+// Off Dutch VAT, no line may hold an option: the server refuses the
+// combination, so the form never holds it either. Back on Dutch VAT each line
+// needs a new pick, which keeps Save disabled until it has one: the old
+// option is gone rather than silently restored.
+watch(() => form.value.vat_treatment, (treatment) =>
+{
+    if (treatment !== 'domestic')
+    {
+        rows.value = rows.value.map((row) => ({ ...row, vat_option: null }));
     }
 });
 
@@ -140,33 +177,40 @@ const fieldsPayload = computed((): InvoiceFieldsPayload | null =>
     };
 });
 
-// A new draft has no lines yet; a stored one sends its own back. null while
-// the fields are incomplete, or when the stored lines can't follow the
-// treatment (see withStoredLines).
+// null while the fields are incomplete or a row can't be sent (see
+// payloadWithRows).
 const payload = computed((): InvoicePayload | null =>
 {
     const fields = fieldsPayload.value;
 
-    if (fields === null)
-    {
-        return null;
-    }
-
-    return props.initial.kind === 'new' ? { ...fields, lines: [] } : withStoredLines(fields, props.initial.invoice);
+    return fields === null ? null : payloadWithRows(fields, rows.value);
 });
 
-// Complete fields that still can't be sent: only a treatment switch on a
-// draft with lines does that.
-const isSwitchBlocked = computed(() => fieldsPayload.value !== null && payload.value === null);
-
-// Every field true: each has its own control. `lines` isn't one, so a 422 on
-// a line shows in generalMessage.
-const { submit, isPending, fieldError, throttleMessage, generalMessage } = useForm<keyof InvoiceFormFields>('invoice', {
+// A line's fields as wildcards: a 422 names each line by its index.
+const { submit, isPending, fieldError, throttleMessage, generalMessage } = useForm<keyof InvoiceFormFields | 'lines' | `lines.*.${LineField}`>('invoice', {
     client_id: true,
     bank_account_id: true,
     vat_treatment: true,
     payment_term_days: true,
+    lines: false, // the list itself, like more than 100 lines: no input of its own
+    'lines.*.description': true,
+    'lines.*.quantity_hundredths': true,
+    'lines.*.unit_price_cents': true,
+    'lines.*.vat_option': true,
 });
+
+// Each row's key, in the order the last save sent them. A 422 names a line by
+// its index in that request; a row added or removed since would shift every
+// later index, so a row looks up its index here, not in the list it is in
+// now. A row added since has none, and so no server errors.
+const sentKeys = ref<readonly number[]>([]);
+
+const lineFieldError = (key: number) => (field: LineField) =>
+{
+    const index = sentKeys.value.indexOf(key);
+
+    return index === -1 ? null : fieldError(`lines.${index}.${field}`);
+};
 
 const clientError = computed(() => fieldError('client_id'));
 const bankAccountError = computed(() => fieldError('bank_account_id'));
@@ -177,11 +221,18 @@ const termError = computed(() => (termInput.value.kind === 'invalid'
     ? { id: 'invoice-payment_term_days-format', message: 'Enter a whole number of days, like 30.' }
     : fieldError('payment_term_days')));
 
-// The form's fields right after the last save, as JSON so a deep comparison
-// is one string compare. null until a save went through.
+// What the form holds, as JSON so a deep comparison is one string compare.
+// Without the rows' keys: they are new after every save, and a row removed
+// and typed in again holds the same line.
+const snapshot = (): string => JSON.stringify({
+    fields: form.value,
+    lines: rows.value.map((row) => [row.description, row.quantity, row.unit_price, row.vat_option]),
+});
+
+// The form right after the last save. null until a save went through.
 const savedFields = ref<string | null>(null);
 
-const isSaved = computed(() => savedFields.value !== null && JSON.stringify(form.value) === savedFields.value);
+const isSaved = computed(() => savedFields.value !== null && snapshot() === savedFields.value);
 
 // A 412: saved elsewhere since this version was loaded. An answer, not a
 // fault, so it isn't re-thrown; the fields keep the user's edits.
@@ -206,6 +257,8 @@ const onSubmit = async (): Promise<void> =>
         throw new Error('InvoiceForm submitted without a complete payload.');
     }
 
+    sentKeys.value = rows.value.map((row) => row.key);
+
     try
     {
         await submit(async () =>
@@ -217,7 +270,8 @@ const onSubmit = async (): Promise<void> =>
             if (props.initial.kind === 'existing')
             {
                 form.value = fieldsFrom({ kind: 'existing', invoice: stored.invoice });
-                savedFields.value = JSON.stringify(form.value);
+                rows.value = rowsFrom(stored.invoice.lines);
+                savedFields.value = snapshot();
             }
         });
     }
@@ -317,9 +371,21 @@ const onSubmit = async (): Promise<void> =>
             <p v-if="termError" :id="termError.id">{{ termError.message }}</p>
         </div>
 
-        <p v-if="isSwitchBlocked" id="invoice-switch-blocked">
-            This draft has lines. Switching between Dutch VAT and no VAT comes with the lines editor.
-        </p>
-        <button type="submit" :disabled="isPending || payload === null" :aria-describedby="isSwitchBlocked ? 'invoice-switch-blocked' : undefined">{{ submitLabel }}</button>
+        <h2>Lines</h2>
+        <p v-if="rows.length === 0">No lines yet.</p>
+        <InvoiceLineFields
+            v-for="(row, index) in rows"
+            :key="row.key"
+            :model-value="row"
+            :index="index"
+            :charges-vat="form.vat_treatment === 'domestic'"
+            :field-error="lineFieldError(row.key)"
+            :readonly="isPending"
+            @update:model-value="replaceLine"
+            @remove="removeLine(row.key)"
+        />
+        <button type="button" :disabled="isPending || rows.length >= MAX_LINES" @click="addLine">Add line</button>
+
+        <button type="submit" :disabled="isPending || payload === null">{{ submitLabel }}</button>
     </form>
 </template>

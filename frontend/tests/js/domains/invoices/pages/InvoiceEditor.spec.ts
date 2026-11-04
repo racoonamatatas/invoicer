@@ -379,8 +379,6 @@ describe('InvoiceEditor page', () =>
 
         const termValue = (wrapper: VueWrapper): string => (wrapper.find('#invoice-payment_term_days').element as HTMLInputElement).value;
 
-        const saveButton = (wrapper: VueWrapper) => editForm(wrapper).find('button[type="submit"]');
-
         // The stored draft after a save of `term`, at `version`.
         const savedWithTerm = (term: number, version: number): invoicesService.VersionedInvoice => ({
             invoice: { ...domesticDraftWithLine(11, huber.id, main.id), payment_term_days: term },
@@ -498,23 +496,6 @@ describe('InvoiceEditor page', () =>
             expect(formStatus(wrapper)).toBe('Couldn\'t save. Load the latest version before you try again.');
             expect(wrapper.findAll('button').some((button) => button.text() === 'Load the latest version')).toBe(true);
             expect(errorHandler).toHaveBeenCalledOnce();
-        });
-
-        it('should disable Save and say why when a draft with lines switches from Dutch VAT to none', async () =>
-        {
-            // Arrange
-            const { wrapper } = await mountInvoiceEditor('/businesses/7/invoices/11/edit');
-            await flushPromises();
-            expect(saveButton(wrapper).attributes('disabled')).toBeUndefined();
-
-            // Act
-            await wrapper.find('#invoice-vat_treatment').setValue('reverse_charge');
-
-            // Assert: the note is linked to the button, for a screen reader
-            expect(saveButton(wrapper).attributes('disabled')).toBeDefined();
-            const describedBy = saveButton(wrapper).attributes('aria-describedby');
-            expect(describedBy).toBeDefined();
-            expect(wrapper.find(`#${describedBy}`).text()).toBe('This draft has lines. Switching between Dutch VAT and no VAT comes with the lines editor.');
         });
 
         it('should say the invoice wasn\'t found on a 404 (not found), and show no form', async () =>
