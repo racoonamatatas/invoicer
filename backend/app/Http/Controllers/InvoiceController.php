@@ -10,8 +10,8 @@ use App\Actions\Invoice\ListInvoicesAction;
 use App\Actions\Invoice\UpdateInvoiceAction;
 use App\Http\IfMatch;
 use App\Http\Requests\InvoiceRequest;
+use App\Http\Resources\InvoiceListItemResourceData;
 use App\Http\Resources\InvoiceResourceData;
-use App\Http\Resources\InvoiceSummaryResourceData;
 use App\Http\Responses\NoContentResponse;
 use App\Models\Business;
 use App\Models\Invoice;
@@ -27,7 +27,7 @@ final class InvoiceController extends Controller
     public function index(Business $business, ListInvoicesAction $action): JsonResponse
     {
         $invoices = $action->execute($business)
-            ->map(InvoiceSummaryResourceData::from(...))
+            ->map(InvoiceListItemResourceData::from(...))
             ->all();
 
         return new JsonResponse($invoices);
