@@ -1,5 +1,5 @@
 // Project imports
-import { formatCentsForInput, formatHundredths, parseCents, parseHundredths, type Cents, type Hundredths } from '@/form/amounts';
+import { formatCentsForInput, formatHundredths, parseCents, parseHundredths, type Cents, type Hundredths, type ParseResult } from '@/form/amounts';
 import type { InvoiceFieldsPayload, InvoiceLine, InvoicePayload, VatOption } from '@/services/invoices';
 
 // One line as the editor holds it. Quantity and price are text, because an
@@ -18,6 +18,25 @@ export interface LineRow
 // Add line stops there, so the backend's limit is only reached by a bug,
 // which then shows in the form's general message.
 export const MAX_LINES = 100;
+
+// InvoiceRequest's other limits, pinned the same way. Checked here, so a too
+// large amount gets the editor's own message next to its input instead of
+// the backend's, which names the field by its key (`lines.0.unit_price_cents`).
+export const MAX_QUANTITY_HUNDREDTHS = 10_000_000; // 100 000 units
+export const MAX_UNIT_PRICE_CENTS = 100_000_000; // € 1 000 000
+export const MAX_DESCRIPTION_LENGTH = 255; // the description input's maxlength
+
+// The parser's result, with an amount over `max` refused as too_large, the
+// reason the parser gives a number past the safe integers too: both are
+// fixed by typing a smaller number.
+const atMost = <T extends number>(parsed: ParseResult<T>, max: number): ParseResult<T> =>
+{
+    return parsed.ok && parsed.value > max ? { ok: false, reason: 'too_large' } : parsed;
+};
+
+export const parseLineQuantity = (input: string): ParseResult<Hundredths> => atMost(parseHundredths(input), MAX_QUANTITY_HUNDREDTHS);
+
+export const parseLineUnitPrice = (input: string): ParseResult<Cents> => atMost(parseCents(input), MAX_UNIT_PRICE_CENTS);
 
 // Shared by every editor on the page. A key only has to be unique within
 // one list, and counting up across all of them gives that for free.
@@ -69,8 +88,8 @@ export const rowContent = (row: LineRow): unknown[] =>
 // next to the field; this only decides whether the row can be sent.
 const amountsOf = (row: LineRow): { quantity_hundredths: number; unit_price_cents: number } | null =>
 {
-    const quantity = parseHundredths(row.quantity);
-    const unitPrice = parseCents(row.unit_price);
+    const quantity = parseLineQuantity(row.quantity);
+    const unitPrice = parseLineUnitPrice(row.unit_price);
 
     return quantity.ok && unitPrice.ok ? { quantity_hundredths: quantity.value, unit_price_cents: unitPrice.value } : null;
 };

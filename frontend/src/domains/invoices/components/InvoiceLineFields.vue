@@ -4,9 +4,16 @@ import { computed } from 'vue';
 
 // Project imports
 import type { FieldError } from '@/composables/useForm';
-import type { LineRow } from '@/domains/invoices/lineRows';
+import {
+    MAX_DESCRIPTION_LENGTH,
+    MAX_QUANTITY_HUNDREDTHS,
+    MAX_UNIT_PRICE_CENTS,
+    parseLineQuantity,
+    parseLineUnitPrice,
+    type LineRow,
+} from '@/domains/invoices/lineRows';
 import { VAT_OPTION_LABELS } from '@/domains/invoices/vatOptionLabels';
-import { formatCents, parseCents, parseHundredths, type Cents, type ParseFailure, type ParseResult } from '@/form/amounts';
+import { formatCents, formatHundredths, type Cents, type Hundredths, type ParseFailure, type ParseResult } from '@/form/amounts';
 import { VAT_OPTIONS } from '@/services/invoices';
 
 // A line's fields as the backend names them, so they are also the last part
@@ -72,7 +79,7 @@ const onVatOptionChange = (event: Event): void =>
 // What to say about input the parser refused. `empty` isn't here: an empty
 // field blocks the save like an unpicked client does, without a message on a
 // row the user is still filling in.
-const formatMessage = (reason: Exclude<ParseFailure, 'empty'>, example: string): string =>
+const formatMessage = (reason: Exclude<ParseFailure, 'empty'>, example: string, max: string): string =>
 {
     switch (reason)
     {
@@ -83,7 +90,7 @@ const formatMessage = (reason: Exclude<ParseFailure, 'empty'>, example: string):
         case 'negative':
             return 'Enter 0 or more.';
         case 'too_large':
-            return 'Enter a smaller number.';
+            return `Enter at most ${max}.`;
     }
 };
 
@@ -99,19 +106,23 @@ const serverError = (field: LineField): FieldError | null => (props.sentIndex ==
 
 // The row's own check comes first, as for the payment term: unreadable input
 // is never sent, so a server error on it can only be about an earlier value.
-const amountError = <T>(parsed: ParseResult<T>, name: string, example: string, field: LineField): FieldError | null =>
+const amountError = <T>(parsed: ParseResult<T>, name: string, example: string, max: string, field: LineField): FieldError | null =>
 {
     if (!parsed.ok && parsed.reason !== 'empty')
     {
-        return { id: `${idFor(name)}-format`, message: formatMessage(parsed.reason, example) };
+        return { id: `${idFor(name)}-format`, message: formatMessage(parsed.reason, example, max) };
     }
 
     return serverError(field);
 };
 
 const descriptionError = computed(() => serverError('description'));
-const quantityError = computed(() => amountError(parseHundredths(row.value.quantity), 'quantity', '7,5', 'quantity_hundredths'));
-const unitPriceError = computed(() => amountError(parseCents(row.value.unit_price), 'unit_price', '80,00', 'unit_price_cents'));
+// The limits as a user would type them: `100000` and `€ 1.000.000,00`.
+const MAX_QUANTITY_TEXT = formatHundredths(MAX_QUANTITY_HUNDREDTHS as Hundredths);
+const MAX_UNIT_PRICE_TEXT = formatCents(MAX_UNIT_PRICE_CENTS as Cents);
+
+const quantityError = computed(() => amountError(parseLineQuantity(row.value.quantity), 'quantity', '7,5', MAX_QUANTITY_TEXT, 'quantity_hundredths'));
+const unitPriceError = computed(() => amountError(parseLineUnitPrice(row.value.unit_price), 'unit_price', '80,00', MAX_UNIT_PRICE_TEXT, 'unit_price_cents'));
 const vatOptionError = computed(() => serverError('vat_option'));
 </script>
 
@@ -125,6 +136,7 @@ const vatOptionError = computed(() => serverError('vat_option'));
                 :value="row.description"
                 :readonly="readonly"
                 type="text"
+                :maxlength="MAX_DESCRIPTION_LENGTH"
                 required
                 :aria-invalid="descriptionError !== null"
                 :aria-describedby="descriptionError?.id"
