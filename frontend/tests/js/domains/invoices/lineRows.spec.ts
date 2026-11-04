@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
-import { emptyRow, payloadWithRows, rowsFrom, type LineRow } from '@/domains/invoices/lineRows';
+import { emptyRow, payloadWithRows, rowContent, rowsFrom, type LineRow } from '@/domains/invoices/lineRows';
 
 import { domesticDraftWithLine } from '../../utility/invoices';
 
@@ -43,6 +43,41 @@ describe('rowsFrom', () =>
 
         // Assert: Vue would reuse one row's inputs for another if two shared a key
         expect(new Set(keys).size).toBe(3);
+    });
+
+    it('should keep the keys it is given when there is one for every line', () =>
+    {
+        // Act: the keys of the rows a save just sent
+        const rows = rowsFrom(domesticDraftWithLine(11, 3, 5).lines, [42]);
+
+        // Assert: the same key, so Vue keeps the row's inputs and their focus
+        expect(rows.map((row) => row.key)).toStrictEqual([42]);
+    });
+
+    it('should give new keys when the keys it is given don\'t match the lines one for one', () =>
+    {
+        // Act: two keys for one stored line
+        const rows = rowsFrom(domesticDraftWithLine(11, 3, 5).lines, [42, 43]);
+
+        // Assert: neither, because which line a key belongs to is unknown
+        expect(rows.map((row) => row.key)).not.toContain(42);
+        expect(rows.map((row) => row.key)).not.toContain(43);
+    });
+});
+
+describe('rowContent', () =>
+{
+    it('should be equal for two ways of typing the same amounts', () =>
+    {
+        // Act + Assert: 7,50 and 7,5 are the same quantity, 80 and 80,00 the same price
+        expect(rowContent(typedRow({ quantity: '7,50', unit_price: '80' })))
+            .toStrictEqual(rowContent(typedRow({ quantity: '7,5', unit_price: '80,00' })));
+    });
+
+    it('should keep text that doesn\'t parse, so two different typos are different', () =>
+    {
+        // Act + Assert
+        expect(rowContent(typedRow({ quantity: 'seven' }))).not.toStrictEqual(rowContent(typedRow({ quantity: 'eight' })));
     });
 });
 

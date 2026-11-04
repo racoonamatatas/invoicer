@@ -707,6 +707,61 @@ describe('InvoiceEditor page', () =>
                 expect(wrapper.find(`#${moved.attributes('aria-describedby')}`).text()).toBe(message);
             });
 
+            it('should say Saved. and show the line totals after a line edit is saved, and hide both on the next edit', async () =>
+            {
+                // Arrange
+                vi.mocked(invoicesService.updateInvoice).mockResolvedValue({ invoice: domesticDraftWithLine(11, huber.id, main.id), version: 4 });
+                const { wrapper } = await mountInvoiceEditor('/businesses/7/invoices/11/edit');
+                await flushPromises();
+                await wrapper.find('#invoice-lines-0-description').setValue('Website redesign, phase 2');
+
+                // Act
+                await editForm(wrapper).trigger('submit');
+                await flushPromises();
+
+                // Assert: the response's line is shown, with its total
+                expect(formStatus(wrapper)).toBe('Saved.');
+                expect(editForm(wrapper).text()).toContain('Line total: €\u00a0600,00');
+
+                // Act
+                await wrapper.find('#invoice-lines-0-description').setValue('Website redesign, phase 3');
+
+                // Assert
+                expect(formStatus(wrapper)).toBe('');
+                expect(editForm(wrapper).text()).not.toContain('Line total');
+            });
+
+            it('should keep a line\'s inputs after a save, so the focus stays where it was', async () =>
+            {
+                // Arrange
+                vi.mocked(invoicesService.updateInvoice).mockResolvedValue({ invoice: domesticDraftWithLine(11, huber.id, main.id), version: 4 });
+                const { wrapper } = await mountInvoiceEditor('/businesses/7/invoices/11/edit');
+                await flushPromises();
+                const before = wrapper.find('#invoice-lines-0-description').element;
+
+                // Act
+                await editForm(wrapper).trigger('submit');
+                await flushPromises();
+
+                // Assert: the same element, not a new one in its place
+                expect(wrapper.find('#invoice-lines-0-description').element).toBe(before);
+            });
+
+            it('should keep showing the totals when an amount is retyped another way', async () =>
+            {
+                // Arrange
+                const { wrapper } = await mountInvoiceEditor('/businesses/7/invoices/11/edit');
+                await flushPromises();
+
+                // Act: the stored line shows 7,5 and 80,00
+                await wrapper.find('#invoice-lines-0-quantity').setValue('7,50');
+                await wrapper.find('#invoice-lines-0-unit_price').setValue('80');
+
+                // Assert: the same line, so its totals are still the totals
+                expect(wrapper.find('dl').text()).toContain('€\u00a0726,00');
+                expect(editForm(wrapper).text()).not.toContain('Unsaved changes');
+            });
+
             // A 422 whose message only says what is wrong with one line, as
             // Laravel words it.
             const rejectWithLineError = (key: string, message: string): void =>
