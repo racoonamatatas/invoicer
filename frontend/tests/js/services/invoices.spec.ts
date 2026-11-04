@@ -9,6 +9,7 @@ import {
     InvoiceNotFoundError,
     InvoiceVersionConflictError,
     isInvoice,
+    isInvoiceListItem,
     isInvoiceSummary,
     listInvoices,
     updateInvoice,
@@ -261,6 +262,31 @@ describe('isInvoiceSummary', () =>
     });
 });
 
+describe('isInvoiceListItem', () =>
+{
+    // What the list sends: the invoice without its lines and totals, plus the
+    // total on its own.
+    const { lines: _lines, totals, ...summary } = domesticInvoice;
+    const listItem = { ...summary, total_cents: totals.total_cents };
+
+    it('should accept a summary with its total in whole cents', () =>
+    {
+        // Act + Assert
+        expect(isInvoiceListItem(listItem)).toBe(true);
+    });
+
+    it.each([
+        ['without total_cents', summary],
+        ['with a fraction of a cent', { ...listItem, total_cents: 12.5 }],
+        ['with total_cents as a string', { ...listItem, total_cents: '1250' }],
+        ['whose summary is malformed', without(listItem, 'vat_treatment')],
+    ])('should reject a list item %s', (_case, item) =>
+    {
+        // Act + Assert
+        expect(isInvoiceListItem(item)).toBe(false);
+    });
+});
+
 // A successful response as axios hands it over: the body, and the version as
 // a quoted ETag under its lowercased name. Through `unknown`: with only the
 // two fields the service reads, TypeScript calls the cast a likely mistake.
@@ -289,25 +315,30 @@ describe('invoices service', () =>
 
     describe('listInvoices', () =>
     {
-        const { lines: _lines, totals: _totals, ...summary } = domesticInvoice;
+        const { lines: _lines, totals, ...summary } = domesticInvoice;
+        const listItem = { ...summary, total_cents: totals.total_cents };
 
-        it('should get the business\'s invoices and return their summaries', async () =>
+        it('should get the business\'s invoices and return them with their totals', async () =>
         {
             // Arrange
-            vi.mocked(getRequest).mockResolvedValue({ data: [summary] } as AxiosResponse);
+            vi.mocked(getRequest).mockResolvedValue({ data: [listItem] } as AxiosResponse);
 
             // Act
             const invoices = await listInvoices(1);
 
             // Assert
             expect(getRequest).toHaveBeenCalledWith('/businesses/1/invoices');
-            expect(invoices).toEqual([summary]);
+            expect(invoices).toEqual([listItem]);
         });
 
-        it('should throw an UnexpectedResponseError when one summary is malformed', async () =>
+        it.each([
+            ['without its treatment', { ...listItem, vat_treatment: undefined }],
+            ['without its total', summary],
+        ])('should throw an UnexpectedResponseError when one item is malformed: %s', async (_case, malformed) =>
         {
-            // Arrange: one good summary next to one without its treatment
-            vi.mocked(getRequest).mockResolvedValue({ data: [summary, { ...summary, vat_treatment: undefined }] } as AxiosResponse);
+            // Arrange: one good item next to the malformed one, so the whole
+            // array is checked, not only its first item
+            vi.mocked(getRequest).mockResolvedValue({ data: [listItem, malformed] } as AxiosResponse);
 
             // Act + Assert
             await expect(listInvoices(1)).rejects.toThrow(UnexpectedResponseError);
