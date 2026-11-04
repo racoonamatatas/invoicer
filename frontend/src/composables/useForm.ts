@@ -1,6 +1,6 @@
 import { computed, readonly, ref } from 'vue';
 import { parseFormSubmitFailure } from '@/form/formSubmitFailure';
-import type { FormDisplaysFieldError } from '@/form/formDisplaysFieldError';
+import type { FieldDisplay, FormDisplaysFieldError } from '@/form/formDisplaysFieldError';
 
 // What a form shows for a 429. Built here, so every form says it the same way.
 // Rounded up, and at least 1: 30 seconds left reads as 1 minute, and so does
@@ -30,6 +30,9 @@ export interface FieldError
 // `lines.*.description` (Laravel's own rule notation) becomes a number, so
 // `lines.2.description` compiles and `lines.2.descripton` doesn't. A field
 // without a `*` stays as it is. Recursive, so a pattern with two stars works.
+// `${number}` is looser than an index: it also takes `-1`, `1.5` and `1e3`,
+// which matchesField never matches. Callers build the key from an array
+// index, so the gap is only in what the type allows, not in what is sent.
 type ConcreteField<TField extends string> = TField extends `${infer Head}*${infer Tail}`
     ? `${Head}${number}${ConcreteField<Tail>}`
     : TField;
@@ -143,16 +146,15 @@ export const useForm = <TField extends string = never>(formName: string, display
     // there was no 422, because `message` is '' then.
     const generalMessage = computed(() =>
     {
-        // <boolean>: TypeScript can't read the value type through the
-        // conditional type, so without it `displayed` would be `any`. It's
-        // checked, not a cast: the argument must fit Record<string, boolean>.
         // Driven by the 422's keys, not the form's: a pattern stands for
         // any number of keys, so only the keys say which ones arrived.
-        const displayedPatterns = Object.entries<boolean>(displaysFieldError)
-            .filter(([, displayed]) => displayed)
-            .map(([pattern]) => pattern);
+        // <FieldDisplay>: TypeScript can't read the value type through the
+        // conditional type, so without it `displayed` would be `any`. It's
+        // checked, not a cast: the argument must fit Record<string, FieldDisplay>.
+        const isDisplayed = (key: string): boolean => Object.entries<FieldDisplay>(displaysFieldError)
+            .some(([pattern, displayed]) => matchesField(pattern, key) && (typeof displayed === 'function' ? displayed(key) : displayed));
         const hasDisplayedError = Object.keys(errors.value)
-            .some((key) => firstError(key) !== undefined && displayedPatterns.some((pattern) => matchesField(pattern, key)));
+            .some((key) => firstError(key) !== undefined && isDisplayed(key));
 
         return hasDisplayedError ? '' : message.value;
     });

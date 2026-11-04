@@ -26,6 +26,13 @@
  * pattern instead, in Laravel's own rule notation: `'lines.*.description'`.
  * The Record keeps one key per pattern, so every field still gets a decision.
  *
+ * Why a decision can be a function
+ *
+ * Whether a list item's error is on the page can change after the 422: the
+ * item may have been removed, or its input hidden. A function gets the 422's
+ * key (`lines.2.vat_option`) and answers for that item, now. useForm calls it
+ * inside a computed, so whatever it reads is tracked.
+ *
  * Why NoInfer
  *
  * Without it, TypeScript would work TField out from the object you pass, so
@@ -51,4 +58,7 @@
  */
 export type FormDisplaysFieldError<TField extends string> = [TField] extends [never]
     ? Record<string, never>
-    : Record<NoInfer<TField>, boolean>;
+    : Record<NoInfer<TField>, FieldDisplay>;
+
+// true or false for a field, or a check per 422 key (see above).
+export type FieldDisplay = boolean | ((key: string) => boolean);
