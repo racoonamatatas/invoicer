@@ -183,6 +183,10 @@ const payload = computed((): InvoicePayload | null =>
     return fields === null ? null : payloadWithRows(fields, rows.value);
 });
 
+// The fields are complete, so only a line keeps Save disabled. Said next to
+// the button, because a disabled button can't say why itself.
+const areLinesIncomplete = computed(() => fieldsPayload.value !== null && payload.value === null);
+
 // Each row's key, in the order the last save sent them. A 422 names a line by
 // its index in that request; a row added or removed since would shift every
 // later index, so a row looks up its index here, not in the list it is in
@@ -427,6 +431,10 @@ const onSubmit = async (): Promise<void> =>
         <p v-else-if="stored !== null">Unsaved changes. The totals update when you save.</p>
         <p v-else>The totals appear once the draft is created.</p>
 
-        <button type="submit" :disabled="isPending || payload === null">{{ submitLabel }}</button>
+        <p v-if="areLinesIncomplete" id="invoice-lines-incomplete">
+            <template v-if="form.vat_treatment === 'domestic'">Every line needs a quantity, a unit price and a VAT rate before you can save.</template>
+            <template v-else>Every line needs a quantity and a unit price before you can save.</template>
+        </p>
+        <button type="submit" :disabled="isPending || payload === null" :aria-describedby="areLinesIncomplete ? 'invoice-lines-incomplete' : undefined">{{ submitLabel }}</button>
     </form>
 </template>
