@@ -37,8 +37,8 @@ const rowsFrom = (invoices: readonly InvoiceListItem[], clientNames: ReadonlyMap
             throw new Error(`Invoice ${invoice.id} names client ${invoice.client_id}, which is not in the business's clients.`);
         }
 
-        // The guard has proven an integer. A negative total would be a backend
-        // bug, and formatCents() throws on it rather than show a wrong amount.
+        // Safe: isInvoiceListItem has proven a non-negative safe integer, the
+        // values formatCents() accepts.
         return { invoice, clientName, total: invoice.total_cents as Cents };
     });
 };

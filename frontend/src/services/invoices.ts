@@ -253,11 +253,17 @@ export const isInvoice = (value: unknown): value is Invoice =>
            && 'totals' in value && isTotalsUnder(value.vat_treatment, value.totals);
 };
 
-// Built on the summary, as isInvoice is.
+// Built on the summary, as isInvoice is. Stricter on the total than on other
+// amounts: the list formats it straight away, and formatCents() throws on a
+// negative or unsafe value. Refused here, the load fails and the page offers
+// Try again; let through, it would throw while the table renders.
 export const isInvoiceListItem = (value: unknown): value is InvoiceListItem =>
 {
     return isInvoiceSummary(value)
-           && 'total_cents' in value && Number.isInteger(value.total_cents);
+           && 'total_cents' in value
+           && typeof value.total_cents === 'number'
+           && Number.isSafeInteger(value.total_cents)
+           && value.total_cents >= 0;
 };
 
 const isInvoiceListItemList = (value: unknown): value is InvoiceListItem[] =>
