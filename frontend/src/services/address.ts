@@ -28,6 +28,21 @@ export const isCountryCode = (value: unknown): value is CountryCode =>
     return COUNTRY_CODES.some((code) => code === value);
 };
 
+// The EU member states: a copy of the keys of the backend's EuMemberStates,
+// which decides where a VAT number is accepted and which VAT treatment fits
+// a client. NL is a member too. The address spec fails when the two drift.
+export const EU_MEMBER_STATES = [
+    'AT', 'BE', 'BG', 'CY', 'CZ', 'DE', 'DK', 'EE', 'ES', 'FI', 'FR', 'GR', 'HR', 'HU',
+    'IE', 'IT', 'LT', 'LU', 'LV', 'MT', 'NL', 'PL', 'PT', 'RO', 'SE', 'SI', 'SK',
+] as const satisfies readonly CountryCode[];
+
+// `some` for the same reason as isCountryCode: includes() would only accept
+// the 27 literals, not any `CountryCode`.
+export const isEuMemberState = (code: CountryCode): boolean =>
+{
+    return EU_MEMBER_STATES.some((member) => member === code);
+};
+
 // Names in English, like the rest of the UI. Intl knows every ISO code, so
 // no list of names is kept here.
 const regionNames = new Intl.DisplayNames(['en'], { type: 'region' });
