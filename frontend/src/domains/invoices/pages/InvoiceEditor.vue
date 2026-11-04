@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Package imports
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { RouterLink, useRoute, useRouter } from 'vue-router';
 
 // Project imports
@@ -13,6 +13,7 @@ import { useRouteBusiness } from '@/domains/businesses/composables/useRouteBusin
 import { useClients } from '@/domains/clients/composables/useClients';
 import InvoiceForm from '@/domains/invoices/components/InvoiceForm.vue';
 import { useRouteInvoice } from '@/domains/invoices/composables/useRouteInvoice';
+import { UnexpectedResponseError } from '@/services/http';
 import { createInvoice, type InvoicePayload, type VersionedInvoice } from '@/services/invoices';
 
 const route = useRoute();
@@ -31,10 +32,11 @@ const { state: bankAccounts, reload: reloadBankAccounts } = useBankAccounts(busi
 // composable settles as not-found without a request, and the page never
 // reads it there.
 const isNew = computed(() => route.name === 'newInvoice');
-const { state: draft, reload: reloadDraft, save } = useRouteInvoice(() => (isNew.value ? null : businessId()));
+const { state: draft, reload: reloadDraft, save, adopt } = useRouteInvoice(() => (isNew.value ? null : businessId()));
 
-// Loaded lists only, with at least one entry each: an empty picker would make
-// a form that can't be sent.
+// Both lists, once loaded. Only the new route checks they aren't empty: a
+// stored draft's client and account can't be deleted (no client delete, and
+// an account in use is a 409), so its lists always hold them.
 const pickers = computed(() =>
 {
     if (clients.value.kind !== 'loaded' || bankAccounts.value.kind !== 'loaded')
@@ -58,8 +60,19 @@ const draftClientName = computed(() =>
     return pickers.value.clients.find((client) => client.id === clientId)?.name ?? null;
 });
 
-// replace, not push: Back after a save goes to the invoices, not to an empty
-// "new" form that would make a second draft.
+// What happened after Create draft, when the form can't be offered again: a
+// second press would make a second draft. `uncertain`: the POST was answered,
+// but not in a shape we could read, so the draft may exist. `notMoved`: it
+// exists, but the move to its page failed or was cancelled.
+type CreateOutcome =
+    | { kind: 'none' }
+    | { kind: 'uncertain' }
+    | { kind: 'notMoved'; invoiceId: number };
+
+const createOutcome = ref<CreateOutcome>({ kind: 'none' });
+
+// Only the POST can fail the save. Anything after it is reported by the page,
+// never by the form, whose "Couldn't save." keeps the button enabled.
 const create = async (payload: InvoicePayload): Promise<VersionedInvoice> =>
 {
     const id = businessId();
@@ -69,8 +82,37 @@ const create = async (payload: InvoicePayload): Promise<VersionedInvoice> =>
         throw new Error('InvoiceEditor saved before its business was found.');
     }
 
-    const created = await createInvoice(id, payload);
-    await router.replace({ name: 'editInvoice', params: { invoiceId: created.invoice.id } });
+    let created: VersionedInvoice;
+
+    try
+    {
+        created = await createInvoice(id, payload);
+    }
+    catch (error) // unknown: anything can be thrown
+    {
+        // Re-thrown too, so Vue's error handler sees the fault; the form it
+        // reaches is gone by then, so it can't offer a retry.
+        if (error instanceof UnexpectedResponseError)
+        {
+            createOutcome.value = { kind: 'uncertain' };
+        }
+
+        throw error;
+    }
+
+    // Handed over first, so the edit page shows it without fetching it again.
+    adopt(created);
+
+    // replace, not push: Back goes to the invoices, not to an empty "new"
+    // form. It resolves to a failure when cancelled, and rejects when the
+    // edit page's code can't be loaded; the draft exists either way.
+    const failure = await router.replace({ name: 'editInvoice', params: { invoiceId: created.invoice.id } })
+        .catch(() => 'rejected' as const);
+
+    if (failure !== undefined)
+    {
+        createOutcome.value = { kind: 'notMoved', invoiceId: created.invoice.id };
+    }
 
     return created;
 };
@@ -115,15 +157,22 @@ const create = async (payload: InvoicePayload): Promise<VersionedInvoice> =>
                     <p v-if="pickers.bankAccounts.length === 0">
                         An invoice needs a bank account to be paid into. <RouterLink :to="{ name: 'bankAccounts' }">Add a bank account first</RouterLink>.
                     </p>
+                    <p v-if="createOutcome.kind === 'uncertain'">
+                        The draft may have been created, but its answer couldn't be read.
+                        <RouterLink :to="{ name: 'invoices' }">Check the invoices</RouterLink> before you try again.
+                    </p>
+                    <p v-else-if="createOutcome.kind === 'notMoved'">
+                        Draft created.
+                        <RouterLink :to="{ name: 'editInvoice', params: { invoiceId: createOutcome.invoiceId } }">Open the draft</RouterLink>
+                    </p>
                     <InvoiceForm
-                        v-if="pickers.clients.length > 0 && pickers.bankAccounts.length > 0"
+                        v-else-if="pickers.clients.length > 0 && pickers.bankAccounts.length > 0"
                         :initial="{ kind: 'new' }"
                         :clients="pickers.clients"
                         :bank-accounts="pickers.bankAccounts"
                         :default-term-days="state.business.payment_term_days"
                         label="New invoice"
                         submit-label="Create draft"
-                        saved-message="Created."
                         :save="create"
                     />
                 </template>
@@ -140,7 +189,6 @@ const create = async (payload: InvoicePayload): Promise<VersionedInvoice> =>
                     :default-term-days="state.business.payment_term_days"
                     label="Edit draft"
                     submit-label="Save"
-                    saved-message="Saved."
                     :save="save"
                     @reload="reloadDraft"
                 />

@@ -36,7 +36,6 @@ const props = defineProps<{
     defaultTermDays: number; // the business's term, shown when the field is empty
     label: string; // the form's accessible name
     submitLabel: string;
-    savedMessage: string; // shown in the status region until the next edit
     save: (payload: InvoicePayload) => Promise<VersionedInvoice>;
 }>();
 
@@ -246,7 +245,8 @@ const onSubmit = async (): Promise<void> =>
             <p v-else-if="generalMessage">{{ generalMessage }}</p>
             <p v-else-if="hasConflict">This draft was changed elsewhere. Your edits weren't saved.</p>
             <p v-else-if="hasFailed">Couldn't save.</p>
-            <p v-else-if="isSaved">{{ savedMessage }}</p>
+            <!-- Only an edit can show it: a new draft's page moves away. -->
+            <p v-else-if="isSaved">Saved.</p>
         </div>
         <!-- Replaces the form with the stored draft, so the user's edits go:
              their choice, after reading the message above. -->

@@ -30,6 +30,12 @@ export const useRouteInvoice = (businessId: () => number | null) =>
     // another draft while one loads must not show the old one under its URL.
     let latest = 0;
 
+    // A draft handed over by the page that just created it, kept until the
+    // URL names it. The edit route then shows it without a GET: no extra
+    // request, no loading flash, and no "Couldn't load" right after a
+    // successful create.
+    let adopted: VersionedInvoice | null = null;
+
     // A SessionEndedError is swallowed (/login is already loading), and so is
     // an InvoiceNotFoundError, an answer the page shows. Anything else is
     // re-thrown for Vue's error handler.
@@ -77,6 +83,14 @@ export const useRouteInvoice = (businessId: () => number | null) =>
         if (invoice === null)
         {
             state.value = { kind: 'notFound' };
+
+            return undefined;
+        }
+
+        if (adopted?.invoice.id === invoice)
+        {
+            state.value = { kind: 'found', ...adopted };
+            adopted = null;
 
             return undefined;
         }
@@ -134,5 +148,11 @@ export const useRouteInvoice = (businessId: () => number | null) =>
         return stored;
     };
 
-    return { invoiceId, state, reload, save };
+    // For the new-invoice page, before it moves to the created draft's URL.
+    const adopt = (created: VersionedInvoice): void =>
+    {
+        adopted = created;
+    };
+
+    return { invoiceId, state, reload, save, adopt };
 };
