@@ -10,7 +10,7 @@ describe('suggestedVatTreatment', () =>
     {
         // Arrange: NL is an EU member, so without the VAT number this would
         // pass even if the NL rule were missing
-        const client = { ...dutchClient(1, 'Noorderzon'), vat_number: 'NL123456789B01' };
+        const client = { ...dutchClient(1, 'Fietsenmakerij Bakker'), vat_number: 'NL123456789B01' };
 
         // Act & Assert
         expect(suggestedVatTreatment(client)).toBe('domestic');
@@ -19,13 +19,13 @@ describe('suggestedVatTreatment', () =>
     it('should suggest outside_scope for a client outside the EU', () =>
     {
         // Act & Assert
-        expect(suggestedVatTreatment(americanClient(1, 'Hudson Studio'))).toBe('outside_scope');
+        expect(suggestedVatTreatment(americanClient(1, 'Pine Avenue Design'))).toBe('outside_scope');
     });
 
     it('should suggest reverse_charge for a client in another EU country with a VAT number', () =>
     {
         // Act & Assert: germanClient carries a VAT number
-        expect(suggestedVatTreatment(germanClient(1, 'Isar Werk'))).toBe('reverse_charge');
+        expect(suggestedVatTreatment(germanClient(1, 'Brauerei Huber'))).toBe('reverse_charge');
     });
 
     it('should suggest domestic for a client in another EU country without a VAT number', () =>
