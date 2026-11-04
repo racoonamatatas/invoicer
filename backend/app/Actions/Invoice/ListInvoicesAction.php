@@ -13,7 +13,9 @@ use Illuminate\Database\Eloquent\Collection;
  * as it always is. Eager-loaded, so all the lines come in one query instead of one per invoice.
  *
  * Every invoice, unpaginated: a freelancer writes tens of invoices a year, a few hundred over the years the list
- * covers. If that ever grows into thousands, the list needs pagination.
+ * covers. Each invoice brings up to 100 lines with it (InvoiceRequest's limit), so a few hundred invoices can mean tens
+ * of thousands of lines read to compute the totals. If either grows much, the list needs pagination, or totals summed
+ * in SQL.
  */
 final readonly class ListInvoicesAction
 {
