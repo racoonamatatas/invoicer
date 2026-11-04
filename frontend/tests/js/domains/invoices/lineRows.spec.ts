@@ -1,8 +1,16 @@
+// @vitest-environment node
+// No DOM here, and the drift test reads a file: jsdom's import.meta.url is
+// not a file:// URL, so fileURLToPath would throw.
+
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { describe, it, expect } from 'vitest';
 
-import { emptyRow, payloadWithRows, rowContent, rowsFrom, type LineRow } from '@/domains/invoices/lineRows';
+import { MAX_LINES, emptyRow, payloadWithRows, rowContent, rowsFrom, type LineRow } from '@/domains/invoices/lineRows';
 
 import { domesticDraftWithLine } from '../../utility/invoices';
+
+const INVOICE_REQUEST = fileURLToPath(new URL('../../../../../backend/app/Http/Requests/InvoiceRequest.php', import.meta.url));
 
 const fields = { client_id: 3, bank_account_id: 5, payment_term_days: null } as const;
 
@@ -62,6 +70,25 @@ describe('rowsFrom', () =>
         // Assert: neither, because which line a key belongs to is unknown
         expect(rows.map((row) => row.key)).not.toContain(42);
         expect(rows.map((row) => row.key)).not.toContain(43);
+    });
+});
+
+describe('MAX_LINES', () =>
+{
+    it('should be the backend\'s InvoiceRequest::MAX_LINES', () =>
+    {
+        // Arrange: comments stripped, as in the country code drift tests, so
+        // a commented-out old value doesn't count
+        const source = readFileSync(INVOICE_REQUEST, 'utf8')
+            .replaceAll(/\/\*[\s\S]*?\*\//g, '')
+            .replaceAll(/\/\/.*$/gm, '');
+
+        // Act
+        const backendMax = /\bMAX_LINES = (\d+);/.exec(source)?.[1];
+
+        // Assert: undefined when the constant was renamed or reformatted,
+        // which fails too, instead of passing by finding nothing
+        expect(backendMax).toBe(String(MAX_LINES));
     });
 });
 
