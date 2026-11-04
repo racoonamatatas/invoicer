@@ -446,7 +446,15 @@ const onSubmit = async (): Promise<void> =>
             @update:model-value="replaceLine"
             @remove="removeLine(row.key)"
         />
-        <button type="button" :disabled="isPending || rows.length >= MAX_LINES" @click="addLine">Add line</button>
+        <p v-if="rows.length >= MAX_LINES" id="invoice-lines-max">An invoice holds at most {{ MAX_LINES }} lines.</p>
+        <button
+            type="button"
+            :disabled="isPending || rows.length >= MAX_LINES"
+            :aria-describedby="rows.length >= MAX_LINES ? 'invoice-lines-max' : undefined"
+            @click="addLine"
+        >
+            Add line
+        </button>
 
         <!-- Only what the backend computed, and only while it is the total of
              what's on screen: a stale total shown as current is worse than
