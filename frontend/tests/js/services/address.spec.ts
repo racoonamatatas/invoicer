@@ -6,11 +6,12 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, it, expect } from 'vitest';
 
-import { COUNTRY_CODES, isAddress, isCountryCode, type DutchAddress, type ForeignAddress } from '@/services/address';
+import { COUNTRY_CODES, EU_MEMBER_STATES, isAddress, isCountryCode, type DutchAddress, type ForeignAddress } from '@/services/address';
 
 // The backend rule the frontend list is a copy of. Read as text: the
 // frontend has no PHP, and the list is plain quoted codes.
 const COUNTRY_CODE_RULE = fileURLToPath(new URL('../../../../backend/app/Validation/CountryCode.php', import.meta.url));
+const EU_MEMBER_STATES_CLASS = fileURLToPath(new URL('../../../../backend/app/Validation/EuMemberStates.php', import.meta.url));
 
 describe('COUNTRY_CODES', () =>
 {
@@ -37,6 +38,31 @@ describe('COUNTRY_CODES', () =>
         // Assert: an empty match fails too, so a reformatted PHP file can't
         // pass by finding nothing
         expect(backendCodes).toEqual([...COUNTRY_CODES]);
+    });
+});
+
+describe('EU_MEMBER_STATES', () =>
+{
+    it('should hold the same codes in the same order as the keys of the backend\'s EuMemberStates', () =>
+    {
+        // Arrange: comments stripped, then only the VAT_PREFIXES array, the
+        // same way as the CountryCode test above
+        const source = readFileSync(EU_MEMBER_STATES_CLASS, 'utf8')
+            .replaceAll(/\/\*[\s\S]*?\*\//g, '')
+            .replaceAll(/\/\/.*$/gm, '');
+        const prefixesBlock = /\bVAT_PREFIXES = \[([^\]]*)\]/.exec(source)?.[1];
+
+        if (prefixesBlock === undefined)
+        {
+            throw new Error(`No "VAT_PREFIXES = [...]" array in ${EU_MEMBER_STATES_CLASS}: was the constant renamed or reformatted?`);
+        }
+
+        // Act: the keys only, the code before `=>`, so Greece counts as GR
+        // and not as its VAT prefix EL
+        const backendCodes = [...prefixesBlock.matchAll(/'([A-Z]{2})'\s*=>/g)].map((match) => match[1]);
+
+        // Assert
+        expect(backendCodes).toEqual([...EU_MEMBER_STATES]);
     });
 });
 
