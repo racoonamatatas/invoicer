@@ -33,15 +33,16 @@ npm run dev               # Vite on :3000, serves assets only
 Open **http://localhost:8000**. Laravel serves the page and the `/api` routes,
 and its Blade shell loads the scripts from Vite.
 
-To log in with demo data, seed the database once (from `backend/`):
+To log in with demo data, rebuild the database with the seed data (from
+`backend/`). This wipes everything in your local database:
 
 ```bash
-php artisan db:seed
+php artisan migrate:fresh --seed
 ```
 
 Then log in as **test@example.com** with password **invoicer-local-dev**. That
 account has a business in Groningen, a bank account, three clients (one in
-Belgium) and a draft invoice. `php artisan migrate:fresh --seed` resets it.
+Belgium) and a draft invoice. Run the same command again to reset it.
 
 To register your own account instead:
 
