@@ -294,6 +294,55 @@ describe('useForm', () =>
         expect(form.generalMessage.value).toBe('');
     });
 
+    it('should return a line\'s error under a wildcard field, with dots turned into dashes in its id, after a 422 (unprocessable)', async () =>
+    {
+        // Arrange
+        const form = useForm<'lines.*.description'>('invoice', { 'lines.*.description': true });
+        const send = () => Promise.reject(axiosErrorWith(422, {
+            message: 'The lines.2.description field is required.',
+            errors: { 'lines.2.description': ['The lines.2.description field is required.'] },
+        }));
+
+        // Act
+        await form.submit(send);
+
+        // Assert: the other line has nothing, and the 422 shows on its line
+        // only, so the general message stays empty
+        expect(form.fieldError('lines.2.description')).toStrictEqual({
+            message: 'The lines.2.description field is required.',
+            id: 'invoice-lines-2-description-error',
+        });
+        expect(form.fieldError('lines.0.description')).toBeNull();
+        expect(form.generalMessage.value).toBe('');
+    });
+
+    it.for([
+        { key: 'lines', why: 'the list itself, like more than 100 lines' },
+        { key: 'lines.2', why: 'a whole line, not one of its fields' },
+    ])('should set generalMessage to the message when a 422 (unprocessable) has an error on $key, which no wildcard field matches', async ({ key }) =>
+    {
+        // Arrange
+        const form = useForm<'lines.*.description'>('invoice', { 'lines.*.description': true });
+        const send = () => Promise.reject(axiosErrorWith(422, { message: 'The lines are invalid.', errors: { [key]: ['The lines are invalid.'] } }));
+
+        // Act
+        await form.submit(send);
+
+        // Assert: no line can show it, so the message is the user's only feedback
+        expect(form.generalMessage.value).toBe('The lines are invalid.');
+    });
+
+    // oxlint-disable-next-line vitest/expect-expect -- the assertion is the @ts-expect-error inside, checked by vue-tsc, not by vitest
+    it('should fail type-check when fieldError gets a misspelt field under a wildcard', () =>
+    {
+        // Arrange
+        const form = useForm<'lines.*.description'>('invoice', { 'lines.*.description': true });
+
+        // Assert: checked by npm run type-check, not by vitest
+        // @ts-expect-error 'descripton' is not 'description'
+        form.fieldError('lines.2.descripton');
+    });
+
     // oxlint-disable-next-line vitest/expect-expect -- the assertion is the @ts-expect-error inside, checked by vue-tsc, not by vitest
     it('should fail type-check when fieldError gets a field the form does not have', () =>
     {
