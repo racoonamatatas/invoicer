@@ -26,6 +26,32 @@ export interface FieldError
     id: string;
 }
 
+// A field as fieldError() takes it: each `*` of a pattern like
+// `lines.*.description` (Laravel's own rule notation) becomes a number, so
+// `lines.2.description` compiles and `lines.2.descripton` doesn't. A field
+// without a `*` stays as it is. Recursive, so a pattern with two stars works.
+type ConcreteField<TField extends string> = TField extends `${infer Head}*${infer Tail}`
+    ? `${Head}${number}${ConcreteField<Tail>}`
+    : TField;
+
+// Whether a 422's key, like `lines.2.description`, is one the pattern names.
+// Segment by segment rather than a regex, so the dots need no escaping: a
+// `*` takes one index (digits only, as Laravel sends them), anything else
+// must be equal.
+const matchesField = (pattern: string, key: string): boolean =>
+{
+    const patternParts = pattern.split('.');
+    const keyParts = key.split('.');
+
+    return patternParts.length === keyParts.length
+           && patternParts.every((part, index) =>
+           {
+               const keyPart = keyParts[index] ?? ''; // never undefined: the lengths are equal
+
+               return part === '*' ? /^\d+$/.test(keyPart) : part === keyPart;
+           });
+};
+
 // One form's submit state. Each call creates its own refs, so two forms on a
 // page never share or clear each other's errors.
 // TField lists the form's fields, so a typo in fieldError() is a type error.
@@ -102,12 +128,13 @@ export const useForm = <TField extends string = never>(formName: string, display
 
     // This field's first error and the id its input points to, or null
     // when the field has no error. Called from the template, so it re-runs
-    // whenever errors changes.
-    const fieldError = (field: TField): FieldError | null =>
+    // whenever errors changes. Dots become dashes in the id, so a test can
+    // select `#invoice-lines-2-description-error` without escaping them.
+    const fieldError = (field: ConcreteField<TField>): FieldError | null =>
     {
         const message = firstError(field);
 
-        return message === undefined ? null : { message, id: `${formName}-${field}-error` };
+        return message === undefined ? null : { message, id: `${formName}-${field.replaceAll('.', '-')}-error` };
     };
 
     // The 422's message when no field the form displays has an error, so a 422
@@ -119,8 +146,13 @@ export const useForm = <TField extends string = never>(formName: string, display
         // <boolean>: TypeScript can't read the value type through the
         // conditional type, so without it `displayed` would be `any`. It's
         // checked, not a cast: the argument must fit Record<string, boolean>.
-        const hasDisplayedError = Object.entries<boolean>(displaysFieldError)
-            .some(([field, displayed]) => displayed && firstError(field) !== undefined);
+        // Driven by the 422's keys, not the form's: a pattern stands for
+        // any number of keys, so only the keys say which ones arrived.
+        const displayedPatterns = Object.entries<boolean>(displaysFieldError)
+            .filter(([, displayed]) => displayed)
+            .map(([pattern]) => pattern);
+        const hasDisplayedError = Object.keys(errors.value)
+            .some((key) => firstError(key) !== undefined && displayedPatterns.some((pattern) => matchesField(pattern, key)));
 
         return hasDisplayedError ? '' : message.value;
     });

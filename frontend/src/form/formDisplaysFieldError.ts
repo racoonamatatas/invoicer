@@ -19,6 +19,13 @@
  * a type error, and a typo is caught by the unknown-key check on object
  * literals. Every field gets a decision; none is forgotten.
  *
+ * Why a field can hold a `*`
+ *
+ * A 422 names each line of a list by its index: `lines.2.description`. How
+ * many lines there are is only known at runtime, so the form lists the
+ * pattern instead, in Laravel's own rule notation: `'lines.*.description'`.
+ * The Record keeps one key per pattern, so every field still gets a decision.
+ *
  * Why NoInfer
  *
  * Without it, TypeScript would work TField out from the object you pass, so
