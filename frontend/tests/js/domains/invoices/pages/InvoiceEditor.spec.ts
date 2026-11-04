@@ -706,6 +706,68 @@ describe('InvoiceEditor page', () =>
                 expect((moved.element as HTMLInputElement).value).toBe('12,50');
                 expect(wrapper.find(`#${moved.attributes('aria-describedby')}`).text()).toBe(message);
             });
+
+            // A 422 whose message only says what is wrong with one line, as
+            // Laravel words it.
+            const rejectWithLineError = (key: string, message: string): void =>
+            {
+                vi.mocked(invoicesService.updateInvoice).mockRejectedValue(axiosErrorWith(422, { message, errors: { [key]: [message] } }));
+            };
+
+            it('should show a 422 (unprocessable content) in the form\'s status once the line it names is removed', async () =>
+            {
+                // Arrange
+                const message = 'The unit price may not be greater than 100000000.';
+                rejectWithLineError('lines.1.unit_price_cents', message);
+                const { wrapper } = await mountInvoiceEditor('/businesses/7/invoices/11/edit');
+                await flushPromises();
+                await buttonNamed(wrapper, 'Add line').trigger('click');
+                await fillLine(wrapper, 1, hosting);
+                await editForm(wrapper).trigger('submit');
+                await flushPromises();
+                expect(formStatus(wrapper)).toBe('');
+
+                // Act
+                await buttonNamed(wrapper, 'Remove line 2').trigger('click');
+
+                // Assert: the line can't show it any more, so the form does
+                expect(formStatus(wrapper)).toBe(message);
+            });
+
+            it('should show a 422 (unprocessable content) on a VAT rate in the form\'s status once the switch to reverse charge hides the select', async () =>
+            {
+                // Arrange
+                const message = 'The selected lines.0.vat_option is invalid.';
+                rejectWithLineError('lines.0.vat_option', message);
+                const { wrapper } = await mountInvoiceEditor('/businesses/7/invoices/11/edit');
+                await flushPromises();
+                await editForm(wrapper).trigger('submit');
+                await flushPromises();
+                expect(formStatus(wrapper)).toBe('');
+
+                // Act
+                await wrapper.find('#invoice-vat_treatment').setValue('reverse_charge');
+
+                // Assert
+                expect(formStatus(wrapper)).toBe(message);
+            });
+
+            it('should show a 422 (unprocessable content) on the list itself in the form\'s status', async () =>
+            {
+                // Arrange: no line has an input for `lines`, so the form must
+                // mark it as not displayed
+                const message = 'The lines field must not have more than 100 items.';
+                rejectWithLineError('lines', message);
+                const { wrapper } = await mountInvoiceEditor('/businesses/7/invoices/11/edit');
+                await flushPromises();
+
+                // Act
+                await editForm(wrapper).trigger('submit');
+                await flushPromises();
+
+                // Assert
+                expect(formStatus(wrapper)).toBe(message);
+            });
         });
     });
 
