@@ -117,14 +117,28 @@ watch(() => form.value.client_id, (clientId) =>
     }
 });
 
+// Set when a switch cleared at least one picked rate, so the user hears
+// about it: a client pick can switch the treatment without them touching it.
+// Cleared back on Dutch VAT, where the empty selects and the note by Save
+// take over.
+const hasClearedRates = ref(false);
+
 // Off Dutch VAT, no line may hold an option: the server refuses the
 // combination, so the form never holds it either. Back on Dutch VAT each line
 // needs a new pick, which keeps Save disabled until it has one: the old
 // option is gone rather than silently restored.
 watch(() => form.value.vat_treatment, (treatment) =>
 {
-    if (treatment !== 'domestic')
+    if (treatment === 'domestic')
     {
+        hasClearedRates.value = false;
+
+        return;
+    }
+
+    if (rows.value.some((row) => row.vat_option !== null))
+    {
+        hasClearedRates.value = true;
         rows.value = rows.value.map((row) => ({ ...row, vat_option: null }));
     }
 });
@@ -406,6 +420,11 @@ const onSubmit = async (): Promise<void> =>
         </div>
 
         <h2>Lines</h2>
+        <!-- Its own live region, always rendered: the switch that clears the
+             rates happens in a select above, away from the lines. -->
+        <div role="status">
+            <p v-if="hasClearedRates">The lines' VAT rates were cleared, because this invoice charges no Dutch VAT.</p>
+        </div>
         <p v-if="rows.length === 0">No lines yet.</p>
         <InvoiceLineFields
             v-for="(row, index) in rows"
