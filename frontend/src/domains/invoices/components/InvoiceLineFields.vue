@@ -13,7 +13,7 @@ import {
     type LineRow,
 } from '@/domains/invoices/lineRows';
 import { VAT_OPTION_LABELS } from '@/domains/invoices/vatOptionLabels';
-import { formatCents, formatHundredths, type Cents, type Hundredths, type ParseFailure, type ParseResult } from '@/form/amounts';
+import { formatCents, formatCentsForInput, formatHundredths, type Cents, type Hundredths, type ParseFailure, type ParseResult } from '@/form/amounts';
 import { VAT_OPTIONS } from '@/services/invoices';
 
 // A line's fields as the backend names them, so they are also the last part
@@ -117,9 +117,11 @@ const amountError = <T>(parsed: ParseResult<T>, name: string, example: string, m
 };
 
 const descriptionError = computed(() => serverError('description'));
-// The limits as a user would type them: `100000` and `€ 1.000.000,00`.
+// The limits as a user would type them, `100000` and `1000000,00`: the input
+// formatters, so typing the message's number back is accepted. Without a
+// euro sign, which the parser refuses; the label says the price is in euros.
 const MAX_QUANTITY_TEXT = formatHundredths(MAX_QUANTITY_HUNDREDTHS as Hundredths);
-const MAX_UNIT_PRICE_TEXT = formatCents(MAX_UNIT_PRICE_CENTS as Cents);
+const MAX_UNIT_PRICE_TEXT = formatCentsForInput(MAX_UNIT_PRICE_CENTS as Cents);
 
 const quantityError = computed(() => amountError(parseLineQuantity(row.value.quantity), 'quantity', '7,5', MAX_QUANTITY_TEXT, 'quantity_hundredths'));
 const unitPriceError = computed(() => amountError(parseLineUnitPrice(row.value.unit_price), 'unit_price', '80,00', MAX_UNIT_PRICE_TEXT, 'unit_price_cents'));

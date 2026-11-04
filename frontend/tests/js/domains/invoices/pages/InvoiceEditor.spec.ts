@@ -656,7 +656,7 @@ describe('InvoiceEditor page', () =>
 
                 // Assert: the editor's own words, not the backend's lines.0.unit_price_cents
                 const input = wrapper.find('#invoice-lines-0-unit_price');
-                expect(wrapper.find(`#${input.attributes('aria-describedby')}`).text()).toBe('Enter at most €\u00a01.000.000,00.');
+                expect(wrapper.find(`#${input.attributes('aria-describedby')}`).text()).toBe('Enter at most 1000000,00.');
                 expect(saveButton(wrapper).attributes('disabled')).toBeDefined();
                 expect(wrapper.find('#invoice-lines-0-description').attributes('maxlength')).toBe('255');
             });
