@@ -16,7 +16,7 @@ import { business, jan, logInAs } from '../../../utility/businesses';
 import { dutchClient, germanClient } from '../../../utility/clients';
 import { createDeferred } from '../../../utility/createDeferred';
 import { createTestRouter } from '../../../utility/createTestRouter';
-import { domesticDraftWithLine, newDraft } from '../../../utility/invoices';
+import { domesticDraftWithLine, newDraft, reverseChargeDraftWithLine } from '../../../utility/invoices';
 
 // Every export of these services becomes a vi.fn(), so no request leaves the test.
 vi.mock('@/services/auth');
@@ -852,6 +852,39 @@ describe('InvoiceEditor page', () =>
                 expect(editForm(wrapper).text()).not.toContain('VAT rates were cleared');
             });
 
+            it('should drop the cleared-rates note once the draft is saved', async () =>
+            {
+                // Arrange
+                vi.mocked(invoicesService.updateInvoice).mockResolvedValue({ invoice: reverseChargeDraftWithLine(11, huber.id, main.id), version: 4 });
+                const { wrapper } = await mountInvoiceEditor('/businesses/7/invoices/11/edit');
+                await flushPromises();
+                await wrapper.find('#invoice-vat_treatment').setValue('reverse_charge');
+                expect(editForm(wrapper).text()).toContain('VAT rates were cleared');
+
+                // Act
+                await editForm(wrapper).trigger('submit');
+                await flushPromises();
+
+                // Assert: the stored draft has no rates, so there is nothing left to point out
+                expect(formStatus(wrapper)).toBe('Saved.');
+                expect(editForm(wrapper).text()).not.toContain('VAT rates were cleared');
+            });
+
+            it('should drop the cleared-rates note on a switch between the two treatments without VAT', async () =>
+            {
+                // Arrange
+                const { wrapper } = await mountInvoiceEditor('/businesses/7/invoices/11/edit');
+                await flushPromises();
+                await wrapper.find('#invoice-vat_treatment').setValue('reverse_charge');
+                expect(editForm(wrapper).text()).toContain('VAT rates were cleared');
+
+                // Act
+                await wrapper.find('#invoice-vat_treatment').setValue('outside_scope');
+
+                // Assert: this switch cleared nothing, and the note only describes the last one
+                expect(editForm(wrapper).text()).not.toContain('VAT rates were cleared');
+            });
+
             it('should disable Add line at 100 lines, the backend\'s limit', async () =>
             {
                 // Arrange: the stored line and 98 more
@@ -866,9 +899,11 @@ describe('InvoiceEditor page', () =>
                 // Act
                 await buttonNamed(wrapper, 'Add line').trigger('click');
 
-                // Assert
+                // Assert: and says why, linked for a screen reader
                 expect(editForm(wrapper).findAll('fieldset')).toHaveLength(100);
-                expect(buttonNamed(wrapper, 'Add line').attributes('disabled')).toBeDefined();
+                const addLine = buttonNamed(wrapper, 'Add line');
+                expect(addLine.attributes('disabled')).toBeDefined();
+                expect(wrapper.find(`#${addLine.attributes('aria-describedby')}`).text()).toBe('An invoice holds at most 100 lines.');
             });
 
             it('should keep the lines read-only while a save is in flight', async () =>
