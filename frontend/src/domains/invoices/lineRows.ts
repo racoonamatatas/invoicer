@@ -28,10 +28,15 @@ const nextKey = (): number =>
 export const emptyRow = (): LineRow => ({ key: nextKey(), description: '', quantity: '', unit_price: '', vat_option: null });
 
 // Rows from what the backend stored, written the way it would be typed, so
-// what's on screen is what was saved: `7,50` comes back as `7,5`. Each row
-// gets a new key, so nothing typed before can stay tied to a stored line.
-export const rowsFrom = (lines: readonly InvoiceLine[]): LineRow[] => lines.map((line) => ({
-    key: nextKey(),
+// what's on screen is what was saved: a quantity typed `7,50` comes back as
+// `7,5`, a price typed `80` as `80,00`.
+//
+// `keys` are the keys of the rows a save just sent. The backend keeps the
+// order it was sent, so stored line 3 is sent row 3, and keeping its key
+// lets Vue keep its inputs, and the focus in them. Only when the counts
+// match; otherwise, and on a load, every row gets a new key.
+export const rowsFrom = (lines: readonly InvoiceLine[], keys: readonly number[] = []): LineRow[] => lines.map((line, index) => ({
+    key: (keys.length === lines.length ? keys[index] : undefined) ?? nextKey(),
     description: line.description,
     // The guard proved them integers; the brand says which unit they are in.
     quantity: formatHundredths(line.quantity_hundredths as Hundredths),

@@ -303,7 +303,7 @@ const onSubmit = async (): Promise<void> =>
             if (props.initial.kind === 'existing')
             {
                 form.value = fieldsFrom({ kind: 'existing', invoice: saved.invoice });
-                rows.value = rowsFrom(saved.invoice.lines);
+                rows.value = rowsFrom(saved.invoice.lines, sentKeys.value);
                 stored.value = { invoice: saved.invoice, snapshot: snapshot() };
                 hasJustSaved.value = true;
             }
