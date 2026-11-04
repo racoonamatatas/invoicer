@@ -6,7 +6,7 @@ import { computed, ref, watch } from 'vue';
 import { useForm } from '@/composables/useForm';
 import InvoiceLineFields, { type LineField } from '@/domains/invoices/components/InvoiceLineFields.vue';
 import InvoiceTotalsSummary from '@/domains/invoices/components/InvoiceTotalsSummary.vue';
-import { emptyRow, payloadWithRows, rowsFrom, type LineRow } from '@/domains/invoices/lineRows';
+import { emptyRow, payloadWithRows, rowContent, rowsFrom, type LineRow } from '@/domains/invoices/lineRows';
 import { suggestedVatTreatment } from '@/domains/invoices/suggestedVatTreatment';
 import type { BankAccount } from '@/services/bankAccounts';
 import type { Client } from '@/services/clients';
@@ -232,11 +232,11 @@ const termError = computed(() => (termInput.value.kind === 'invalid'
     : fieldError('payment_term_days')));
 
 // What the form holds, as JSON so a deep comparison is one string compare.
-// Without the rows' keys: they are new after every save, and a row removed
-// and typed in again holds the same line.
+// The rows by their content (see rowContent), so retyping `7,5` as `7,50`
+// isn't a change.
 const snapshot = (): string => JSON.stringify({
     fields: form.value,
-    lines: rows.value.map((row) => [row.description, row.quantity, row.unit_price, row.vat_option]),
+    lines: rows.value.map(rowContent),
 });
 
 // The draft as the backend last stored it, loaded or saved, with what the

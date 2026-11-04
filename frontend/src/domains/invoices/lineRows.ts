@@ -44,6 +44,22 @@ export const rowsFrom = (lines: readonly InvoiceLine[], keys: readonly number[] 
     vat_option: line.vat_option,
 }));
 
+// What a row holds, for telling whether it changed: the numbers where they
+// parse, so `7,50` and `7,5` are the same line, and the text where they
+// don't. Without the key, which says nothing about the line.
+export const rowContent = (row: LineRow): unknown[] =>
+{
+    const quantity = parseHundredths(row.quantity);
+    const unitPrice = parseCents(row.unit_price);
+
+    return [
+        row.description,
+        quantity.ok ? quantity.value : row.quantity,
+        unitPrice.ok ? unitPrice.value : row.unit_price,
+        row.vat_option,
+    ];
+};
+
 // A row's numbers, or null while either can't be read. The form shows why
 // next to the field; this only decides whether the row can be sent.
 const amountsOf = (row: LineRow): { quantity_hundredths: number; unit_price_cents: number } | null =>
