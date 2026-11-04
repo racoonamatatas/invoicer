@@ -12,6 +12,7 @@ use App\Models\InvoiceLine;
 use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
+use RuntimeException;
 
 class DatabaseSeeder extends Seeder
 {
@@ -23,9 +24,18 @@ class DatabaseSeeder extends Seeder
      *
      * Every record comes from its factory, which keeps each one in the form the validation rules accept. Only the
      * fields a visitor reads are fixed here, so a new column only needs a factory change, not a seeder change.
+     *
+     * The demo password is in the README, so this throws in production rather than create an account anyone can log
+     * in to. A throw, not a silent return: `db:seed --force` skips Laravel's production prompt, and whoever ran it
+     * should learn that nothing was seeded.
      */
     public function run(): void
     {
+        if (app()->isProduction())
+        {
+            throw new RuntimeException('The demo seeder creates a login whose password is public, so it does not run in production.');
+        }
+
         $user = User::factory()->create([
             'name' => 'Test User',
             'email' => 'test@example.com',
