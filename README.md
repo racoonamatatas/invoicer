@@ -9,6 +9,32 @@ up invoices, with the BTW worked out per line, is in progress.
 Wherever there was a choice between a loose design and a stricter one, it takes
 the stricter one.
 
+## Status
+
+Work in progress, built one feature at a time. Both halves have green CI.
+
+**Works today**
+
+- Sign up with an email, set a password from the mail link, log in, reset or
+  change the password. Every auth route is rate limited, mail per address too.
+- One or more businesses per user, each with a KvK number, BTW-id, address and
+  bank accounts. The KvK number and BTW-id are checked for shape, the IBAN
+  for its check digits too.
+- Clients with an address in any country. Dutch postcodes and house numbers
+  get the stricter rules.
+- Draft invoices with lines. The VAT treatment (domestic, reverse charge,
+  outside scope) is checked against the client's country and VAT number, the
+  server computes the totals per VAT group, and a draft carries a version so
+  two tabs can't overwrite each other (ETag and If-Match).
+
+**Not yet**
+
+- Sending an invoice: assigning its number, freezing both parties' details and
+  the VAT rates, and making it read-only. This is the next piece.
+- PDF download, marking an invoice paid, and a dashboard of what is open and
+  overdue.
+- Deleting a client or a business.
+
 ## Stack
 
 - **Backend:** Laravel 13, Sanctum (SPA cookie auth), SQLite, Pest
