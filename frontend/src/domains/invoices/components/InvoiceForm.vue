@@ -117,10 +117,11 @@ watch(() => form.value.client_id, (clientId) =>
     }
 });
 
-// Set when a switch cleared at least one picked rate, so the user hears
+// Whether the last switch cleared at least one picked rate, so the user hears
 // about it: a client pick can switch the treatment without them touching it.
-// Cleared back on Dutch VAT, where the empty selects and the note by Save
-// take over.
+// Every switch sets it again, so it only ever describes the last one. Back
+// on Dutch VAT the empty selects and the note by Save take over, and a
+// save, which stores the cleared rates, ends it too.
 const hasClearedRates = ref(false);
 
 // Off Dutch VAT, no line may hold an option: the server refuses the
@@ -136,11 +137,8 @@ watch(() => form.value.vat_treatment, (treatment) =>
         return;
     }
 
-    if (rows.value.some((row) => row.vat_option !== null))
-    {
-        hasClearedRates.value = true;
-        rows.value = rows.value.map((row) => ({ ...row, vat_option: null }));
-    }
+    hasClearedRates.value = rows.value.some((row) => row.vat_option !== null);
+    rows.value = rows.value.map((row) => ({ ...row, vat_option: null }));
 });
 
 // What the term field holds. Checked here, not left to the backend: Number()
@@ -320,6 +318,7 @@ const onSubmit = async (): Promise<void> =>
                 rows.value = rowsFrom(saved.invoice.lines, sentKeys.value);
                 stored.value = { invoice: saved.invoice, snapshot: snapshot() };
                 hasJustSaved.value = true;
+                hasClearedRates.value = false;
             }
         });
     }
