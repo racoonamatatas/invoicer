@@ -9,9 +9,9 @@ use Illuminate\Contracts\Support\Responsable;
 use JsonSerializable;
 
 /**
- * An invoice as the invoices list sees it: no lines and no totals. A separate class from the full invoice, so the
- * list can't start loading lines by accident. An allowlist, like every resource: a new column stays private until it
- * is added here. business_id is left out: the URL the frontend asked already holds it.
+ * The fields every view of an invoice shares: no lines and no totals of its own. The list item and the full invoice are
+ * built on it and add what each one needs. An allowlist, like every resource: a new column stays private until it is
+ * added here. business_id is left out: the URL the frontend asked already holds it.
  */
 final readonly class InvoiceSummaryResourceData implements JsonSerializable, Responsable
 {

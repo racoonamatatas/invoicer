@@ -10,8 +10,8 @@ use Illuminate\Contracts\Support\Responsable;
 use JsonSerializable;
 
 /**
- * A whole invoice as the frontend sees it: the summary the list sends, plus its lines and its totals. Built on the
- * summary rather than repeating its fields, so the two can't drift apart: whatever the list sends, this sends too.
+ * A whole invoice as the frontend sees it: the summary, plus its lines and its totals. Built on the summary rather than
+ * repeating its fields, so the two can't drift apart: whatever the summary sends, this sends too.
  */
 final readonly class InvoiceResourceData implements JsonSerializable, Responsable
 {
