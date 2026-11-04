@@ -1,3 +1,4 @@
+import { ref } from 'vue';
 import { describe, it, expect, vi } from 'vitest';
 
 import { useForm } from '@/composables/useForm';
@@ -330,6 +331,28 @@ describe('useForm', () =>
 
         // Assert: no line can show it, so the message is the user's only feedback
         expect(form.generalMessage.value).toBe('The lines are invalid.');
+    });
+
+    it('should set generalMessage to the message once a field\'s check says the 422 key is no longer on the page', async () =>
+    {
+        // Arrange: the check stands in for a form whose line may be removed
+        // after the 422, so it reads a ref the test can change
+        const lineIsShown = ref(true);
+        const check = vi.fn<(key: string) => boolean>(() => lineIsShown.value);
+        const form = useForm<'lines.*.description'>('invoice', { 'lines.*.description': check });
+        const send = () => Promise.reject(axiosErrorWith(422, {
+            message: 'The lines.2.description field is required.',
+            errors: { 'lines.2.description': ['The lines.2.description field is required.'] },
+        }));
+        await form.submit(send);
+        expect(form.generalMessage.value).toBe('');
+
+        // Act
+        lineIsShown.value = false;
+
+        // Assert: re-checked without a new submit, with the 422's own key
+        expect(form.generalMessage.value).toBe('The lines.2.description field is required.');
+        expect(check).toHaveBeenLastCalledWith('lines.2.description');
     });
 
     // oxlint-disable-next-line vitest/expect-expect -- the assertion is the @ts-expect-error inside, checked by vue-tsc, not by vitest
