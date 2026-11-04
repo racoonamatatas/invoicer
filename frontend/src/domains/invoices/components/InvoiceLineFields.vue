@@ -104,16 +104,19 @@ const serverError = (field: LineField): FieldError | null => (props.sentIndex ==
     ? null
     : props.fieldError(`lines.${props.sentIndex}.${field}`));
 
-// The row's own check comes first, as for the payment term: unreadable input
+// The row's own check comes first, as for the payment term: input it refuses
 // is never sent, so a server error on it can only be about an earlier value.
+// That holds for an empty field too, which shows nothing until it is filled.
 const amountError = <T>(parsed: ParseResult<T>, name: string, example: string, max: string, field: LineField): FieldError | null =>
 {
-    if (!parsed.ok && parsed.reason !== 'empty')
+    if (parsed.ok)
     {
-        return { id: `${idFor(name)}-format`, message: formatMessage(parsed.reason, example, max) };
+        return serverError(field);
     }
 
-    return serverError(field);
+    return parsed.reason === 'empty'
+        ? null
+        : { id: `${idFor(name)}-format`, message: formatMessage(parsed.reason, example, max) };
 };
 
 const descriptionError = computed(() => serverError('description'));
