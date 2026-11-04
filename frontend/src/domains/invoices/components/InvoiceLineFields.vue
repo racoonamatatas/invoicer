@@ -6,7 +6,8 @@ import { computed } from 'vue';
 import type { FieldError } from '@/composables/useForm';
 import type { LineRow } from '@/domains/invoices/lineRows';
 import { parseCents, parseHundredths, type ParseFailure, type ParseResult } from '@/form/amounts';
-import { VAT_OPTIONS, type VatOption } from '@/services/invoices';
+import { VAT_OPTION_LABELS } from '@/domains/invoices/vatOptionLabels';
+import { VAT_OPTIONS } from '@/services/invoices';
 
 // A line's fields as the backend names them, so they are also the last part
 // of a 422's key (`lines.2.unit_price_cents`).
@@ -63,16 +64,6 @@ const onVatOptionChange = (event: Event): void =>
     {
         row.value = { ...row.value, vat_option: picked };
     }
-};
-
-// Words, not percentages: the rates are Dutch law and live in the backend,
-// which sends them with the totals. A Record over every option, so one
-// added later fails to compile until it has a label.
-const VAT_OPTION_LABELS: Record<VatOption, string> = {
-    high: 'High rate',
-    low: 'Low rate',
-    zero: 'Zero rate',
-    exempt: 'Exempt from VAT',
 };
 
 // What to say about input the parser refused. `empty` isn't here: an empty
