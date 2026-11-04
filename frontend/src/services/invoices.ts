@@ -114,6 +114,10 @@ type InvoiceTotalsUnder<Rules extends VatRules> = Rules extends unknown
 // every time: a save replaces them all.
 export type InvoicePayload = InvoicePayloadUnder<VatRules>;
 
+// An invoice's own fields without its lines, under either treatment: what the
+// editor's fields make before the lines are added.
+export type InvoiceFieldsPayload = InvoiceFieldsUnder<VatRules>;
+
 // One line of what the form sends, under either set of rules. Only use it
 // where the invoice's treatment isn't known; inside an `InvoicePayload` the
 // lines already match the treatment.

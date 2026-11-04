@@ -31,3 +31,18 @@ export const germanClient = (id: number, name: string): Client => ({
     region: 'Bayern',
     country_code: 'DE',
 });
+
+// A client outside the EU, for the cases where the EU border matters.
+export const americanClient = (id: number, name: string): Client => ({
+    id,
+    name,
+    email: `client${id}@example.com`,
+    vat_number: null,
+    street: 'Main Street',
+    house_number: '1',
+    house_number_addition: null,
+    postal_code: '10001',
+    city: 'New York',
+    region: 'NY',
+    country_code: 'US',
+});
