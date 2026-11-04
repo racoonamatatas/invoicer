@@ -7,6 +7,7 @@ import type { BankAccount } from '@/services/bankAccounts';
 import * as bankAccountsService from '@/services/bankAccounts';
 import * as businessesService from '@/services/businesses';
 import * as clientsService from '@/services/clients';
+import { UnexpectedResponseError } from '@/services/http';
 import * as invoicesService from '@/services/invoices';
 import { axiosErrorWith } from '../../../utility/axiosErrorWith';
 import { business, jan, logInAs } from '../../../utility/businesses';
@@ -107,6 +108,53 @@ describe('InvoiceEditor page', () =>
                 lines: [],
             });
             expect(router.currentRoute.value.fullPath).toBe('/businesses/7/invoices/11/edit');
+            // The created draft is shown as it is, without a GET, and not
+            // the one fetchInvoice is mocked to return (Brauerei Huber's)
+            expect(wrapper.find('h1').text()).toBe('Edit draft for Fietsenmakerij Bakker');
+            expect(invoicesService.fetchInvoice).not.toHaveBeenCalled();
+        });
+
+        it('should send the user to the invoices, not offer the form again, when a 201 (created) can\'t be read', async () =>
+        {
+            // Arrange: the draft may be stored, so a second press could make
+            // a second one
+            vi.mocked(invoicesService.createInvoice).mockRejectedValue(new UnexpectedResponseError('/businesses/7/invoices'));
+            const errorHandler = vi.fn<(error: unknown) => void>();
+            const { wrapper } = await mountInvoiceEditor('/businesses/7/invoices/new', errorHandler);
+            await flushPromises();
+            await fillIn(wrapper, bakker.id, '');
+
+            // Act
+            await form(wrapper).trigger('submit');
+            await flushPromises();
+
+            // Assert: still reported as a fault, but with no form to retry
+            expect(wrapper.text()).toContain('The draft may have been created, but its answer couldn\'t be read.');
+            const link = wrapper.findAll('a').find((candidate) => candidate.text() === 'Check the invoices');
+            expect(link?.attributes('href')).toBe('/businesses/7/invoices');
+            expect(form(wrapper).exists()).toBe(false);
+            expect(errorHandler).toHaveBeenCalledOnce();
+        });
+
+        it('should link to the created draft, not offer the form again, when the move to its page is cancelled', async () =>
+        {
+            // Arrange: a guard that cancels the move, as a navigation the user
+            // starts meanwhile would
+            const { wrapper, router } = await mountInvoiceEditor('/businesses/7/invoices/new');
+            await flushPromises();
+            router.beforeEach((to) => to.name !== 'editInvoice');
+            await fillIn(wrapper, bakker.id, '');
+
+            // Act
+            await form(wrapper).trigger('submit');
+            await flushPromises();
+
+            // Assert
+            expect(router.currentRoute.value.fullPath).toBe('/businesses/7/invoices/new');
+            expect(wrapper.text()).toContain('Draft created.');
+            const link = wrapper.findAll('a').find((candidate) => candidate.text() === 'Open the draft');
+            expect(link?.attributes('href')).toBe('/businesses/7/invoices/11/edit');
+            expect(form(wrapper).exists()).toBe(false);
         });
 
         it.for<[description: string, typed: string, sent: number | null]>([
@@ -141,10 +189,9 @@ describe('InvoiceEditor page', () =>
             const { wrapper } = await mountInvoiceEditor('/businesses/7/invoices/new');
             await flushPromises();
 
-            // Act
+            // Act: no submit, because a disabled submit button blocks one in
+            // the browser too, Enter in a field included
             await fillIn(wrapper, bakker.id, typed);
-            await form(wrapper).trigger('submit');
-            await flushPromises();
 
             // Assert: Number() would make some of these NaN, which JSON sends
             // as null, the business default; the others it reads as numbers
@@ -214,6 +261,55 @@ describe('InvoiceEditor page', () =>
             expect(button().attributes('disabled')).toBeDefined();
             await wrapper.find('#invoice-bank_account_id').setValue(String(main.id));
             expect(button().attributes('disabled')).toBeUndefined();
+        });
+
+        it('should link to the bank accounts instead of showing the form when the business has none', async () =>
+        {
+            // Arrange
+            vi.mocked(bankAccountsService.listBankAccounts).mockResolvedValue([]);
+
+            // Act
+            const { wrapper } = await mountInvoiceEditor('/businesses/7/invoices/new');
+            await flushPromises();
+
+            // Assert: the heading first, so the missing form isn't just a
+            // page that hasn't rendered yet
+            expect(wrapper.find('h1').text()).toBe('New invoice');
+            const link = wrapper.findAll('a').find((candidate) => candidate.text() === 'Add a bank account first');
+            expect(link?.attributes('href')).toBe('/businesses/7/bank-accounts');
+            expect(form(wrapper).exists()).toBe(false);
+        });
+
+        it.for<[list: string, failing: 'clients' | 'bank accounts']>([
+            ['the clients', 'clients'],
+            ['the bank accounts', 'bank accounts'],
+        ])('should show the form after Try again when %s fail with a 500 (server error), then get a 200 (ok)', async ([_list, failing]) =>
+        {
+            // Arrange
+            const serverError = axiosErrorWith(500, { message: 'Server Error' });
+
+            if (failing === 'clients')
+            {
+                vi.mocked(clientsService.listClients).mockRejectedValueOnce(serverError);
+            }
+            else
+            {
+                vi.mocked(bankAccountsService.listBankAccounts).mockRejectedValueOnce(serverError);
+            }
+
+            const { wrapper } = await mountInvoiceEditor('/businesses/7/invoices/new', vi.fn<(error: unknown) => void>());
+            await flushPromises();
+            expect(wrapper.find('#invoice-editor-status').text()).toBe(`Couldn't load the ${failing}.`);
+            expect(form(wrapper).exists()).toBe(false);
+
+            // Act
+            const retry = wrapper.findAll('button').find((button) => button.text() === `Try again with the ${failing}`);
+            await retry?.trigger('click');
+            await flushPromises();
+
+            // Assert
+            expect(form(wrapper).exists()).toBe(true);
+            expect(wrapper.find('#invoice-editor-status').text()).toBe('');
         });
 
         it('should link to the clients instead of showing the form when the business has no clients', async () =>
@@ -324,6 +420,43 @@ describe('InvoiceEditor page', () =>
             expect(invoicesService.fetchInvoice).toHaveBeenCalledTimes(2);
             expect(termValue(wrapper)).toBe('60');
             expect(formStatus(wrapper)).toBe('');
+        });
+
+        it('should hide Saved. once a field is edited again', async () =>
+        {
+            // Arrange
+            vi.mocked(invoicesService.updateInvoice).mockResolvedValue(savedWithTerm(30, 4));
+            const { wrapper } = await mountInvoiceEditor('/businesses/7/invoices/11/edit');
+            await flushPromises();
+            await wrapper.find('#invoice-payment_term_days').setValue('30');
+            await editForm(wrapper).trigger('submit');
+            await flushPromises();
+            expect(formStatus(wrapper)).toBe('Saved.');
+
+            // Act
+            await wrapper.find('#invoice-payment_term_days').setValue('31');
+
+            // Assert
+            expect(formStatus(wrapper)).toBe('');
+        });
+
+        it('should offer the latest version when a save fails with a 500 (server error), and still report the fault', async () =>
+        {
+            // Arrange: the version the save used may be gone, so retrying
+            // with it could only fail again
+            vi.mocked(invoicesService.updateInvoice).mockRejectedValue(axiosErrorWith(500, { message: 'Server Error' }));
+            const errorHandler = vi.fn<(error: unknown) => void>();
+            const { wrapper } = await mountInvoiceEditor('/businesses/7/invoices/11/edit', errorHandler);
+            await flushPromises();
+
+            // Act
+            await editForm(wrapper).trigger('submit');
+            await flushPromises();
+
+            // Assert
+            expect(formStatus(wrapper)).toBe('Couldn\'t save. Load the latest version before you try again.');
+            expect(wrapper.findAll('button').some((button) => button.text() === 'Load the latest version')).toBe(true);
+            expect(errorHandler).toHaveBeenCalledOnce();
         });
 
         it('should disable Save and say why when a draft with lines switches from Dutch VAT to none', async () =>
