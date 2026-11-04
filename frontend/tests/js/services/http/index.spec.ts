@@ -2,7 +2,10 @@ import { http as route, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, it, expect, vi } from 'vitest';
 
-import { checkResponse, deleteRequest, getRequest, putRequest, SessionEndedError, setUnauthenticatedHandler, UnexpectedResponseError, versionFrom } from '@/services/http';
+import { AxiosError } from 'axios';
+
+import { checkResponse, deleteRequest, getRequest, mayHaveBeenStored, putRequest, SessionEndedError, setUnauthenticatedHandler, UnexpectedResponseError, versionFrom } from '@/services/http';
+import { axiosErrorWith } from '../../utility/axiosErrorWith';
 
 // msw answers the real axios instance's requests, so the interceptor runs
 // exactly as in the app, and src/ exports nothing just for this test.
@@ -228,5 +231,30 @@ describe('If-Match', () =>
 
         // Assert: undefined, not null: no request reached the server at all
         expect(record.received).toBeUndefined();
+    });
+});
+
+describe('mayHaveBeenStored', () =>
+{
+    it.for<[failure: string, error: unknown]>([
+        ['a 422 (unprocessable content)', axiosErrorWith(422, { message: 'Invalid' })],
+        ['a 429 (too many requests)', axiosErrorWith(429, { message: 'Too Many Attempts.' })],
+        ['a 404 (not found)', axiosErrorWith(404, { message: 'Not Found' })],
+        ['an ended session', new SessionEndedError(axiosErrorWith(401, { message: 'Unauthenticated.' }))],
+    ])('should be false for %s: the backend refused the write', ([_failure, error]) =>
+    {
+        // Act & Assert
+        expect(mayHaveBeenStored(error)).toBe(false);
+    });
+
+    it.for<[failure: string, error: unknown]>([
+        ['a 500 (server error)', axiosErrorWith(500, { message: 'Server Error' })],
+        ['a 504 (gateway timeout) from a proxy', axiosErrorWith(504, {})],
+        ['no answer at all', new AxiosError('Network Error', AxiosError.ERR_NETWORK)],
+        ['an answer that couldn\'t be read', new UnexpectedResponseError('/businesses/7/invoices')],
+    ])('should be true for %s: the write may have been stored', ([_failure, error]) =>
+    {
+        // Act & Assert
+        expect(mayHaveBeenStored(error)).toBe(true);
     });
 });
