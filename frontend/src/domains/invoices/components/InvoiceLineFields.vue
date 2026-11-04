@@ -5,8 +5,8 @@ import { computed } from 'vue';
 // Project imports
 import type { FieldError } from '@/composables/useForm';
 import type { LineRow } from '@/domains/invoices/lineRows';
-import { parseCents, parseHundredths, type ParseFailure, type ParseResult } from '@/form/amounts';
 import { VAT_OPTION_LABELS } from '@/domains/invoices/vatOptionLabels';
+import { formatCents, parseCents, parseHundredths, type Cents, type ParseFailure, type ParseResult } from '@/form/amounts';
 import { VAT_OPTIONS } from '@/services/invoices';
 
 // A line's fields as the backend names them, so they are also the last part
@@ -22,6 +22,7 @@ const props = defineProps<{
     // True while the form's save runs, so nothing typed then is wiped when
     // the save rebuilds the rows. Required: the parent has to decide.
     readonly: boolean;
+    totalCents: number | null; // the backend's total for this line, null while it would be stale
 }>();
 
 const emit = defineEmits<{
@@ -171,6 +172,8 @@ const idFor = (name: string): string => `invoice-lines-${props.index}-${name}`;
             </select>
             <p v-if="vatOptionError" :id="vatOptionError.id">{{ vatOptionError.message }}</p>
         </div>
+        <!-- The guard proved it an integer; the brand says it is cents. -->
+        <p v-if="totalCents !== null">Line total: {{ formatCents(totalCents as Cents) }}</p>
         <button type="button" :disabled="readonly" @click="emit('remove')">Remove line {{ index + 1 }}</button>
     </fieldset>
 </template>

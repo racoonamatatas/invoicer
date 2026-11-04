@@ -5,6 +5,7 @@ import { computed, ref, watch } from 'vue';
 // Project imports
 import { useForm } from '@/composables/useForm';
 import InvoiceLineFields, { type LineField } from '@/domains/invoices/components/InvoiceLineFields.vue';
+import InvoiceTotalsSummary from '@/domains/invoices/components/InvoiceTotalsSummary.vue';
 import { emptyRow, payloadWithRows, rowsFrom, type LineRow } from '@/domains/invoices/lineRows';
 import { suggestedVatTreatment } from '@/domains/invoices/suggestedVatTreatment';
 import type { BankAccount } from '@/services/bankAccounts';
@@ -229,10 +230,33 @@ const snapshot = (): string => JSON.stringify({
     lines: rows.value.map((row) => [row.description, row.quantity, row.unit_price, row.vat_option]),
 });
 
-// The form right after the last save. null until a save went through.
-const savedFields = ref<string | null>(null);
+// The draft as the backend last stored it, loaded or saved, with what the
+// form held right then. null on a new draft: nothing is stored yet.
+const stored = ref<{ invoice: Invoice; snapshot: string } | null>(props.initial.kind === 'existing'
+    ? { invoice: props.initial.invoice, snapshot: snapshot() }
+    : null);
 
-const isSaved = computed(() => savedFields.value !== null && snapshot() === savedFields.value);
+// Whether what's on screen is what's stored. Only then are the stored totals
+// the totals of what the user sees; any edit makes them stale.
+const isUnchanged = computed(() => stored.value !== null && snapshot() === stored.value.snapshot);
+
+// The stored total of the row at `index`, while nothing has changed: the
+// rows were then built from the stored lines, so row 3 is stored line 3.
+const lineTotalCents = (index: number): number | null =>
+{
+    if (!isUnchanged.value || stored.value === null)
+    {
+        return null;
+    }
+
+    return stored.value.invoice.lines[index]?.total_cents ?? null;
+};
+
+// Set by a save that went through, cleared by the next submit. "Saved." also
+// needs the form unchanged since, so editing a field hides it.
+const hasJustSaved = ref(false);
+
+const isSaved = computed(() => hasJustSaved.value && isUnchanged.value);
 
 // A 412: saved elsewhere since this version was loaded. An answer, not a
 // fault, so it isn't re-thrown; the fields keep the user's edits.
@@ -244,7 +268,7 @@ const hasFailed = ref(false);
 
 const onSubmit = async (): Promise<void> =>
 {
-    savedFields.value = null;
+    hasJustSaved.value = false;
     hasConflict.value = false;
     hasFailed.value = false;
 
@@ -263,15 +287,16 @@ const onSubmit = async (): Promise<void> =>
     {
         await submit(async () =>
         {
-            const stored = await props.save(sent);
+            const saved = await props.save(sent);
 
             // An edit shows what the backend stored. A new draft's page
             // moves to the edit route meanwhile.
             if (props.initial.kind === 'existing')
             {
-                form.value = fieldsFrom({ kind: 'existing', invoice: stored.invoice });
-                rows.value = rowsFrom(stored.invoice.lines);
-                savedFields.value = snapshot();
+                form.value = fieldsFrom({ kind: 'existing', invoice: saved.invoice });
+                rows.value = rowsFrom(saved.invoice.lines);
+                stored.value = { invoice: saved.invoice, snapshot: snapshot() };
+                hasJustSaved.value = true;
             }
         });
     }
@@ -381,10 +406,19 @@ const onSubmit = async (): Promise<void> =>
             :charges-vat="form.vat_treatment === 'domestic'"
             :field-error="lineFieldError(row.key)"
             :readonly="isPending"
+            :total-cents="lineTotalCents(index)"
             @update:model-value="replaceLine"
             @remove="removeLine(row.key)"
         />
         <button type="button" :disabled="isPending || rows.length >= MAX_LINES" @click="addLine">Add line</button>
+
+        <!-- Only what the backend computed, and only while it is the total of
+             what's on screen: a stale total shown as current is worse than
+             none. -->
+        <h2>Totals</h2>
+        <InvoiceTotalsSummary v-if="isUnchanged && stored !== null" :totals="stored.invoice.totals" />
+        <p v-else-if="stored !== null">Unsaved changes. The totals update when you save.</p>
+        <p v-else>The totals appear once the draft is created.</p>
 
         <button type="submit" :disabled="isPending || payload === null">{{ submitLabel }}</button>
     </form>
