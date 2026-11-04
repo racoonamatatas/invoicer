@@ -6,7 +6,7 @@ import { computed, ref, watch } from 'vue';
 import { useForm } from '@/composables/useForm';
 import InvoiceLineFields, { type LineField } from '@/domains/invoices/components/InvoiceLineFields.vue';
 import InvoiceTotalsSummary from '@/domains/invoices/components/InvoiceTotalsSummary.vue';
-import { emptyRow, payloadWithRows, rowContent, rowsFrom, type LineRow } from '@/domains/invoices/lineRows';
+import { MAX_LINES, emptyRow, payloadWithRows, rowContent, rowsFrom, type LineRow } from '@/domains/invoices/lineRows';
 import { suggestedVatTreatment } from '@/domains/invoices/suggestedVatTreatment';
 import type { BankAccount } from '@/services/bankAccounts';
 import type { Client } from '@/services/clients';
@@ -77,10 +77,6 @@ const form = ref<InvoiceFormFields>(fieldsFrom(props.initial));
 // The lines, apart from the fields: each row is its own component, and the
 // list is replaced, never patched, so a row's v-model can't miss a change.
 const rows = ref<LineRow[]>(props.initial.kind === 'new' ? [] : rowsFrom(props.initial.invoice.lines));
-
-// InvoiceRequest::MAX_LINES. Add line stops there, so the backend's limit
-// is only reached by a bug, which then shows in generalMessage.
-const MAX_LINES = 100;
 
 const addLine = (): void =>
 {

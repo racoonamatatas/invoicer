@@ -14,6 +14,11 @@ export interface LineRow
     vat_option: VatOption | null;
 }
 
+// InvoiceRequest::MAX_LINES, pinned to it by a test that reads the PHP file.
+// Add line stops there, so the backend's limit is only reached by a bug,
+// which then shows in the form's general message.
+export const MAX_LINES = 100;
+
 // Shared by every editor on the page. A key only has to be unique within
 // one list, and counting up across all of them gives that for free.
 let lastKey = 0;
