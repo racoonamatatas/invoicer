@@ -275,10 +275,18 @@ describe('isInvoiceListItem', () =>
         expect(isInvoiceListItem(listItem)).toBe(true);
     });
 
+    it('should accept a total of zero, a draft without lines', () =>
+    {
+        // Act + Assert
+        expect(isInvoiceListItem({ ...listItem, total_cents: 0 })).toBe(true);
+    });
+
     it.each([
         ['without total_cents', summary],
         ['with a fraction of a cent', { ...listItem, total_cents: 12.5 }],
         ['with total_cents as a string', { ...listItem, total_cents: '1250' }],
+        ['with a negative total', { ...listItem, total_cents: -1 }],
+        ['with a total past the safe integers', { ...listItem, total_cents: Number.MAX_SAFE_INTEGER + 1 }],
         ['whose summary is malformed', without(listItem, 'vat_treatment')],
     ])('should reject a list item %s', (_case, item) =>
     {
