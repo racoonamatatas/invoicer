@@ -1,6 +1,6 @@
-import { flushPromises, mount, type VueWrapper } from '@vue/test-utils';
+import { enableAutoUnmount, flushPromises, mount, type VueWrapper } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
-import { beforeEach, describe, it, expect, vi } from 'vitest';
+import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 
 import InvoiceEditor from '@/domains/invoices/pages/InvoiceEditor.vue';
 import type { BankAccount } from '@/services/bankAccounts';
@@ -12,7 +12,7 @@ import { axiosErrorWith } from '../../../utility/axiosErrorWith';
 import { business, jan, logInAs } from '../../../utility/businesses';
 import { dutchClient, germanClient } from '../../../utility/clients';
 import { createTestRouter } from '../../../utility/createTestRouter';
-import { newDraft } from '../../../utility/invoices';
+import { domesticDraftWithLine, newDraft } from '../../../utility/invoices';
 
 // Every export of these services becomes a vi.fn(), so no request leaves the test.
 vi.mock('@/services/auth');
@@ -30,6 +30,10 @@ vi.mock('@/services/invoices', async (importOriginal) => ({
     deleteInvoice: vi.fn<typeof invoicesService.deleteInvoice>(),
 }));
 
+// A page left mounted keeps loading: after the create test's replace(), it
+// would fetch the draft while the next test runs.
+enableAutoUnmount(afterEach);
+
 const studio = business(7, 'Studio de Vries');
 
 const bakker = dutchClient(3, 'Fietsenmakerij Bakker');
@@ -40,7 +44,7 @@ const main: BankAccount = { id: 5, iban: 'NL91ABNA0417164300', label: 'Main' };
 // Mounts InvoiceEditor on `path` with a fresh Pinia, a logged-in user (the
 // store loads nothing without one) and the app's real routes, so its links
 // resolve and its replace() lands on a real route.
-const mountInvoiceEditor = async (path: string) =>
+const mountInvoiceEditor = async (path: string, errorHandler?: (error: unknown) => void) =>
 {
     const pinia = createPinia();
     setActivePinia(pinia);
@@ -49,7 +53,7 @@ const mountInvoiceEditor = async (path: string) =>
     const router = createTestRouter();
     await router.push(path);
 
-    const wrapper = mount(InvoiceEditor, { global: { plugins: [pinia, router] } });
+    const wrapper = mount(InvoiceEditor, { global: { plugins: [pinia, router], config: { errorHandler } } });
 
     return { wrapper, router };
 };
@@ -76,6 +80,9 @@ describe('InvoiceEditor page', () =>
         vi.mocked(clientsService.listClients).mockResolvedValue([bakker, huber]);
         vi.mocked(bankAccountsService.listBankAccounts).mockResolvedValue([main]);
         vi.mocked(invoicesService.createInvoice).mockResolvedValue(newDraft(11, bakker.id, main.id));
+        // Stored as domestic for a client whose suggestion is reverse charge,
+        // so a form that prefilled on load would show the difference.
+        vi.mocked(invoicesService.fetchInvoice).mockResolvedValue({ invoice: domesticDraftWithLine(11, huber.id, main.id), version: 3 });
     });
 
     describe('creating a draft', () =>
@@ -197,6 +204,131 @@ describe('InvoiceEditor page', () =>
             const link = wrapper.findAll('a').find((candidate) => candidate.text() === 'Add a client first');
             expect(link?.attributes('href')).toBe('/businesses/7/clients');
             expect(form(wrapper).exists()).toBe(false);
+        });
+    });
+
+    describe('editing a draft', () =>
+    {
+        const editForm = (wrapper: VueWrapper) => wrapper.find('form[aria-label="Edit draft"]');
+
+        const formStatus = (wrapper: VueWrapper): string => editForm(wrapper).find('[role="status"]').text();
+
+        const termValue = (wrapper: VueWrapper): string => (wrapper.find('#invoice-payment_term_days').element as HTMLInputElement).value;
+
+        const saveButton = (wrapper: VueWrapper) => editForm(wrapper).find('button[type="submit"]');
+
+        // The stored draft after a save of `term`, at `version`.
+        const savedWithTerm = (term: number, version: number): invoicesService.VersionedInvoice => ({
+            invoice: { ...domesticDraftWithLine(11, huber.id, main.id), payment_term_days: term },
+            version,
+        });
+
+        it('should show the stored fields on a 200 (ok), keeping a stored treatment that differs from the client\'s suggestion', async () =>
+        {
+            // Act
+            const { wrapper } = await mountInvoiceEditor('/businesses/7/invoices/11/edit');
+            await flushPromises();
+
+            // Assert: a draft has no number, so the heading names its client
+            expect(wrapper.find('h1').text()).toBe('Edit draft for Brauerei Huber');
+            expect((wrapper.find('#invoice-client_id').element as HTMLSelectElement).value).toBe(String(huber.id));
+            expect((wrapper.find('#invoice-bank_account_id').element as HTMLSelectElement).value).toBe(String(main.id));
+            expect(selectedTreatment(wrapper)).toBe('domestic');
+            expect(termValue(wrapper)).toBe('14');
+        });
+
+        it('should send the loaded version and the stored lines, then the next version on a second save', async () =>
+        {
+            // Arrange
+            vi.mocked(invoicesService.updateInvoice)
+                .mockResolvedValueOnce(savedWithTerm(30, 4))
+                .mockResolvedValueOnce(savedWithTerm(45, 5));
+            const { wrapper } = await mountInvoiceEditor('/businesses/7/invoices/11/edit');
+            await flushPromises();
+
+            // Act
+            await wrapper.find('#invoice-payment_term_days').setValue('30');
+            await editForm(wrapper).trigger('submit');
+            await flushPromises();
+            await wrapper.find('#invoice-payment_term_days').setValue('45');
+            await editForm(wrapper).trigger('submit');
+            await flushPromises();
+
+            // Assert: the lines go back as they were stored, without their
+            // totals, so saving the fields doesn't delete them
+            expect(invoicesService.updateInvoice).toHaveBeenNthCalledWith(1, 7, 11, {
+                client_id: huber.id,
+                bank_account_id: main.id,
+                vat_treatment: 'domestic',
+                payment_term_days: 30,
+                lines: [{ description: 'Website redesign', quantity_hundredths: 750, unit_price_cents: 8000, vat_option: 'high' }],
+            }, 3);
+            expect(invoicesService.updateInvoice).toHaveBeenNthCalledWith(2, 7, 11, expect.objectContaining({ payment_term_days: 45 }), 4);
+            expect(formStatus(wrapper)).toBe('Saved.');
+        });
+
+        it('should keep the edits on a 412 (precondition failed), and show the stored draft after Load the latest version', async () =>
+        {
+            // Arrange
+            vi.mocked(invoicesService.updateInvoice).mockRejectedValue(new invoicesService.InvoiceVersionConflictError(axiosErrorWith(412, {})));
+            // A spy standing in for app.config.errorHandler: a 412 is an
+            // answer the form shows, not a fault to report
+            const errorHandler = vi.fn<(error: unknown) => void>();
+            const { wrapper } = await mountInvoiceEditor('/businesses/7/invoices/11/edit', errorHandler);
+            await flushPromises();
+            await wrapper.find('#invoice-payment_term_days').setValue('30');
+
+            // Act
+            await editForm(wrapper).trigger('submit');
+            await flushPromises();
+
+            // Assert: nothing was stored, so what the user typed stays
+            expect(formStatus(wrapper)).toBe('This draft was changed elsewhere. Your edits weren\'t saved.');
+            expect(termValue(wrapper)).toBe('30');
+            expect(errorHandler).not.toHaveBeenCalled();
+
+            // Act: someone else saved a 60-day term meanwhile
+            vi.mocked(invoicesService.fetchInvoice).mockResolvedValue(savedWithTerm(60, 4));
+            const load = wrapper.findAll('button').find((button) => button.text() === 'Load the latest version');
+            await load?.trigger('click');
+            await flushPromises();
+
+            // Assert
+            expect(invoicesService.fetchInvoice).toHaveBeenCalledTimes(2);
+            expect(termValue(wrapper)).toBe('60');
+            expect(formStatus(wrapper)).toBe('');
+        });
+
+        it('should disable Save and say why when a draft with lines switches from Dutch VAT to none', async () =>
+        {
+            // Arrange
+            const { wrapper } = await mountInvoiceEditor('/businesses/7/invoices/11/edit');
+            await flushPromises();
+            expect(saveButton(wrapper).attributes('disabled')).toBeUndefined();
+
+            // Act
+            await wrapper.find('#invoice-vat_treatment').setValue('reverse_charge');
+
+            // Assert: the note is linked to the button, for a screen reader
+            expect(saveButton(wrapper).attributes('disabled')).toBeDefined();
+            const describedBy = saveButton(wrapper).attributes('aria-describedby');
+            expect(describedBy).toBeDefined();
+            expect(wrapper.find(`#${describedBy}`).text()).toBe('This draft has lines. Switching between Dutch VAT and no VAT comes with the lines editor.');
+        });
+
+        it('should say the invoice wasn\'t found on a 404 (not found), and show no form', async () =>
+        {
+            // Arrange
+            vi.mocked(invoicesService.fetchInvoice).mockRejectedValue(new invoicesService.InvoiceNotFoundError(axiosErrorWith(404, {})));
+
+            // Act
+            const { wrapper } = await mountInvoiceEditor('/businesses/7/invoices/99/edit');
+            await flushPromises();
+
+            // Assert
+            expect(wrapper.find('h1').text()).toBe('Invoice not found');
+            expect(wrapper.text()).toContain('It doesn\'t exist, or it isn\'t an invoice of Studio de Vries.');
+            expect(editForm(wrapper).exists()).toBe(false);
         });
     });
 
