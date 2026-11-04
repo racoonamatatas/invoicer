@@ -8,7 +8,8 @@ import { RouterLink } from 'vue-router';
 
 <template>
     <div>
-        <h1>Draft invoice</h1>
+        <!-- Neutral: this page serves new and edit alike, for any id. -->
+        <h1>Invoice editor</h1>
         <p>The editor isn't built yet.</p>
         <!-- No params: Vue Router reuses the current :businessId. -->
         <p><RouterLink :to="{ name: 'invoices' }">Back to the invoices</RouterLink></p>
