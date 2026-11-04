@@ -40,7 +40,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-    reload: []; // "Load the latest version" after a 412
+    reload: []; // "Load the latest version" after a failed save
 }>();
 
 // What the form holds. null until picked: nothing is preselected, so an
@@ -244,13 +244,17 @@ const onSubmit = async (): Promise<void> =>
             <p v-if="throttleMessage">{{ throttleMessage }}</p>
             <p v-else-if="generalMessage">{{ generalMessage }}</p>
             <p v-else-if="hasConflict">This draft was changed elsewhere. Your edits weren't saved.</p>
+            <p v-else-if="hasFailed && initial.kind === 'existing'">Couldn't save. Load the latest version before you try again.</p>
             <p v-else-if="hasFailed">Couldn't save.</p>
             <!-- Only an edit can show it: a new draft's page moves away. -->
             <p v-else-if="isSaved">Saved.</p>
         </div>
         <!-- Replaces the form with the stored draft, so the user's edits go:
-             their choice, after reading the message above. -->
-        <button v-if="hasConflict" type="button" @click="emit('reload')">Load the latest version</button>
+             their choice, after reading the message above. After any failed
+             save of a stored draft, not only a 412: a 404 or an answer that
+             couldn't be read leaves the version unknown, so a retry with it
+             can only fail again. -->
+        <button v-if="hasConflict || (hasFailed && initial.kind === 'existing')" type="button" @click="emit('reload')">Load the latest version</button>
 
         <div>
             <label for="invoice-client_id">Client</label>
