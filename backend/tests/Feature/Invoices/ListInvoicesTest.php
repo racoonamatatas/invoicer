@@ -85,6 +85,24 @@ describe('Listing invoices', function (): void {
         $response->assertOk()->assertJsonPath('0.total_cents', 3634);
     });
 
+    it('should return 200 (ok) with a reverse-charge invoice\'s total equal to its lines, with no VAT added', function (): void {
+        // Arrange
+        $business = Business::factory()->create();
+        $invoice = Invoice::factory()->for($business)->create(['vat_treatment' => VatTreatment::ReverseCharge]);
+        // 1,5 × €100 and 1 × €25: 15000 + 2500. At 21% the same lines would total 21175.
+        InvoiceLine::factory()->for($invoice)->sequence(
+            ['position' => 1, 'quantity_hundredths' => 150, 'unit_price_cents' => 10000],
+            ['position' => 2, 'quantity_hundredths' => 100, 'unit_price_cents' => 2500],
+        )->count(2)->create(['vat_option' => null]);
+        $this->actingAs($business->user, 'web');
+
+        // Act
+        $response = $this->getJson("/api/businesses/{$business->id}/invoices");
+
+        // Assert
+        $response->assertOk()->assertJsonPath('0.total_cents', 17500);
+    });
+
     it('should load the lines of all invoices in one query, however many invoices there are', function (): void {
         // Arrange
         $business = Business::factory()->create();
