@@ -128,6 +128,33 @@ describe('InvoiceEditor page', () =>
             expect(invoicesService.createInvoice).toHaveBeenCalledExactlyOnceWith(7, expect.objectContaining({ payment_term_days: sent }));
         });
 
+        it.for<[typed: string]>([
+            ['30 days'],
+            ['abc'],
+            ['1e1'],
+            ['0x1E'],
+            ['30.'],
+            ['0'],
+        ])('should refuse the term %s with a message next to it, and send nothing', async ([typed]) =>
+        {
+            // Arrange
+            const { wrapper } = await mountInvoiceEditor('/businesses/7/invoices/new');
+            await flushPromises();
+
+            // Act
+            await fillIn(wrapper, bakker.id, typed);
+            await form(wrapper).trigger('submit');
+            await flushPromises();
+
+            // Assert: Number() would make some of these NaN, which JSON sends
+            // as null, the business default; the others it reads as numbers
+            const input = wrapper.find('#invoice-payment_term_days');
+            expect(input.attributes('aria-invalid')).toBe('true');
+            expect(wrapper.find(`#${input.attributes('aria-describedby')}`).text()).toBe('Enter a whole number of days, like 30.');
+            expect(form(wrapper).find('button[type="submit"]').attributes('disabled')).toBeDefined();
+            expect(invoicesService.createInvoice).not.toHaveBeenCalled();
+        });
+
         it('should fill in the VAT treatment from each client picked, replacing one chosen by hand', async () =>
         {
             // Arrange
