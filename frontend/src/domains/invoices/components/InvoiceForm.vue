@@ -4,8 +4,10 @@ import { computed, ref, watch } from 'vue';
 
 // Project imports
 import { useForm } from '@/composables/useForm';
+import InvoiceLineFields, { type LineField } from '@/domains/invoices/components/InvoiceLineFields.vue';
+import InvoiceTotalsSummary from '@/domains/invoices/components/InvoiceTotalsSummary.vue';
+import { MAX_LINES, emptyRow, payloadWithRows, rowContent, rowsFrom, type LineRow } from '@/domains/invoices/lineRows';
 import { suggestedVatTreatment } from '@/domains/invoices/suggestedVatTreatment';
-import { withStoredLines } from '@/domains/invoices/withStoredLines';
 import type { BankAccount } from '@/services/bankAccounts';
 import type { Client } from '@/services/clients';
 import {
@@ -18,14 +20,13 @@ import {
     type VersionedInvoice,
 } from '@/services/invoices';
 
-// What the form starts from: nothing, or a stored draft whose lines go back
-// unchanged on every save.
+// What the form starts from: nothing, or a stored draft.
 export type InvoiceFormInitial =
     | { kind: 'new' }
     | { kind: 'existing'; invoice: Invoice };
 
-// One form for creating and editing a draft's own fields (not its lines),
-// so the two can't drift apart. The page decides what saving means.
+// One form for creating and editing a draft, its fields and its lines, so
+// the two can't drift apart. The page decides what saving means.
 //
 // save is a prop, not an emit, for the same reason as in ClientForm: the
 // form awaits it, so a 422 lands in useForm's errors.
@@ -73,6 +74,27 @@ const fieldsFrom = (initial: InvoiceFormInitial): InvoiceFormFields =>
 
 const form = ref<InvoiceFormFields>(fieldsFrom(props.initial));
 
+// The lines, apart from the fields: each row is its own component, and the
+// list is replaced, never patched, so a row's v-model can't miss a change.
+const rows = ref<LineRow[]>(props.initial.kind === 'new' ? [] : rowsFrom(props.initial.invoice.lines));
+
+const addLine = (): void =>
+{
+    rows.value = [...rows.value, emptyRow()];
+};
+
+// By key, not index: the index of a row can change while its button is
+// being pressed, its key can't.
+const removeLine = (key: number): void =>
+{
+    rows.value = rows.value.filter((row) => row.key !== key);
+};
+
+const replaceLine = (updated: LineRow): void =>
+{
+    rows.value = rows.value.map((row) => (row.key === updated.key ? updated : row));
+};
+
 // A Record over every treatment, so one added later fails to compile until
 // it has a label.
 const TREATMENT_LABELS: Record<VatTreatment, string> = {
@@ -93,6 +115,30 @@ watch(() => form.value.client_id, (clientId) =>
     {
         form.value.vat_treatment = suggestedVatTreatment(client);
     }
+});
+
+// Whether the last switch cleared at least one picked rate, so the user hears
+// about it: a client pick can switch the treatment without them touching it.
+// Every switch sets it again, so it only ever describes the last one. Back
+// on Dutch VAT the empty selects and the note by Save take over, and a
+// save, which stores the cleared rates, ends it too.
+const hasClearedRates = ref(false);
+
+// Off Dutch VAT, no line may hold an option: the server refuses the
+// combination, so the form never holds it either. Back on Dutch VAT each line
+// needs a new pick, which keeps Save disabled until it has one: the old
+// option is gone rather than silently restored.
+watch(() => form.value.vat_treatment, (treatment) =>
+{
+    if (treatment === 'domestic')
+    {
+        hasClearedRates.value = false;
+
+        return;
+    }
+
+    hasClearedRates.value = rows.value.some((row) => row.vat_option !== null);
+    rows.value = rows.value.map((row) => ({ ...row, vat_option: null }));
 });
 
 // What the term field holds. Checked here, not left to the backend: Number()
@@ -140,32 +186,52 @@ const fieldsPayload = computed((): InvoiceFieldsPayload | null =>
     };
 });
 
-// A new draft has no lines yet; a stored one sends its own back. null while
-// the fields are incomplete, or when the stored lines can't follow the
-// treatment (see withStoredLines).
+// null while the fields are incomplete or a row can't be sent (see
+// payloadWithRows).
 const payload = computed((): InvoicePayload | null =>
 {
     const fields = fieldsPayload.value;
 
-    if (fields === null)
-    {
-        return null;
-    }
-
-    return props.initial.kind === 'new' ? { ...fields, lines: [] } : withStoredLines(fields, props.initial.invoice);
+    return fields === null ? null : payloadWithRows(fields, rows.value);
 });
 
-// Complete fields that still can't be sent: only a treatment switch on a
-// draft with lines does that.
-const isSwitchBlocked = computed(() => fieldsPayload.value !== null && payload.value === null);
+// The fields are complete, so only a line keeps Save disabled. Said next to
+// the button, because a disabled button can't say why itself.
+const areLinesIncomplete = computed(() => fieldsPayload.value !== null && payload.value === null);
 
-// Every field true: each has its own control. `lines` isn't one, so a 422 on
-// a line shows in generalMessage.
-const { submit, isPending, fieldError, throttleMessage, generalMessage } = useForm<keyof InvoiceFormFields>('invoice', {
+// Each row's key, in the order the last save sent them. A 422 names a line by
+// its index in that request; a row added or removed since would shift every
+// later index, so a row looks up its index here, not in the list it is in
+// now. A row added since has none, and so no server errors.
+const sentKeys = ref<readonly number[]>([]);
+
+// Each sent row's index, by key: a number per row, so a row's props stay
+// equal between renders and a keystroke elsewhere doesn't re-render it.
+const sentIndexes = computed(() => new Map(sentKeys.value.map((key, index) => [key, index])));
+
+// Whether the row a 422 key names (`lines.2.description`) is still in the
+// list. Removed since, it has nowhere to show its error.
+const isSentRowShown = (key: string): boolean =>
+{
+    const sentKey = sentKeys.value[Number(key.split('.')[1])]; // undefined for a key without an index
+
+    return sentKey !== undefined && rows.value.some((row) => row.key === sentKey);
+};
+
+// A line's fields as wildcards: a 422 names each line by its index. Each is
+// a check, not true: an error counts as shown only while its row is on the
+// page, and a VAT rate's only while the select is, so generalMessage takes
+// over when neither is.
+const { submit, isPending, fieldError, throttleMessage, generalMessage } = useForm<keyof InvoiceFormFields | 'lines' | `lines.*.${LineField}`>('invoice', {
     client_id: true,
     bank_account_id: true,
     vat_treatment: true,
     payment_term_days: true,
+    lines: false, // the list itself, like more than 100 lines: no input of its own
+    'lines.*.description': isSentRowShown,
+    'lines.*.quantity_hundredths': isSentRowShown,
+    'lines.*.unit_price_cents': isSentRowShown,
+    'lines.*.vat_option': (key) => form.value.vat_treatment === 'domestic' && isSentRowShown(key),
 });
 
 const clientError = computed(() => fieldError('client_id'));
@@ -177,11 +243,41 @@ const termError = computed(() => (termInput.value.kind === 'invalid'
     ? { id: 'invoice-payment_term_days-format', message: 'Enter a whole number of days, like 30.' }
     : fieldError('payment_term_days')));
 
-// The form's fields right after the last save, as JSON so a deep comparison
-// is one string compare. null until a save went through.
-const savedFields = ref<string | null>(null);
+// What the form holds, as JSON so a deep comparison is one string compare.
+// The rows by their content (see rowContent), so retyping `7,5` as `7,50`
+// isn't a change.
+const snapshot = (): string => JSON.stringify({
+    fields: form.value,
+    lines: rows.value.map(rowContent),
+});
 
-const isSaved = computed(() => savedFields.value !== null && JSON.stringify(form.value) === savedFields.value);
+// The draft as the backend last stored it, loaded or saved, with what the
+// form held right then. null on a new draft: nothing is stored yet.
+const stored = ref<{ invoice: Invoice; snapshot: string } | null>(props.initial.kind === 'existing'
+    ? { invoice: props.initial.invoice, snapshot: snapshot() }
+    : null);
+
+// Whether what's on screen is what's stored. Only then are the stored totals
+// the totals of what the user sees; any edit makes them stale.
+const isUnchanged = computed(() => stored.value !== null && snapshot() === stored.value.snapshot);
+
+// The stored total of the row at `index`, while nothing has changed: the
+// rows were then built from the stored lines, so row 3 is stored line 3.
+const lineTotalCents = (index: number): number | null =>
+{
+    if (!isUnchanged.value || stored.value === null)
+    {
+        return null;
+    }
+
+    return stored.value.invoice.lines[index]?.total_cents ?? null;
+};
+
+// Set by a save that went through, cleared by the next submit. "Saved." also
+// needs the form unchanged since, so editing a field hides it.
+const hasJustSaved = ref(false);
+
+const isSaved = computed(() => hasJustSaved.value && isUnchanged.value);
 
 // A 412: saved elsewhere since this version was loaded. An answer, not a
 // fault, so it isn't re-thrown; the fields keep the user's edits.
@@ -193,7 +289,14 @@ const hasFailed = ref(false);
 
 const onSubmit = async (): Promise<void> =>
 {
-    savedFields.value = null;
+    // Before anything changes: submit() would ignore this one, and the
+    // state below belongs to the save still running.
+    if (isPending.value)
+    {
+        return;
+    }
+
+    hasJustSaved.value = false;
     hasConflict.value = false;
     hasFailed.value = false;
 
@@ -206,18 +309,23 @@ const onSubmit = async (): Promise<void> =>
         throw new Error('InvoiceForm submitted without a complete payload.');
     }
 
+    sentKeys.value = rows.value.map((row) => row.key);
+
     try
     {
         await submit(async () =>
         {
-            const stored = await props.save(sent);
+            const saved = await props.save(sent);
 
             // An edit shows what the backend stored. A new draft's page
             // moves to the edit route meanwhile.
             if (props.initial.kind === 'existing')
             {
-                form.value = fieldsFrom({ kind: 'existing', invoice: stored.invoice });
-                savedFields.value = JSON.stringify(form.value);
+                form.value = fieldsFrom({ kind: 'existing', invoice: saved.invoice });
+                rows.value = rowsFrom(saved.invoice.lines, sentKeys.value);
+                stored.value = { invoice: saved.invoice, snapshot: snapshot() };
+                hasJustSaved.value = true;
+                hasClearedRates.value = false;
             }
         });
     }
@@ -317,9 +425,49 @@ const onSubmit = async (): Promise<void> =>
             <p v-if="termError" :id="termError.id">{{ termError.message }}</p>
         </div>
 
-        <p v-if="isSwitchBlocked" id="invoice-switch-blocked">
-            This draft has lines. Switching between Dutch VAT and no VAT comes with the lines editor.
+        <h2>Lines</h2>
+        <!-- Its own live region, always rendered: the switch that clears the
+             rates happens in a select above, away from the lines. -->
+        <div role="status">
+            <p v-if="hasClearedRates">The lines' VAT rates were cleared, because this invoice charges no Dutch VAT.</p>
+        </div>
+        <p v-if="rows.length === 0">No lines yet.</p>
+        <InvoiceLineFields
+            v-for="(row, index) in rows"
+            :key="row.key"
+            :model-value="row"
+            :index="index"
+            form-name="invoice"
+            :sent-index="sentIndexes.get(row.key) ?? null"
+            :charges-vat="form.vat_treatment === 'domestic'"
+            :field-error="fieldError"
+            :readonly="isPending"
+            :total-cents="lineTotalCents(index)"
+            @update:model-value="replaceLine"
+            @remove="removeLine(row.key)"
+        />
+        <p v-if="rows.length >= MAX_LINES" id="invoice-lines-max">An invoice holds at most {{ MAX_LINES }} lines.</p>
+        <button
+            type="button"
+            :disabled="isPending || rows.length >= MAX_LINES"
+            :aria-describedby="rows.length >= MAX_LINES ? 'invoice-lines-max' : undefined"
+            @click="addLine"
+        >
+            Add line
+        </button>
+
+        <!-- Only what the backend computed, and only while it is the total of
+             what's on screen: a stale total shown as current is worse than
+             none. -->
+        <h2>Totals</h2>
+        <InvoiceTotalsSummary v-if="isUnchanged && stored !== null" :totals="stored.invoice.totals" />
+        <p v-else-if="stored !== null">Unsaved changes. The totals update when you save.</p>
+        <p v-else>The totals appear once the draft is created.</p>
+
+        <p v-if="areLinesIncomplete" id="invoice-lines-incomplete">
+            <template v-if="form.vat_treatment === 'domestic'">Every line needs a description, a quantity, a unit price and a VAT rate before you can save.</template>
+            <template v-else>Every line needs a description, a quantity and a unit price before you can save.</template>
         </p>
-        <button type="submit" :disabled="isPending || payload === null" :aria-describedby="isSwitchBlocked ? 'invoice-switch-blocked' : undefined">{{ submitLabel }}</button>
+        <button type="submit" :disabled="isPending || payload === null" :aria-describedby="areLinesIncomplete ? 'invoice-lines-incomplete' : undefined">{{ submitLabel }}</button>
     </form>
 </template>

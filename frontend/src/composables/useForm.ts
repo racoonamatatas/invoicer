@@ -1,6 +1,6 @@
 import { computed, readonly, ref } from 'vue';
 import { parseFormSubmitFailure } from '@/form/formSubmitFailure';
-import type { FormDisplaysFieldError } from '@/form/formDisplaysFieldError';
+import type { FieldDisplay, FormDisplaysFieldError } from '@/form/formDisplaysFieldError';
 
 // What a form shows for a 429. Built here, so every form says it the same way.
 // Rounded up, and at least 1: 30 seconds left reads as 1 minute, and so does
@@ -25,6 +25,35 @@ export interface FieldError
     message: string;
     id: string;
 }
+
+// A field as fieldError() takes it: each `*` of a pattern like
+// `lines.*.description` (Laravel's own rule notation) becomes a number, so
+// `lines.2.description` compiles and `lines.2.descripton` doesn't. A field
+// without a `*` stays as it is. Recursive, so a pattern with two stars works.
+// `${number}` is looser than an index: it also takes `-1`, `1.5` and `1e3`,
+// which matchesField never matches. Callers build the key from an array
+// index, so the gap is only in what the type allows, not in what is sent.
+type ConcreteField<TField extends string> = TField extends `${infer Head}*${infer Tail}`
+    ? `${Head}${number}${ConcreteField<Tail>}`
+    : TField;
+
+// Whether a 422's key, like `lines.2.description`, is one the pattern names.
+// Segment by segment rather than a regex, so the dots need no escaping: a
+// `*` takes one index (digits only, as Laravel sends them), anything else
+// must be equal.
+const matchesField = (pattern: string, key: string): boolean =>
+{
+    const patternParts = pattern.split('.');
+    const keyParts = key.split('.');
+
+    return patternParts.length === keyParts.length
+           && patternParts.every((part, index) =>
+           {
+               const keyPart = keyParts[index] ?? ''; // never undefined: the lengths are equal
+
+               return part === '*' ? /^\d+$/.test(keyPart) : part === keyPart;
+           });
+};
 
 // One form's submit state. Each call creates its own refs, so two forms on a
 // page never share or clear each other's errors.
@@ -102,27 +131,35 @@ export const useForm = <TField extends string = never>(formName: string, display
 
     // This field's first error and the id its input points to, or null
     // when the field has no error. Called from the template, so it re-runs
-    // whenever errors changes.
-    const fieldError = (field: TField): FieldError | null =>
+    // whenever errors changes. Dots become dashes in the id, so a test can
+    // select `#invoice-lines-2-description-error` without escaping them.
+    const fieldError = (field: ConcreteField<TField>): FieldError | null =>
     {
         const message = firstError(field);
 
-        return message === undefined ? null : { message, id: `${formName}-${field}-error` };
+        return message === undefined ? null : { message, id: `${formName}-${field.replaceAll('.', '-')}-error` };
     };
 
-    // The 422's message when no field the form displays has an error, so a 422
-    // the form has nowhere to show (an empty `errors`, or a key it doesn't
-    // render) still tells the user something. '' otherwise, including when
-    // there was no 422, because `message` is '' then.
+    // The 422's message unless every error in it is shown next to its field,
+    // so an error the form has nowhere to show (an empty `errors`, a key it
+    // doesn't render, a line removed since) still tells the user something,
+    // even when another error is on screen. '' otherwise, including when there
+    // was no 422, because `message` is '' then.
     const generalMessage = computed(() =>
     {
-        // <boolean>: TypeScript can't read the value type through the
+        // Driven by the 422's keys, not the form's: a pattern stands for
+        // any number of keys, so only the keys say which ones arrived.
+        // <FieldDisplay>: TypeScript can't read the value type through the
         // conditional type, so without it `displayed` would be `any`. It's
-        // checked, not a cast: the argument must fit Record<string, boolean>.
-        const hasDisplayedError = Object.entries<boolean>(displaysFieldError)
-            .some(([field, displayed]) => displayed && firstError(field) !== undefined);
+        // checked, not a cast: the argument must fit Record<string, FieldDisplay>.
+        const isDisplayed = (key: string): boolean => Object.entries<FieldDisplay>(displaysFieldError)
+            .some(([pattern, displayed]) => matchesField(pattern, key) && (typeof displayed === 'function' ? displayed(key) : displayed));
+        // An empty list (`{ email: [] }`) has nothing to show, so it isn't an
+        // error here; with no errors left, nothing is on screen either.
+        const keysWithErrors = Object.keys(errors.value).filter((key) => firstError(key) !== undefined);
+        const isEveryErrorShown = keysWithErrors.length > 0 && keysWithErrors.every(isDisplayed);
 
-        return hasDisplayedError ? '' : message.value;
+        return isEveryErrorShown ? '' : message.value;
     });
 
     // readonly: pages read the state; only submit() writes it. The raw

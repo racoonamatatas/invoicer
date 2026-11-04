@@ -185,14 +185,23 @@ const isNullableInteger = (value: unknown): value is number | null =>
     return value === null || Number.isInteger(value);
 };
 
+// An amount the formatters can show: cents or hundredths, whole, safe and
+// never negative. Stricter than isInteger, because formatCents and
+// formatHundredths throw on anything else, and a throw while showing a saved
+// draft would report a save that went through as failed.
+const isAmount = (value: unknown): value is number =>
+{
+    return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+};
+
 const isVatGroup = (value: unknown): value is VatGroup =>
 {
     return typeof value === 'object'
            && value !== null // typeof null is 'object'
            && 'vat_option' in value && isVatOption(value.vat_option)
            && 'rate_percent' in value && isNullableInteger(value.rate_percent)
-           && 'base_cents' in value && Number.isInteger(value.base_cents)
-           && 'vat_cents' in value && Number.isInteger(value.vat_cents);
+           && 'base_cents' in value && isAmount(value.base_cents)
+           && 'vat_cents' in value && isAmount(value.vat_cents);
 };
 
 // The treatment is passed in, not read from the line: a line doesn't carry
@@ -204,9 +213,9 @@ const isLineUnder = (treatment: VatTreatment, value: unknown): value is InvoiceL
     return typeof value === 'object'
            && value !== null
            && 'description' in value && typeof value.description === 'string'
-           && 'quantity_hundredths' in value && Number.isInteger(value.quantity_hundredths)
-           && 'unit_price_cents' in value && Number.isInteger(value.unit_price_cents)
-           && 'total_cents' in value && Number.isInteger(value.total_cents)
+           && 'quantity_hundredths' in value && isAmount(value.quantity_hundredths)
+           && 'unit_price_cents' in value && isAmount(value.unit_price_cents)
+           && 'total_cents' in value && isAmount(value.total_cents)
            && 'vat_option' in value
            && (treatment === 'domestic' ? isVatOption(value.vat_option) : value.vat_option === null);
 };
@@ -217,8 +226,8 @@ const isTotalsUnder = (treatment: VatTreatment, value: unknown): value is Invoic
 {
     if (typeof value !== 'object'
         || value === null
-        || !('subtotal_cents' in value && Number.isInteger(value.subtotal_cents))
-        || !('total_cents' in value && Number.isInteger(value.total_cents))
+        || !('subtotal_cents' in value && isAmount(value.subtotal_cents))
+        || !('total_cents' in value && isAmount(value.total_cents))
         || !('vat_groups' in value && Array.isArray(value.vat_groups))
         || !('vat_cents' in value))
     {
@@ -226,7 +235,7 @@ const isTotalsUnder = (treatment: VatTreatment, value: unknown): value is Invoic
     }
 
     return treatment === 'domestic'
-        ? value.vat_groups.every(isVatGroup) && Number.isInteger(value.vat_cents)
+        ? value.vat_groups.every(isVatGroup) && isAmount(value.vat_cents)
         : value.vat_groups.length === 0 && value.vat_cents === 0;
 };
 
@@ -257,17 +266,13 @@ export const isInvoice = (value: unknown): value is Invoice =>
            && 'totals' in value && isTotalsUnder(value.vat_treatment, value.totals);
 };
 
-// Built on the summary, as isInvoice is. Stricter on the total than on other
-// amounts: the list formats it straight away, and formatCents() throws on a
-// negative or unsafe value. Refused here, the load fails and the page offers
-// Try again; let through, it would throw while the table renders.
+// Built on the summary, as isInvoice is. The total is an amount like the
+// others: refused here, the load fails and the page offers Try again; let
+// through, formatCents() would throw while the table renders.
 export const isInvoiceListItem = (value: unknown): value is InvoiceListItem =>
 {
     return isInvoiceSummary(value)
-           && 'total_cents' in value
-           && typeof value.total_cents === 'number'
-           && Number.isSafeInteger(value.total_cents)
-           && value.total_cents >= 0;
+           && 'total_cents' in value && isAmount(value.total_cents);
 };
 
 const isInvoiceListItemList = (value: unknown): value is InvoiceListItem[] =>

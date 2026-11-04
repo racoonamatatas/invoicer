@@ -1,3 +1,4 @@
+import { ref } from 'vue';
 import { describe, it, expect, vi } from 'vitest';
 
 import { useForm } from '@/composables/useForm';
@@ -292,6 +293,116 @@ describe('useForm', () =>
 
         // Assert
         expect(form.generalMessage.value).toBe('');
+    });
+
+    it('should return a line\'s error under a wildcard field, with dots turned into dashes in its id, after a 422 (unprocessable)', async () =>
+    {
+        // Arrange
+        const form = useForm<'lines.*.description'>('invoice', { 'lines.*.description': true });
+        const send = () => Promise.reject(axiosErrorWith(422, {
+            message: 'The lines.2.description field is required.',
+            errors: { 'lines.2.description': ['The lines.2.description field is required.'] },
+        }));
+
+        // Act
+        await form.submit(send);
+
+        // Assert: the other line has nothing, and the 422 shows on its line
+        // only, so the general message stays empty
+        expect(form.fieldError('lines.2.description')).toStrictEqual({
+            message: 'The lines.2.description field is required.',
+            id: 'invoice-lines-2-description-error',
+        });
+        expect(form.fieldError('lines.0.description')).toBeNull();
+        expect(form.generalMessage.value).toBe('');
+    });
+
+    it.for([
+        { key: 'lines', why: 'the list itself, like more than 100 lines' },
+        { key: 'lines.2', why: 'a whole line, not one of its fields' },
+    ])('should set generalMessage to the message when a 422 (unprocessable) has an error on $key, which no wildcard field matches', async ({ key }) =>
+    {
+        // Arrange
+        const form = useForm<'lines.*.description'>('invoice', { 'lines.*.description': true });
+        const send = () => Promise.reject(axiosErrorWith(422, { message: 'The lines are invalid.', errors: { [key]: ['The lines are invalid.'] } }));
+
+        // Act
+        await form.submit(send);
+
+        // Assert: no line can show it, so the message is the user's only feedback
+        expect(form.generalMessage.value).toBe('The lines are invalid.');
+    });
+
+    it('should set generalMessage to the message once a field\'s check says the 422 key is no longer on the page', async () =>
+    {
+        // Arrange: the check stands in for a form whose line may be removed
+        // after the 422, so it reads a ref the test can change
+        const lineIsShown = ref(true);
+        const check = vi.fn<(key: string) => boolean>(() => lineIsShown.value);
+        const form = useForm<'lines.*.description'>('invoice', { 'lines.*.description': check });
+        const send = () => Promise.reject(axiosErrorWith(422, {
+            message: 'The lines.2.description field is required.',
+            errors: { 'lines.2.description': ['The lines.2.description field is required.'] },
+        }));
+        await form.submit(send);
+        expect(form.generalMessage.value).toBe('');
+
+        // Act
+        lineIsShown.value = false;
+
+        // Assert: re-checked without a new submit, with the 422's own key
+        expect(form.generalMessage.value).toBe('The lines.2.description field is required.');
+        expect(check).toHaveBeenLastCalledWith('lines.2.description');
+    });
+
+    it('should set generalMessage to the message when one 422 key is on the page and another is not', async () =>
+    {
+        // Arrange: line 0 is still there, line 1 was removed after the 422
+        const form = useForm<'lines.*.description'>('invoice', { 'lines.*.description': (key) => key === 'lines.0.description' });
+        const send = () => Promise.reject(axiosErrorWith(422, {
+            message: 'The lines.0.description field is required. (and 1 more error)',
+            errors: {
+                'lines.0.description': ['The lines.0.description field is required.'],
+                'lines.1.description': ['The lines.1.description field is required.'],
+            },
+        }));
+
+        // Act
+        await form.submit(send);
+
+        // Assert: line 0's error is next to its field, and line 1's would
+        // be nowhere without the message
+        expect(form.fieldError('lines.0.description')?.message).toBe('The lines.0.description field is required.');
+        expect(form.generalMessage.value).toBe('The lines.0.description field is required. (and 1 more error)');
+    });
+
+    it('should match a pattern with two wildcards against a key with two indexes', async () =>
+    {
+        // Arrange: a list inside a list, like a line's sub-items
+        const form = useForm<'lines.*.notes.*.text'>('invoice', { 'lines.*.notes.*.text': true });
+        const send = () => Promise.reject(axiosErrorWith(422, {
+            message: 'The text is required.',
+            errors: { 'lines.1.notes.2.text': ['The text is required.'] },
+        }));
+
+        // Act
+        await form.submit(send);
+
+        // Assert: fieldError takes the key (vue-tsc checks the type), and the
+        // pattern counts it as shown
+        expect(form.fieldError('lines.1.notes.2.text')?.id).toBe('invoice-lines-1-notes-2-text-error');
+        expect(form.generalMessage.value).toBe('');
+    });
+
+    // oxlint-disable-next-line vitest/expect-expect -- the assertion is the @ts-expect-error inside, checked by vue-tsc, not by vitest
+    it('should fail type-check when fieldError gets a misspelt field under a wildcard', () =>
+    {
+        // Arrange
+        const form = useForm<'lines.*.description'>('invoice', { 'lines.*.description': true });
+
+        // Assert: checked by npm run type-check, not by vitest
+        // @ts-expect-error 'descripton' is not 'description'
+        form.fieldError('lines.2.descripton');
     });
 
     // oxlint-disable-next-line vitest/expect-expect -- the assertion is the @ts-expect-error inside, checked by vue-tsc, not by vitest

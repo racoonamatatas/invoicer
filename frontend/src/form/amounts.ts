@@ -98,6 +98,14 @@ const EUROS = new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR
 // quantity can be typed back as it is: the parser refuses `1.000`.
 const QUANTITY = new Intl.NumberFormat('nl-NL', { maximumFractionDigits: 2, useGrouping: false });
 
+// A price to put back in an input: no euro sign (a plain number, not
+// `currency` style) and no grouping, so it parses as it is (`1234,56`).
+// Always two decimals, as a price is written. A minus sign can't appear:
+// toDecimalString throws on a negative amount before this runs.
+const PRICE_INPUT = new Intl.NumberFormat('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: false });
+
 export const formatCents = (cents: Cents): string => EUROS.format(toDecimalString(cents));
+
+export const formatCentsForInput = (cents: Cents): string => PRICE_INPUT.format(toDecimalString(cents));
 
 export const formatHundredths = (hundredths: Hundredths): string => QUANTITY.format(toDecimalString(hundredths));

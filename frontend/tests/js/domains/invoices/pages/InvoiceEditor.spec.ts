@@ -14,8 +14,9 @@ import * as invoicesService from '@/services/invoices';
 import { axiosErrorWith } from '../../../utility/axiosErrorWith';
 import { business, jan, logInAs } from '../../../utility/businesses';
 import { dutchClient, germanClient } from '../../../utility/clients';
+import { createDeferred } from '../../../utility/createDeferred';
 import { createTestRouter } from '../../../utility/createTestRouter';
-import { domesticDraftWithLine, newDraft } from '../../../utility/invoices';
+import { domesticDraftWithLine, newDraft, reverseChargeDraftWithLine } from '../../../utility/invoices';
 
 // Every export of these services becomes a vi.fn(), so no request leaves the test.
 vi.mock('@/services/auth');
@@ -73,6 +74,17 @@ const fillIn = async (wrapper: VueWrapper, clientId: number, term: string): Prom
     await wrapper.find('#invoice-bank_account_id').setValue(String(main.id));
     await wrapper.find('#invoice-payment_term_days').setValue(term);
 };
+
+// Fills the line at `index` the way a user types it: Dutch decimals.
+const fillLine = async (wrapper: VueWrapper, index: number, line: { description: string; quantity: string; unitPrice: string; vatOption: string }): Promise<void> =>
+{
+    await wrapper.find(`#invoice-lines-${index}-description`).setValue(line.description);
+    await wrapper.find(`#invoice-lines-${index}-quantity`).setValue(line.quantity);
+    await wrapper.find(`#invoice-lines-${index}-unit_price`).setValue(line.unitPrice);
+    await wrapper.find(`#invoice-lines-${index}-vat_option`).setValue(line.vatOption);
+};
+
+const hosting = { description: 'Hosting', quantity: '7,50', unitPrice: '12,50', vatOption: 'low' };
 
 describe('InvoiceEditor page', () =>
 {
@@ -252,6 +264,48 @@ describe('InvoiceEditor page', () =>
             expect(router.currentRoute.value.fullPath).toBe('/businesses/7/invoices/new');
         });
 
+        it('should create a draft with its typed line, and clear the line\'s VAT rate when a client without Dutch VAT is picked', async () =>
+        {
+            // Arrange: a line for a Dutch client first, with its rate picked
+            const { wrapper } = await mountInvoiceEditor('/businesses/7/invoices/new');
+            await flushPromises();
+            await fillIn(wrapper, bakker.id, '');
+            await form(wrapper).findAll('button').find((button) => button.text() === 'Add line')?.trigger('click');
+            await fillLine(wrapper, 0, hosting);
+
+            // Act: a German business is reverse charge, so the pick switches the treatment
+            await wrapper.find('#invoice-client_id').setValue(String(huber.id));
+
+            // Assert: the user is told, and the rate is gone, not only hidden
+            expect(form(wrapper).text()).toContain('The lines\' VAT rates were cleared, because this invoice charges no Dutch VAT.');
+            expect(wrapper.find('#invoice-lines-0-vat_option').exists()).toBe(false);
+
+            // Act
+            await form(wrapper).trigger('submit');
+            await flushPromises();
+
+            // Assert
+            expect(invoicesService.createInvoice).toHaveBeenCalledExactlyOnceWith(7, {
+                client_id: huber.id,
+                bank_account_id: main.id,
+                vat_treatment: 'reverse_charge',
+                payment_term_days: null,
+                lines: [{ description: 'Hosting', quantity_hundredths: 750, unit_price_cents: 1250, vat_option: null }],
+            });
+        });
+
+        it('should say the totals appear once the draft is created, instead of showing any', async () =>
+        {
+            // Act
+            const { wrapper } = await mountInvoiceEditor('/businesses/7/invoices/new');
+            await flushPromises();
+            await fillIn(wrapper, bakker.id, '');
+
+            // Assert: nothing is stored yet, so there is no total to show
+            expect(form(wrapper).text()).toContain('The totals appear once the draft is created.');
+            expect(wrapper.find('dl').exists()).toBe(false);
+        });
+
         it('should keep Create draft disabled until a client and a bank account are picked', async () =>
         {
             // Arrange
@@ -379,8 +433,6 @@ describe('InvoiceEditor page', () =>
 
         const termValue = (wrapper: VueWrapper): string => (wrapper.find('#invoice-payment_term_days').element as HTMLInputElement).value;
 
-        const saveButton = (wrapper: VueWrapper) => editForm(wrapper).find('button[type="submit"]');
-
         // The stored draft after a save of `term`, at `version`.
         const savedWithTerm = (term: number, version: number): invoicesService.VersionedInvoice => ({
             invoice: { ...domesticDraftWithLine(11, huber.id, main.id), payment_term_days: term },
@@ -500,23 +552,6 @@ describe('InvoiceEditor page', () =>
             expect(errorHandler).toHaveBeenCalledOnce();
         });
 
-        it('should disable Save and say why when a draft with lines switches from Dutch VAT to none', async () =>
-        {
-            // Arrange
-            const { wrapper } = await mountInvoiceEditor('/businesses/7/invoices/11/edit');
-            await flushPromises();
-            expect(saveButton(wrapper).attributes('disabled')).toBeUndefined();
-
-            // Act
-            await wrapper.find('#invoice-vat_treatment').setValue('reverse_charge');
-
-            // Assert: the note is linked to the button, for a screen reader
-            expect(saveButton(wrapper).attributes('disabled')).toBeDefined();
-            const describedBy = saveButton(wrapper).attributes('aria-describedby');
-            expect(describedBy).toBeDefined();
-            expect(wrapper.find(`#${describedBy}`).text()).toBe('This draft has lines. Switching between Dutch VAT and no VAT comes with the lines editor.');
-        });
-
         it('should say the invoice wasn\'t found on a 404 (not found), and show no form', async () =>
         {
             // Arrange
@@ -530,6 +565,531 @@ describe('InvoiceEditor page', () =>
             expect(wrapper.find('h1').text()).toBe('Invoice not found');
             expect(wrapper.text()).toContain('It doesn\'t exist, or it isn\'t an invoice of Studio de Vries.');
             expect(editForm(wrapper).exists()).toBe(false);
+        });
+
+        describe('its lines', () =>
+        {
+            const buttonNamed = (wrapper: VueWrapper, name: string) =>
+            {
+                const button = editForm(wrapper).findAll('button').find((candidate) => candidate.text() === name);
+                if (button === undefined)
+                {
+                    throw new Error(`No button named ${name}`);
+                }
+
+                return button;
+            };
+
+            const saveButton = (wrapper: VueWrapper) => editForm(wrapper).find('button[type="submit"]');
+
+            // The stored line, as the payload sends it back.
+            const websiteRedesign = { description: 'Website redesign', quantity_hundredths: 750, unit_price_cents: 8000, vat_option: 'high' } as const;
+
+            it('should add an empty line, and remove the line whose button was pressed', async () =>
+            {
+                // Arrange
+                const { wrapper } = await mountInvoiceEditor('/businesses/7/invoices/11/edit');
+                await flushPromises();
+
+                // Act
+                await buttonNamed(wrapper, 'Add line').trigger('click');
+
+                // Assert
+                expect(editForm(wrapper).findAll('legend').map((legend) => legend.text())).toStrictEqual(['Line 1', 'Line 2']);
+
+                // Act: remove the stored line, not the new one
+                await buttonNamed(wrapper, 'Remove line 1').trigger('click');
+
+                // Assert: the new, empty line is left, and is line 1 now
+                expect(editForm(wrapper).findAll('legend').map((legend) => legend.text())).toStrictEqual(['Line 1']);
+                expect((wrapper.find('#invoice-lines-0-description').element as HTMLInputElement).value).toBe('');
+            });
+
+            it('should send a typed "7,50" as 750 hundredths and "12,50" as 1250 cents, after the stored line', async () =>
+            {
+                // Arrange
+                vi.mocked(invoicesService.updateInvoice).mockResolvedValue({ invoice: domesticDraftWithLine(11, huber.id, main.id), version: 4 });
+                const { wrapper } = await mountInvoiceEditor('/businesses/7/invoices/11/edit');
+                await flushPromises();
+                await buttonNamed(wrapper, 'Add line').trigger('click');
+                await fillLine(wrapper, 1, hosting);
+
+                // Act
+                await editForm(wrapper).trigger('submit');
+                await flushPromises();
+
+                // Assert: the order on screen is the order sent, which is the
+                // order stored
+                expect(invoicesService.updateInvoice).toHaveBeenCalledExactlyOnceWith(7, 11, expect.objectContaining({
+                    lines: [
+                        websiteRedesign,
+                        { description: 'Hosting', quantity_hundredths: 750, unit_price_cents: 1250, vat_option: 'low' },
+                    ],
+                }), 3);
+            });
+
+            it('should show an unreadable price next to its input and keep Save disabled', async () =>
+            {
+                // Arrange
+                const { wrapper } = await mountInvoiceEditor('/businesses/7/invoices/11/edit');
+                await flushPromises();
+                expect(saveButton(wrapper).attributes('disabled')).toBeUndefined();
+
+                // Act
+                await wrapper.find('#invoice-lines-0-unit_price').setValue('80,005');
+
+                // Assert: the message is linked to its input, for a screen reader
+                const input = wrapper.find('#invoice-lines-0-unit_price');
+                expect(input.attributes('aria-invalid')).toBe('true');
+                expect(wrapper.find(`#${input.attributes('aria-describedby')}`).text()).toBe('Use at most two decimals.');
+                expect(saveButton(wrapper).attributes('disabled')).toBeDefined();
+            });
+
+            it('should refuse a price over the backend\'s maximum next to its input, and cap the description\'s length', async () =>
+            {
+                // Arrange
+                const { wrapper } = await mountInvoiceEditor('/businesses/7/invoices/11/edit');
+                await flushPromises();
+
+                // Act
+                await wrapper.find('#invoice-lines-0-unit_price').setValue('1000000,01');
+
+                // Assert: the editor's own words, not the backend's lines.0.unit_price_cents
+                const input = wrapper.find('#invoice-lines-0-unit_price');
+                expect(wrapper.find(`#${input.attributes('aria-describedby')}`).text()).toBe('Enter at most 1000000,00.');
+                expect(saveButton(wrapper).attributes('disabled')).toBeDefined();
+                expect(wrapper.find('#invoice-lines-0-description').attributes('maxlength')).toBe('255');
+
+                // Act: the number the message names, typed as it shows it
+                await wrapper.find('#invoice-lines-0-unit_price').setValue('1000000,00');
+
+                // Assert: accepted, so the message never asks for what the input refuses
+                expect(wrapper.find('#invoice-lines-0-unit_price').attributes('aria-invalid')).toBe('false');
+                expect(saveButton(wrapper).attributes('disabled')).toBeUndefined();
+            });
+
+            it('should clear every line\'s VAT rate on a switch to reverse charge, so a switch back needs a new pick', async () =>
+            {
+                // Arrange
+                const { wrapper } = await mountInvoiceEditor('/businesses/7/invoices/11/edit');
+                await flushPromises();
+                expect((wrapper.find('#invoice-lines-0-vat_option').element as HTMLSelectElement).value).toBe('high');
+
+                // Act
+                await wrapper.find('#invoice-vat_treatment').setValue('reverse_charge');
+
+                // Assert: no line on a reverse-charge invoice has a rate to pick,
+                // and the draft can be saved without one
+                expect(wrapper.find('#invoice-lines-0-vat_option').exists()).toBe(false);
+                expect(saveButton(wrapper).attributes('disabled')).toBeUndefined();
+
+                // Act
+                await wrapper.find('#invoice-vat_treatment').setValue('domestic');
+
+                // Assert: cleared, not hidden, so the old rate doesn't come back unseen
+                expect((wrapper.find('#invoice-lines-0-vat_option').element as HTMLSelectElement).value).toBe('');
+                expect(saveButton(wrapper).attributes('disabled')).toBeDefined();
+            });
+
+            it('should show the totals from a save\'s 200 (ok) response, not ones worked out in the browser', async () =>
+            {
+                // Arrange: totals no browser arithmetic on the line would give,
+                // so seeing them proves they were read from the response
+                vi.mocked(invoicesService.updateInvoice).mockResolvedValue({
+                    invoice: {
+                        ...domesticDraftWithLine(11, huber.id, main.id),
+                        // Said again: the helper returns any Invoice, so without
+                        // it the lines could belong to a reverse-charge one
+                        vat_treatment: 'domestic',
+                        lines: [{ ...websiteRedesign, total_cents: 11111 }],
+                        totals: {
+                            subtotal_cents: 11111,
+                            vat_groups: [{ vat_option: 'high', rate_percent: 21, base_cents: 11111, vat_cents: 2333 }],
+                            vat_cents: 2333,
+                            total_cents: 13444,
+                        },
+                    },
+                    version: 4,
+                });
+                const { wrapper } = await mountInvoiceEditor('/businesses/7/invoices/11/edit');
+                await flushPromises();
+
+                // Act
+                await editForm(wrapper).trigger('submit');
+                await flushPromises();
+
+                // Assert: \u00a0 is the no-break space Intl puts after the euro sign
+                expect(wrapper.find('dl').text()).toContain('VAT high rate (21%) on €\u00a0111,11');
+                expect(wrapper.find('dl').text()).toContain('€\u00a0134,44');
+                expect(editForm(wrapper).text()).toContain('Line total: €\u00a0111,11');
+            });
+
+            it('should replace the totals with an unsaved-changes note once a line is edited', async () =>
+            {
+                // Arrange
+                const { wrapper } = await mountInvoiceEditor('/businesses/7/invoices/11/edit');
+                await flushPromises();
+                expect(wrapper.find('dl').text()).toContain('€\u00a0726,00');
+
+                // Act
+                await wrapper.find('#invoice-lines-0-quantity').setValue('8');
+
+                // Assert: the stored totals are for 7,5 hours, so showing them now would be wrong
+                expect(wrapper.find('dl').exists()).toBe(false);
+                expect(editForm(wrapper).text()).not.toContain('Line total');
+                expect(editForm(wrapper).text()).toContain('Unsaved changes. The totals update when you save.');
+            });
+
+            it('should show a 422 (unprocessable content) on lines.1.unit_price_cents next to line 2\'s price, and keep it there when line 1 is removed', async () =>
+            {
+                // Arrange
+                const message = 'The unit price may not be greater than 100000000.';
+                vi.mocked(invoicesService.updateInvoice).mockRejectedValue(axiosErrorWith(422, {
+                    message,
+                    errors: { 'lines.1.unit_price_cents': [message] },
+                }));
+                const { wrapper } = await mountInvoiceEditor('/businesses/7/invoices/11/edit');
+                await flushPromises();
+                await buttonNamed(wrapper, 'Add line').trigger('click');
+                await fillLine(wrapper, 1, hosting);
+
+                // Act
+                await editForm(wrapper).trigger('submit');
+                await flushPromises();
+
+                // Assert: on line 2 only, and not repeated in the form's status
+                const price = wrapper.find('#invoice-lines-1-unit_price');
+                expect(price.attributes('aria-invalid')).toBe('true');
+                expect(wrapper.find(`#${price.attributes('aria-describedby')}`).text()).toBe(message);
+                expect(wrapper.find('#invoice-lines-0-unit_price').attributes('aria-invalid')).toBe('false');
+                expect(formStatus(wrapper)).toBe('');
+
+                // Act: line 2 moves up to line 1
+                await buttonNamed(wrapper, 'Remove line 1').trigger('click');
+
+                // Assert: the error went with its line, by the index it was sent at
+                const moved = wrapper.find('#invoice-lines-0-unit_price');
+                expect((moved.element as HTMLInputElement).value).toBe('12,50');
+                expect(wrapper.find(`#${moved.attributes('aria-describedby')}`).text()).toBe(message);
+            });
+
+            it('should say Saved. and show the line totals after a line edit is saved, and hide both on the next edit', async () =>
+            {
+                // Arrange
+                vi.mocked(invoicesService.updateInvoice).mockResolvedValue({ invoice: domesticDraftWithLine(11, huber.id, main.id), version: 4 });
+                const { wrapper } = await mountInvoiceEditor('/businesses/7/invoices/11/edit');
+                await flushPromises();
+                await wrapper.find('#invoice-lines-0-description').setValue('Website redesign, phase 2');
+
+                // Act
+                await editForm(wrapper).trigger('submit');
+                await flushPromises();
+
+                // Assert: the response's line is shown, with its total
+                expect(formStatus(wrapper)).toBe('Saved.');
+                expect(editForm(wrapper).text()).toContain('Line total: €\u00a0600,00');
+
+                // Act
+                await wrapper.find('#invoice-lines-0-description').setValue('Website redesign, phase 3');
+
+                // Assert
+                expect(formStatus(wrapper)).toBe('');
+                expect(editForm(wrapper).text()).not.toContain('Line total');
+            });
+
+            it('should keep a line\'s inputs after a save, so the focus stays where it was', async () =>
+            {
+                // Arrange
+                vi.mocked(invoicesService.updateInvoice).mockResolvedValue({ invoice: domesticDraftWithLine(11, huber.id, main.id), version: 4 });
+                const { wrapper } = await mountInvoiceEditor('/businesses/7/invoices/11/edit');
+                await flushPromises();
+                const before = wrapper.find('#invoice-lines-0-description').element;
+
+                // Act
+                await editForm(wrapper).trigger('submit');
+                await flushPromises();
+
+                // Assert: the same element, not a new one in its place
+                expect(wrapper.find('#invoice-lines-0-description').element).toBe(before);
+            });
+
+            it('should keep showing the totals when an amount is retyped another way', async () =>
+            {
+                // Arrange
+                const { wrapper } = await mountInvoiceEditor('/businesses/7/invoices/11/edit');
+                await flushPromises();
+
+                // Act: the stored line shows 7,5 and 80,00
+                await wrapper.find('#invoice-lines-0-quantity').setValue('7,50');
+                await wrapper.find('#invoice-lines-0-unit_price').setValue('80');
+
+                // Assert: the same line, so its totals are still the totals
+                expect(wrapper.find('dl').text()).toContain('€\u00a0726,00');
+                expect(editForm(wrapper).text()).not.toContain('Unsaved changes');
+            });
+
+            it('should say why Save is disabled while a line has no description, quantity, price or VAT rate', async () =>
+            {
+                // Arrange
+                const { wrapper } = await mountInvoiceEditor('/businesses/7/invoices/11/edit');
+                await flushPromises();
+                expect(saveButton(wrapper).attributes('aria-describedby')).toBeUndefined();
+
+                // Act
+                await buttonNamed(wrapper, 'Add line').trigger('click');
+
+                // Assert: linked to the button, for a screen reader
+                expect(saveButton(wrapper).attributes('disabled')).toBeDefined();
+                expect(wrapper.find(`#${saveButton(wrapper).attributes('aria-describedby')}`).text())
+                    .toBe('Every line needs a description, a quantity, a unit price and a VAT rate before you can save.');
+            });
+
+            it('should drop the cleared-rates note once the invoice is back on Dutch VAT', async () =>
+            {
+                // Arrange
+                const { wrapper } = await mountInvoiceEditor('/businesses/7/invoices/11/edit');
+                await flushPromises();
+                await wrapper.find('#invoice-vat_treatment').setValue('reverse_charge');
+                expect(editForm(wrapper).text()).toContain('VAT rates were cleared');
+
+                // Act
+                await wrapper.find('#invoice-vat_treatment').setValue('domestic');
+
+                // Assert: the empty selects and the note by Save say what to do now
+                expect(editForm(wrapper).text()).not.toContain('VAT rates were cleared');
+            });
+
+            it('should drop the cleared-rates note once the draft is saved', async () =>
+            {
+                // Arrange
+                vi.mocked(invoicesService.updateInvoice).mockResolvedValue({ invoice: reverseChargeDraftWithLine(11, huber.id, main.id), version: 4 });
+                const { wrapper } = await mountInvoiceEditor('/businesses/7/invoices/11/edit');
+                await flushPromises();
+                await wrapper.find('#invoice-vat_treatment').setValue('reverse_charge');
+                expect(editForm(wrapper).text()).toContain('VAT rates were cleared');
+
+                // Act
+                await editForm(wrapper).trigger('submit');
+                await flushPromises();
+
+                // Assert: the stored draft has no rates, so there is nothing left to point out
+                expect(formStatus(wrapper)).toBe('Saved.');
+                expect(editForm(wrapper).text()).not.toContain('VAT rates were cleared');
+            });
+
+            it('should drop the cleared-rates note on a switch between the two treatments without VAT', async () =>
+            {
+                // Arrange
+                const { wrapper } = await mountInvoiceEditor('/businesses/7/invoices/11/edit');
+                await flushPromises();
+                await wrapper.find('#invoice-vat_treatment').setValue('reverse_charge');
+                expect(editForm(wrapper).text()).toContain('VAT rates were cleared');
+
+                // Act
+                await wrapper.find('#invoice-vat_treatment').setValue('outside_scope');
+
+                // Assert: this switch cleared nothing, and the note only describes the last one
+                expect(editForm(wrapper).text()).not.toContain('VAT rates were cleared');
+            });
+
+            it('should disable Add line at 100 lines, the backend\'s limit', async () =>
+            {
+                // Arrange: the stored line and 98 more
+                const { wrapper } = await mountInvoiceEditor('/businesses/7/invoices/11/edit');
+                await flushPromises();
+                for (let added = 0; added < 98; added += 1)
+                {
+                    await buttonNamed(wrapper, 'Add line').trigger('click');
+                }
+                expect(buttonNamed(wrapper, 'Add line').attributes('disabled')).toBeUndefined();
+
+                // Act
+                await buttonNamed(wrapper, 'Add line').trigger('click');
+
+                // Assert: and says why, linked for a screen reader
+                expect(editForm(wrapper).findAll('fieldset')).toHaveLength(100);
+                const addLine = buttonNamed(wrapper, 'Add line');
+                expect(addLine.attributes('disabled')).toBeDefined();
+                expect(wrapper.find(`#${addLine.attributes('aria-describedby')}`).text()).toBe('An invoice holds at most 100 lines.');
+            });
+
+            it('should keep the lines read-only while a save is in flight', async () =>
+            {
+                // Arrange: anything typed now would be wiped when the save rebuilds the rows
+                const request = createDeferred();
+                vi.mocked(invoicesService.updateInvoice).mockImplementation(async () =>
+                {
+                    await request.promise;
+
+                    return { invoice: domesticDraftWithLine(11, huber.id, main.id), version: 4 };
+                });
+                const { wrapper } = await mountInvoiceEditor('/businesses/7/invoices/11/edit');
+                await flushPromises();
+
+                // Act
+                await editForm(wrapper).trigger('submit');
+
+                // Assert
+                expect(wrapper.find('#invoice-lines-0-description').attributes('readonly')).toBeDefined();
+                expect(wrapper.find('#invoice-lines-0-quantity').attributes('readonly')).toBeDefined();
+                expect(wrapper.find('#invoice-lines-0-unit_price').attributes('readonly')).toBeDefined();
+                expect(wrapper.find('#invoice-lines-0-vat_option').attributes('disabled')).toBeDefined();
+                expect(buttonNamed(wrapper, 'Remove line 1').attributes('disabled')).toBeDefined();
+                expect(buttonNamed(wrapper, 'Add line').attributes('disabled')).toBeDefined();
+
+                // Act: the save answers
+                request.resolve();
+                await flushPromises();
+
+                // Assert
+                expect(wrapper.find('#invoice-lines-0-description').attributes('readonly')).toBeUndefined();
+            });
+
+            // A 422 whose message only says what is wrong with one line, as
+            // Laravel words it.
+            const rejectWithLineError = (key: string, message: string): void =>
+            {
+                vi.mocked(invoicesService.updateInvoice).mockRejectedValue(axiosErrorWith(422, { message, errors: { [key]: [message] } }));
+            };
+
+            it.for([
+                { field: 'description', input: 'description' },
+                { field: 'quantity_hundredths', input: 'quantity' },
+                { field: 'unit_price_cents', input: 'unit_price' },
+                { field: 'vat_option', input: 'vat_option' },
+            ])('should show a 422 (unprocessable content) on lines.0.$field next to its input', async ({ field, input }) =>
+            {
+                // Arrange
+                const message = `The lines.0.${field} field is invalid.`;
+                rejectWithLineError(`lines.0.${field}`, message);
+                const { wrapper } = await mountInvoiceEditor('/businesses/7/invoices/11/edit');
+                await flushPromises();
+
+                // Act
+                await editForm(wrapper).trigger('submit');
+                await flushPromises();
+
+                // Assert: a wrong field name in the component would leave it unlinked
+                const element = wrapper.find(`#invoice-lines-0-${input}`);
+                expect(element.attributes('aria-invalid')).toBe('true');
+                expect(wrapper.find(`#${element.attributes('aria-describedby')}`).text()).toBe(message);
+                expect(formStatus(wrapper)).toBe('');
+            });
+
+            it('should show no 422 (unprocessable content) on a line added after the save, even where an errored line used to be', async () =>
+            {
+                // Arrange: two lines sent, the second refused
+                const message = 'The lines.1.description field is required.';
+                rejectWithLineError('lines.1.description', message);
+                const { wrapper } = await mountInvoiceEditor('/businesses/7/invoices/11/edit');
+                await flushPromises();
+                await buttonNamed(wrapper, 'Add line').trigger('click');
+                await fillLine(wrapper, 1, hosting);
+                await editForm(wrapper).trigger('submit');
+                await flushPromises();
+
+                // Act: the refused line goes, and a new one takes its place on screen
+                await buttonNamed(wrapper, 'Remove line 2').trigger('click');
+                await buttonNamed(wrapper, 'Add line').trigger('click');
+
+                // Assert: the new line was never sent, so the server said nothing
+                // about it; the error has no line left, so the form shows it
+                expect(wrapper.find('#invoice-lines-1-description').attributes('aria-invalid')).toBe('false');
+                expect(wrapper.find('#invoice-lines-0-description').attributes('aria-invalid')).toBe('false');
+                expect(formStatus(wrapper)).toBe(message);
+            });
+
+            it.for([
+                { input: 'quantity', typed: 'seven', message: 'Enter a number, like 7,5.' },
+                { input: 'quantity', typed: '-1', message: 'Enter 0 or more.' },
+                { input: 'quantity', typed: '100000,01', message: 'Enter at most 100000.' },
+                { input: 'unit_price', typed: 'eighty', message: 'Enter a number, like 80,00.' },
+            ])('should say "$message" next to a $input typed as $typed', async ({ input, typed, message }) =>
+            {
+                // Arrange
+                const { wrapper } = await mountInvoiceEditor('/businesses/7/invoices/11/edit');
+                await flushPromises();
+
+                // Act
+                await wrapper.find(`#invoice-lines-0-${input}`).setValue(typed);
+
+                // Assert
+                const element = wrapper.find(`#invoice-lines-0-${input}`);
+                expect(wrapper.find(`#${element.attributes('aria-describedby')}`).text()).toBe(message);
+            });
+
+            it('should hide a 422 (unprocessable content) on a quantity once the field is emptied to retype it', async () =>
+            {
+                // Arrange
+                rejectWithLineError('lines.0.quantity_hundredths', 'The lines.0.quantity_hundredths field must be between 0 and 10000000.');
+                const { wrapper } = await mountInvoiceEditor('/businesses/7/invoices/11/edit');
+                await flushPromises();
+                await editForm(wrapper).trigger('submit');
+                await flushPromises();
+                expect(wrapper.find('#invoice-lines-0-quantity').attributes('aria-invalid')).toBe('true');
+
+                // Act
+                await wrapper.find('#invoice-lines-0-quantity').setValue('');
+
+                // Assert: the error was about the old value, which is gone
+                expect(wrapper.find('#invoice-lines-0-quantity').attributes('aria-invalid')).toBe('false');
+                expect(wrapper.find('#invoice-lines-0-quantity').attributes('aria-describedby')).toBeUndefined();
+            });
+
+            it('should show a 422 (unprocessable content) in the form\'s status once the line it names is removed', async () =>
+            {
+                // Arrange
+                const message = 'The unit price may not be greater than 100000000.';
+                rejectWithLineError('lines.1.unit_price_cents', message);
+                const { wrapper } = await mountInvoiceEditor('/businesses/7/invoices/11/edit');
+                await flushPromises();
+                await buttonNamed(wrapper, 'Add line').trigger('click');
+                await fillLine(wrapper, 1, hosting);
+                await editForm(wrapper).trigger('submit');
+                await flushPromises();
+                expect(formStatus(wrapper)).toBe('');
+
+                // Act
+                await buttonNamed(wrapper, 'Remove line 2').trigger('click');
+
+                // Assert: the line can't show it any more, so the form does
+                expect(formStatus(wrapper)).toBe(message);
+            });
+
+            it('should show a 422 (unprocessable content) on a VAT rate in the form\'s status once the switch to reverse charge hides the select', async () =>
+            {
+                // Arrange
+                const message = 'The selected lines.0.vat_option is invalid.';
+                rejectWithLineError('lines.0.vat_option', message);
+                const { wrapper } = await mountInvoiceEditor('/businesses/7/invoices/11/edit');
+                await flushPromises();
+                await editForm(wrapper).trigger('submit');
+                await flushPromises();
+                expect(formStatus(wrapper)).toBe('');
+
+                // Act
+                await wrapper.find('#invoice-vat_treatment').setValue('reverse_charge');
+
+                // Assert
+                expect(formStatus(wrapper)).toBe(message);
+            });
+
+            it('should show a 422 (unprocessable content) on the list itself in the form\'s status', async () =>
+            {
+                // Arrange: no line has an input for `lines`, so the form must
+                // mark it as not displayed
+                const message = 'The lines field must not have more than 100 items.';
+                rejectWithLineError('lines', message);
+                const { wrapper } = await mountInvoiceEditor('/businesses/7/invoices/11/edit');
+                await flushPromises();
+
+                // Act
+                await editForm(wrapper).trigger('submit');
+                await flushPromises();
+
+                // Assert
+                expect(formStatus(wrapper)).toBe(message);
+            });
         });
     });
 
