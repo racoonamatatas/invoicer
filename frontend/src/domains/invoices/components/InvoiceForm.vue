@@ -5,13 +5,24 @@ import { computed, ref, watch } from 'vue';
 // Project imports
 import { useForm } from '@/composables/useForm';
 import { suggestedVatTreatment } from '@/domains/invoices/suggestedVatTreatment';
+import { withStoredLines } from '@/domains/invoices/withStoredLines';
 import type { BankAccount } from '@/services/bankAccounts';
 import type { Client } from '@/services/clients';
-import { VAT_TREATMENTS, type InvoicePayload, type VatTreatment, type VersionedInvoice } from '@/services/invoices';
+import {
+    InvoiceVersionConflictError,
+    VAT_TREATMENTS,
+    type Invoice,
+    type InvoiceFieldsPayload,
+    type InvoicePayload,
+    type VatTreatment,
+    type VersionedInvoice,
+} from '@/services/invoices';
 
-// What the form starts from. A union of one for now, so editing an existing
-// draft can be added as a second member without changing the callers.
-export type InvoiceFormInitial = { kind: 'new' };
+// What the form starts from: nothing, or a stored draft whose lines go back
+// unchanged on every save.
+export type InvoiceFormInitial =
+    | { kind: 'new' }
+    | { kind: 'existing'; invoice: Invoice };
 
 // One form for creating and editing a draft's own fields (not its lines),
 // so the two can't drift apart. The page decides what saving means.
@@ -25,7 +36,12 @@ const props = defineProps<{
     defaultTermDays: number; // the business's term, shown when the field is empty
     label: string; // the form's accessible name
     submitLabel: string;
+    savedMessage: string; // shown in the status region until the next edit
     save: (payload: InvoicePayload) => Promise<VersionedInvoice>;
+}>();
+
+const emit = defineEmits<{
+    reload: []; // "Load the latest version" after a 412
 }>();
 
 // What the form holds. null until picked: nothing is preselected, so an
@@ -39,7 +55,24 @@ interface InvoiceFormFields
     payment_term_days: string;
 }
 
-const form = ref<InvoiceFormFields>({ client_id: null, bank_account_id: null, vat_treatment: null, payment_term_days: '' });
+const fieldsFrom = (initial: InvoiceFormInitial): InvoiceFormFields =>
+{
+    if (initial.kind === 'new')
+    {
+        return { client_id: null, bank_account_id: null, vat_treatment: null, payment_term_days: '' };
+    }
+
+    const { invoice } = initial;
+
+    return {
+        client_id: invoice.client_id,
+        bank_account_id: invoice.bank_account_id,
+        vat_treatment: invoice.vat_treatment,
+        payment_term_days: invoice.payment_term_days === null ? '' : String(invoice.payment_term_days),
+    };
+};
+
+const form = ref<InvoiceFormFields>(fieldsFrom(props.initial));
 
 // A Record over every treatment, so one added later fails to compile until
 // it has a label.
@@ -49,9 +82,10 @@ const TREATMENT_LABELS: Record<VatTreatment, string> = {
     outside_scope: 'Outside the EU, no VAT',
 };
 
-// Every pick of a client, the first one included, refills the treatment: one
-// left over from the previous client could be wrong for this one. A watch on
-// the id only, so a hand-picked treatment stays until the client changes.
+// Every pick of a client refills the treatment: one left over from the
+// previous client could be wrong for this one. Not immediate, so opening a
+// stored draft keeps the treatment it was saved with. A watch on the id
+// only, so a hand-picked treatment stays until the client changes.
 watch(() => form.value.client_id, (clientId) =>
 {
     const client = props.clients.find((candidate) => candidate.id === clientId);
@@ -62,8 +96,47 @@ watch(() => form.value.client_id, (clientId) =>
     }
 });
 
+// The fields as the backend takes them, or null while a pick is missing.
+// Number('1.5') is sent as it is: the backend's integer rule answers it next
+// to the field.
+const fieldsPayload = computed((): InvoiceFieldsPayload | null =>
+{
+    const { client_id: clientId, bank_account_id: bankAccountId, vat_treatment: treatment, payment_term_days: term } = form.value;
+
+    if (clientId === null || bankAccountId === null || treatment === null)
+    {
+        return null;
+    }
+
+    return {
+        client_id: clientId,
+        bank_account_id: bankAccountId,
+        vat_treatment: treatment,
+        payment_term_days: term.trim() === '' ? null : Number(term),
+    };
+});
+
+// A new draft has no lines yet; a stored one sends its own back. null while
+// the fields are incomplete, or when the stored lines can't follow the
+// treatment (see withStoredLines).
+const payload = computed((): InvoicePayload | null =>
+{
+    const fields = fieldsPayload.value;
+
+    if (fields === null)
+    {
+        return null;
+    }
+
+    return props.initial.kind === 'new' ? { ...fields, lines: [] } : withStoredLines(fields, props.initial.invoice);
+});
+
+// Complete fields that still can't be sent: only a treatment switch on a
+// draft with lines does that.
+const isSwitchBlocked = computed(() => fieldsPayload.value !== null && payload.value === null);
+
 // Every field true: each has its own control. `lines` isn't one, so a 422 on
-// a line would show in generalMessage; this form sends none yet.
+// a line shows in generalMessage.
 const { submit, isPending, fieldError, throttleMessage, generalMessage } = useForm<keyof InvoiceFormFields>('invoice', {
     client_id: true,
     bank_account_id: true,
@@ -76,9 +149,15 @@ const bankAccountError = computed(() => fieldError('bank_account_id'));
 const treatmentError = computed(() => fieldError('vat_treatment'));
 const termError = computed(() => fieldError('payment_term_days'));
 
-// The treatment is filled in by the client pick, so two picks make a form
-// that can be sent.
-const canSubmit = computed(() => form.value.client_id !== null && form.value.bank_account_id !== null && form.value.vat_treatment !== null);
+// The form's fields right after the last save, as JSON so a deep comparison
+// is one string compare. null until a save went through.
+const savedFields = ref<string | null>(null);
+
+const isSaved = computed(() => savedFields.value !== null && JSON.stringify(form.value) === savedFields.value);
+
+// A 412: saved elsewhere since this version was loaded. An answer, not a
+// fault, so it isn't re-thrown; the fields keep the user's edits.
+const hasConflict = ref(false);
 
 // A failure useForm doesn't show: a 404, a 500, a response of the wrong
 // shape. Cleared by the next submit.
@@ -86,35 +165,43 @@ const hasFailed = ref(false);
 
 const onSubmit = async (): Promise<void> =>
 {
+    savedFields.value = null;
+    hasConflict.value = false;
     hasFailed.value = false;
 
-    const { client_id: clientId, bank_account_id: bankAccountId, vat_treatment: treatment, payment_term_days: term } = form.value;
+    const sent = payload.value;
 
-    // The button is disabled until all three are picked, so getting here
+    // The button is disabled while there is no payload, so getting here
     // without one is a bug, not a user mistake.
-    if (clientId === null || bankAccountId === null || treatment === null)
+    if (sent === null)
     {
-        throw new Error('InvoiceForm submitted before a client, bank account and VAT treatment were picked.');
+        throw new Error('InvoiceForm submitted without a complete payload.');
     }
 
     try
     {
         await submit(async () =>
         {
-            // No lines yet: they come with the lines editor, and the backend
-            // accepts a draft without any. Number('1.5') is sent as it is:
-            // the backend's integer rule answers it next to the field.
-            await props.save({
-                client_id: clientId,
-                bank_account_id: bankAccountId,
-                vat_treatment: treatment,
-                payment_term_days: term.trim() === '' ? null : Number(term),
-                lines: [],
-            });
+            const stored = await props.save(sent);
+
+            // An edit shows what the backend stored ('030' comes back as
+            // 30). A new draft's page moves to the edit route meanwhile.
+            if (props.initial.kind === 'existing')
+            {
+                form.value = fieldsFrom({ kind: 'existing', invoice: stored.invoice });
+                savedFields.value = JSON.stringify(form.value);
+            }
         });
     }
     catch (error) // unknown: anything can be thrown
     {
+        if (error instanceof InvoiceVersionConflictError)
+        {
+            hasConflict.value = true;
+
+            return;
+        }
+
         hasFailed.value = true;
         throw error;
     }
@@ -128,8 +215,13 @@ const onSubmit = async (): Promise<void> =>
         <div role="status">
             <p v-if="throttleMessage">{{ throttleMessage }}</p>
             <p v-else-if="generalMessage">{{ generalMessage }}</p>
+            <p v-else-if="hasConflict">This draft was changed elsewhere. Your edits weren't saved.</p>
             <p v-else-if="hasFailed">Couldn't save.</p>
+            <p v-else-if="isSaved">{{ savedMessage }}</p>
         </div>
+        <!-- Replaces the form with the stored draft, so the user's edits go:
+             their choice, after reading the message above. -->
+        <button v-if="hasConflict" type="button" @click="emit('reload')">Load the latest version</button>
 
         <div>
             <label for="invoice-client_id">Client</label>
@@ -192,6 +284,9 @@ const onSubmit = async (): Promise<void> =>
             <p v-if="termError" :id="termError.id">{{ termError.message }}</p>
         </div>
 
-        <button type="submit" :disabled="isPending || !canSubmit">{{ submitLabel }}</button>
+        <p v-if="isSwitchBlocked" id="invoice-switch-blocked">
+            This draft has lines. Switching between Dutch VAT and no VAT comes with the lines editor.
+        </p>
+        <button type="submit" :disabled="isPending || payload === null" :aria-describedby="isSwitchBlocked ? 'invoice-switch-blocked' : undefined">{{ submitLabel }}</button>
     </form>
 </template>
