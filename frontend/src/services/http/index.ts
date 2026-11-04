@@ -106,6 +106,27 @@ export const isUnauthenticated = (error: unknown): error is AxiosError =>
     return isAxiosError(error) && error.response?.status === 401;
 };
 
+// Whether a write that failed may still have been stored, so retrying it
+// could store it twice. Only an answer in the 4xx range is a refusal: a 422
+// or a 429 stores nothing, and neither does a 401 that ended the session.
+// No answer at all (a timeout, a dropped connection), a 5xx (a proxy's 502 or
+// 504 can come after the backend committed) or an answer that couldn't be read
+// (UnexpectedResponseError) may all hide a stored write.
+export const mayHaveBeenStored = (error: unknown): boolean =>
+{
+    if (error instanceof SessionEndedError)
+    {
+        return false;
+    }
+
+    if (isAxiosError(error) && error.response !== undefined)
+    {
+        return error.response.status >= 500;
+    }
+
+    return true;
+};
+
 // undefined for onFulfilled: a 2xx response passes through untouched.
 http.interceptors.response.use(undefined, (error: unknown) =>
 {

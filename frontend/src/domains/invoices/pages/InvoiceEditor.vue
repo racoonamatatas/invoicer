@@ -13,7 +13,7 @@ import { useRouteBusiness } from '@/domains/businesses/composables/useRouteBusin
 import { useClients } from '@/domains/clients/composables/useClients';
 import InvoiceForm from '@/domains/invoices/components/InvoiceForm.vue';
 import { useRouteInvoice } from '@/domains/invoices/composables/useRouteInvoice';
-import { UnexpectedResponseError } from '@/services/http';
+import { mayHaveBeenStored } from '@/services/http';
 import { createInvoice, type InvoicePayload, type VersionedInvoice } from '@/services/invoices';
 
 const route = useRoute();
@@ -61,8 +61,8 @@ const draftClientName = computed(() =>
 });
 
 // What happened after Create draft, when the form can't be offered again: a
-// second press would make a second draft. `uncertain`: the POST was answered,
-// but not in a shape we could read, so the draft may exist. `notMoved`: it
+// second press would make a second draft. `uncertain`: the POST failed in a
+// way that may still have stored it (see mayHaveBeenStored). `notMoved`: it
 // exists, but the move to its page failed or was cancelled.
 type CreateOutcome =
     | { kind: 'none' }
@@ -90,9 +90,10 @@ const create = async (payload: InvoicePayload): Promise<VersionedInvoice> =>
     }
     catch (error) // unknown: anything can be thrown
     {
-        // Re-thrown too, so Vue's error handler sees the fault; the form it
-        // reaches is gone by then, so it can't offer a retry.
-        if (error instanceof UnexpectedResponseError)
+        // Re-thrown either way: a refusal (a 422) is the form's to show, and
+        // any other fault still reaches Vue's error handler. The form is gone
+        // by then when the draft may exist, so it can't offer a retry.
+        if (mayHaveBeenStored(error))
         {
             createOutcome.value = { kind: 'uncertain' };
         }
@@ -158,7 +159,7 @@ const create = async (payload: InvoicePayload): Promise<VersionedInvoice> =>
                         An invoice needs a bank account to be paid into. <RouterLink :to="{ name: 'bankAccounts' }">Add a bank account first</RouterLink>.
                     </p>
                     <p v-if="createOutcome.kind === 'uncertain'">
-                        The draft may have been created, but its answer couldn't be read.
+                        The draft may have been created, but no answer came back that says so.
                         <RouterLink :to="{ name: 'invoices' }">Check the invoices</RouterLink> before you try again.
                     </p>
                     <p v-else-if="createOutcome.kind === 'notMoved'">
