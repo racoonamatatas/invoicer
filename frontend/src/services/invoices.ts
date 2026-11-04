@@ -135,9 +135,14 @@ type InvoiceUnder<Rules extends VatRules> = Rules extends unknown
     }
     : never;
 
-// An invoice as the invoices list sends it (InvoiceSummaryResourceData): no
-// lines, no totals.
+// The fields a row of the list and a whole invoice share
+// (InvoiceSummaryResourceData): no lines, no totals.
 export type InvoiceSummary = InvoiceSummaryUnder<VatRules>;
+
+// One row of the invoices list (InvoiceListItemResourceData): the summary and
+// its total, computed by the backend. Only the total, not the VAT groups: a
+// row shows one amount, and the breakdown is what the whole invoice is for.
+export type InvoiceListItem = InvoiceSummary & { total_cents: number };
 
 // A line as the backend sends it, with its total computed by the backend so
 // the editor shows the same rounding as the totals. No id: a draft's lines are
@@ -248,9 +253,16 @@ export const isInvoice = (value: unknown): value is Invoice =>
            && 'totals' in value && isTotalsUnder(value.vat_treatment, value.totals);
 };
 
-const isInvoiceSummaryList = (value: unknown): value is InvoiceSummary[] =>
+// Built on the summary, as isInvoice is.
+export const isInvoiceListItem = (value: unknown): value is InvoiceListItem =>
 {
-    return Array.isArray(value) && value.every(isInvoiceSummary);
+    return isInvoiceSummary(value)
+           && 'total_cents' in value && Number.isInteger(value.total_cents);
+};
+
+const isInvoiceListItemList = (value: unknown): value is InvoiceListItem[] =>
+{
+    return Array.isArray(value) && value.every(isInvoiceListItem);
 };
 
 // An invoice with the version its ETag named. Beside the invoice, not inside
@@ -264,15 +276,15 @@ export interface VersionedInvoice
 
 const endpointFor = (businessId: number): string => `/businesses/${businessId}/invoices`;
 
-// A business's invoices, as summaries: no lines, no totals, and no version,
-// because the list is only read. A 404 (not found) means the business isn't
-// the user's, or no longer exists.
-export const listInvoices = async (businessId: number): Promise<InvoiceSummary[]> =>
+// A business's invoices, each with its total but no lines, no VAT groups and
+// no version, because the list is only read. A 404 (not found) means the
+// business isn't the user's, or no longer exists.
+export const listInvoices = async (businessId: number): Promise<InvoiceListItem[]> =>
 {
     const endpoint = endpointFor(businessId);
     const response = await getRequest<unknown>(endpoint);
 
-    return checkResponse(endpoint, response.data, isInvoiceSummaryList);
+    return checkResponse(endpoint, response.data, isInvoiceListItemList);
 };
 
 // A 404 (not found): the invoice isn't one of the business's, or it was
