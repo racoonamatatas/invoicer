@@ -95,6 +95,23 @@ export const useRouteInvoice = (businessId: () => number | null) =>
     // by a same-id copy doesn't fetch the draft again and unmount the form.
     watch([businessId, invoiceId], loadCurrent, { immediate: true });
 
+    // A draft the backend just stored, newer than anything a load in flight
+    // can bring: that GET may have been read before the write, and storing
+    // its older version would make the user's next save a 412 on their own
+    // edit. So the write wins, and ++latest drops the GET. Only while the URL
+    // still names this draft: on another draft's page, ++latest would cancel
+    // that page's load and leave it loading for good.
+    const show = (stored: VersionedInvoice): void =>
+    {
+        if (invoiceId.value !== stored.invoice.id)
+        {
+            return;
+        }
+
+        ++latest;
+        state.value = { kind: 'found', ...stored };
+    };
+
     // For "Try again", and for "Load the latest version" after a 412.
     const reload = (): Promise<void> => loadCurrent() ?? Promise.resolve();
 
@@ -112,13 +129,7 @@ export const useRouteInvoice = (businessId: () => number | null) =>
         }
 
         const stored = await updateInvoice(business, state.value.invoice.id, payload, state.value.version);
-
-        // Kept only while the same draft is shown, so the next save sends
-        // this version. Another draft's page is left alone.
-        if (state.value.kind === 'found' && state.value.invoice.id === stored.invoice.id)
-        {
-            state.value = { kind: 'found', ...stored };
-        }
+        show(stored);
 
         return stored;
     };
