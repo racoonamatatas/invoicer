@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
-import { formatCents, formatHundredths, parseCents, parseHundredths, type Cents, type Hundredths } from '@/form/amounts';
+import { formatCents, formatCentsForInput, formatHundredths, parseCents, parseHundredths, type Cents, type Hundredths } from '@/form/amounts';
 
 // The no-break space `Intl` puts between the euro sign and the amount, so the
 // sign never wraps onto a line of its own. A plain space would not match.
@@ -143,12 +143,43 @@ describe('formatHundredths', () =>
     });
 });
 
+describe('formatCentsForInput', () =>
+{
+    it.for([
+        { cents: 125050, expected: '1250,50' },
+        { cents: 1000, expected: '10,00' },
+        { cents: 5, expected: '0,05' },
+        { cents: 0, expected: '0,00' },
+    ])('should format $cents cents as $expected, with two decimals and no sign or grouping', ({ cents, expected }) =>
+    {
+        // Act & Assert
+        expect(formatCentsForInput(cents as Cents)).toBe(expected);
+    });
+
+    it.for(['0', '10', '0,05', '1234,5', '1250,50'])('should parse back what it gives for %j', (input) =>
+    {
+        // Arrange
+        const parsed = parseCents(input);
+        if (!parsed.ok)
+        {
+            throw new Error(`${input} should parse`);
+        }
+
+        // Act
+        const reparsed = parseCents(formatCentsForInput(parsed.value));
+
+        // Assert: a stored price can go back in its input and be saved as it is
+        expect(reparsed).toStrictEqual(parsed);
+    });
+});
+
 // The brands are compile-time only, so a number cast from API data reaches
 // the formatters unchecked. Sliced as digits, -5 would become `0.-5` and
 // `Intl` would show `NaN`, so they throw instead.
 describe.each([
     ['formatCents', (value: number): string => formatCents(value as Cents)],
     ['formatHundredths', (value: number): string => formatHundredths(value as Hundredths)],
+    ['formatCentsForInput', (value: number): string => formatCentsForInput(value as Cents)],
 ])('%s', (_name, format) =>
 {
     it.each([
