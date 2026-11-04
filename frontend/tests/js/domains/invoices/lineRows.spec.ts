@@ -76,12 +76,13 @@ describe('rowsFrom', () =>
 
     it('should give new keys when the keys it is given don\'t match the lines one for one', () =>
     {
-        // Act: two keys for one stored line
-        const rows = rowsFrom(domesticDraftWithLine(11, 3, 5).lines, [42, 43]);
+        // Act: two keys for one stored line. Negative, so the counter, which
+        // only counts up from 1, can never hand one out by chance.
+        const rows = rowsFrom(domesticDraftWithLine(11, 3, 5).lines, [-1, -2]);
 
         // Assert: neither, because which line a key belongs to is unknown
-        expect(rows.map((row) => row.key)).not.toContain(42);
-        expect(rows.map((row) => row.key)).not.toContain(43);
+        expect(rows.map((row) => row.key)).not.toContain(-1);
+        expect(rows.map((row) => row.key)).not.toContain(-2);
     });
 });
 
@@ -211,25 +212,23 @@ describe('payloadWithRows', () =>
         expect(payload).toBeNull();
     });
 
-    it('should send null as the VAT option on a reverse-charge invoice, even when a row still holds one', () =>
+    // Both treatments without VAT take the same branch; each is listed, so
+    // one moved to another branch fails here.
+    it.for([
+        { treatment: 'reverse_charge', held: 'high', why: 'even when a row still holds one' },
+        { treatment: 'outside_scope', held: 'high', why: 'even when a row still holds one' },
+        { treatment: 'reverse_charge', held: null, why: 'for a row that has none' },
+        { treatment: 'outside_scope', held: null, why: 'for a row that has none' },
+    ] as const)('should send null as the VAT option on a $treatment invoice, $why', ({ treatment, held }) =>
     {
         // Act: the form clears options on a switch; this checks the payload doesn't rely on it
-        const payload = payloadWithRows({ ...fields, vat_treatment: 'reverse_charge' }, [typedRow({ vat_option: 'high' })]);
+        const payload = payloadWithRows({ ...fields, vat_treatment: treatment }, [typedRow({ vat_option: held })]);
 
         // Assert
         expect(payload).toStrictEqual({
             ...fields,
-            vat_treatment: 'reverse_charge',
+            vat_treatment: treatment,
             lines: [{ description: 'Website redesign', quantity_hundredths: 750, unit_price_cents: 8000, vat_option: null }],
         });
-    });
-
-    it('should send a reverse-charge row without a VAT option', () =>
-    {
-        // Act
-        const payload = payloadWithRows({ ...fields, vat_treatment: 'reverse_charge' }, [typedRow({ vat_option: null })]);
-
-        // Assert: only domestic rows need one
-        expect(payload?.lines).toHaveLength(1);
     });
 });

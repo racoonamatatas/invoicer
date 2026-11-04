@@ -376,6 +376,24 @@ describe('useForm', () =>
         expect(form.generalMessage.value).toBe('The lines.0.description field is required. (and 1 more error)');
     });
 
+    it('should match a pattern with two wildcards against a key with two indexes', async () =>
+    {
+        // Arrange: a list inside a list, like a line's sub-items
+        const form = useForm<'lines.*.notes.*.text'>('invoice', { 'lines.*.notes.*.text': true });
+        const send = () => Promise.reject(axiosErrorWith(422, {
+            message: 'The text is required.',
+            errors: { 'lines.1.notes.2.text': ['The text is required.'] },
+        }));
+
+        // Act
+        await form.submit(send);
+
+        // Assert: fieldError takes the key (vue-tsc checks the type), and the
+        // pattern counts it as shown
+        expect(form.fieldError('lines.1.notes.2.text')?.id).toBe('invoice-lines-1-notes-2-text-error');
+        expect(form.generalMessage.value).toBe('');
+    });
+
     // oxlint-disable-next-line vitest/expect-expect -- the assertion is the @ts-expect-error inside, checked by vue-tsc, not by vitest
     it('should fail type-check when fieldError gets a misspelt field under a wildcard', () =>
     {
