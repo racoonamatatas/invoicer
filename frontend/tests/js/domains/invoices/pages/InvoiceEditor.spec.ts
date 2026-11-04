@@ -659,6 +659,13 @@ describe('InvoiceEditor page', () =>
                 expect(wrapper.find(`#${input.attributes('aria-describedby')}`).text()).toBe('Enter at most 1000000,00.');
                 expect(saveButton(wrapper).attributes('disabled')).toBeDefined();
                 expect(wrapper.find('#invoice-lines-0-description').attributes('maxlength')).toBe('255');
+
+                // Act: the number the message names, typed as it shows it
+                await wrapper.find('#invoice-lines-0-unit_price').setValue('1000000,00');
+
+                // Assert: accepted, so the message never asks for what the input refuses
+                expect(wrapper.find('#invoice-lines-0-unit_price').attributes('aria-invalid')).toBe('false');
+                expect(saveButton(wrapper).attributes('disabled')).toBeUndefined();
             });
 
             it('should clear every line\'s VAT rate on a switch to reverse charge, so a switch back needs a new pick', async () =>
@@ -821,7 +828,7 @@ describe('InvoiceEditor page', () =>
                 expect(editForm(wrapper).text()).not.toContain('Unsaved changes');
             });
 
-            it('should say why Save is disabled while a line has no quantity, price or VAT rate', async () =>
+            it('should say why Save is disabled while a line has no description, quantity, price or VAT rate', async () =>
             {
                 // Arrange
                 const { wrapper } = await mountInvoiceEditor('/businesses/7/invoices/11/edit');
@@ -1009,6 +1016,24 @@ describe('InvoiceEditor page', () =>
                 // Assert
                 const element = wrapper.find(`#invoice-lines-0-${input}`);
                 expect(wrapper.find(`#${element.attributes('aria-describedby')}`).text()).toBe(message);
+            });
+
+            it('should hide a 422 (unprocessable content) on a quantity once the field is emptied to retype it', async () =>
+            {
+                // Arrange
+                rejectWithLineError('lines.0.quantity_hundredths', 'The lines.0.quantity_hundredths field must be between 0 and 10000000.');
+                const { wrapper } = await mountInvoiceEditor('/businesses/7/invoices/11/edit');
+                await flushPromises();
+                await editForm(wrapper).trigger('submit');
+                await flushPromises();
+                expect(wrapper.find('#invoice-lines-0-quantity').attributes('aria-invalid')).toBe('true');
+
+                // Act
+                await wrapper.find('#invoice-lines-0-quantity').setValue('');
+
+                // Assert: the error was about the old value, which is gone
+                expect(wrapper.find('#invoice-lines-0-quantity').attributes('aria-invalid')).toBe('false');
+                expect(wrapper.find('#invoice-lines-0-quantity').attributes('aria-describedby')).toBeUndefined();
             });
 
             it('should show a 422 (unprocessable content) in the form\'s status once the line it names is removed', async () =>

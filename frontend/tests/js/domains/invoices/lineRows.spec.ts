@@ -203,6 +203,24 @@ describe('payloadWithRows', () =>
         expect(payload).toBeNull();
     });
 
+    it.for(['', '   '])('should return null when a row\'s description is %j, which the backend would refuse once trimmed', (description) =>
+    {
+        // Act
+        const payload = payloadWithRows({ ...fields, vat_treatment: 'domestic' }, [typedRow({ description })]);
+
+        // Assert: the input's `required` lets spaces through, so this is the check
+        expect(payload).toBeNull();
+    });
+
+    it('should send a description as typed, leaving the trimming to the backend', () =>
+    {
+        // Act
+        const payload = payloadWithRows({ ...fields, vat_treatment: 'domestic' }, [typedRow({ description: ' Hosting ' })]);
+
+        // Assert
+        expect(payload?.lines[0]?.description).toBe(' Hosting ');
+    });
+
     it('should return null when a row on a domestic invoice has no VAT option yet', () =>
     {
         // Act
