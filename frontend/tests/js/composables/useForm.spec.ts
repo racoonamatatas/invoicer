@@ -355,6 +355,27 @@ describe('useForm', () =>
         expect(check).toHaveBeenLastCalledWith('lines.2.description');
     });
 
+    it('should set generalMessage to the message when one 422 key is on the page and another is not', async () =>
+    {
+        // Arrange: line 0 is still there, line 1 was removed after the 422
+        const form = useForm<'lines.*.description'>('invoice', { 'lines.*.description': (key) => key === 'lines.0.description' });
+        const send = () => Promise.reject(axiosErrorWith(422, {
+            message: 'The lines.0.description field is required. (and 1 more error)',
+            errors: {
+                'lines.0.description': ['The lines.0.description field is required.'],
+                'lines.1.description': ['The lines.1.description field is required.'],
+            },
+        }));
+
+        // Act
+        await form.submit(send);
+
+        // Assert: line 0's error is next to its field, and line 1's would
+        // be nowhere without the message
+        expect(form.fieldError('lines.0.description')?.message).toBe('The lines.0.description field is required.');
+        expect(form.generalMessage.value).toBe('The lines.0.description field is required. (and 1 more error)');
+    });
+
     // oxlint-disable-next-line vitest/expect-expect -- the assertion is the @ts-expect-error inside, checked by vue-tsc, not by vitest
     it('should fail type-check when fieldError gets a misspelt field under a wildcard', () =>
     {
