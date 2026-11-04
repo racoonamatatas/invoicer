@@ -21,6 +21,9 @@ export const suggestedVatTreatment = (client: Client): VatTreatment =>
     }
 
     // An EU business with a VAT number accounts for the VAT itself. Without
-    // one the client counts as a consumer, who is charged Dutch VAT.
+    // one the client counts as a consumer, who is usually charged Dutch VAT.
+    // Not always: digital and telecom services to EU consumers above
+    // €10,000 a year are charged at the consumer's country's rate (OSS),
+    // which the app doesn't support, so the user corrects it there too.
     return client.vat_number === null ? 'domestic' : 'reverse_charge';
 };
