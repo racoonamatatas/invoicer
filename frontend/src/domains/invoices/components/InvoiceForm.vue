@@ -289,6 +289,13 @@ const hasFailed = ref(false);
 
 const onSubmit = async (): Promise<void> =>
 {
+    // Before anything changes: submit() would ignore this one, and the
+    // state below belongs to the save still running.
+    if (isPending.value)
+    {
+        return;
+    }
+
     hasJustSaved.value = false;
     hasConflict.value = false;
     hasFailed.value = false;
